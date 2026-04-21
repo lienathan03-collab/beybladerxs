@@ -846,7 +846,7 @@
     </div>
     <div id="pub-error" style="display:none;padding:40px;text-align:center">
       <div style="font-size:32px;margin-bottom:12px">⚠️</div>
-      <div style="font-family:'Rajdhani',sans-serif;font-size:16px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Could not load tournaments</div>
+      <div style="font-family:Rajdhani,sans-serif;font-size:16px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Could not load tournaments</div>
       <div id="pub-error-msg" style="font-size:13px;color:var(--muted2);margin-bottom:20px"></div>
       <button class="btn" onclick="loadPublicTournaments()">🔄 Try Again</button>
     </div>
@@ -2150,7 +2150,7 @@ function renderAchievements() {
 
   // ── Render — show placeholder if nothing earned yet ──
   if (allAchs.length === 0) {
-    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--muted);font-family:'Rajdhani',sans-serif;letter-spacing:2px;font-size:13px;">NO ACHIEVEMENTS UNLOCKED YET — PLAY EVENTS TO EARN THEM</div>';
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--muted);font-family:Rajdhani,sans-serif;letter-spacing:2px;font-size:13px;">NO ACHIEVEMENTS UNLOCKED YET — PLAY EVENTS TO EARN THEM</div>';
     return;
   }
   grid.innerHTML = allAchs.map(a => {
