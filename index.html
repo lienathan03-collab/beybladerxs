@@ -588,10 +588,33 @@
     /* Hide Season Rank column on mobile — too cramped */
     th:last-child, td:last-child { display: none; }
 
-    /* Search & filter */
-    #search-input { font-size: 13px; }
-    .filter-bar { gap: 6px; flex-wrap: wrap; }
-    .filter-btn { font-size: 10px; padding: 5px 10px; }
+    /* Search & filter — stack vertically, wrap buttons into 2 rows */
+    .search-row { flex-wrap: wrap; gap: 8px; }
+    .search-input { width: 100%; flex: none; font-size: 13px; padding: 9px 12px; }
+    .filter-btn {
+      font-size: 11px; padding: 7px 0;
+      flex: 1 1 calc(20% - 8px); min-width: 0;
+      text-align: center; white-space: nowrap; overflow: hidden;
+    }
+
+    /* Prevent any horizontal overflow on the whole page */
+    html, body { overflow-x: hidden; max-width: 100vw; }
+    .section { overflow-x: hidden; }
+
+    /* Table — prevent horizontal scroll */
+    .lb-table { table-layout: fixed; width: 100%; }
+    .lb-table td, .lb-table th { padding: 9px 6px; }
+    /* Col widths: rank | name | points | season rank */
+    .lb-table th:nth-child(1), .lb-table td:nth-child(1) { width: 36px; }
+    .lb-table th:nth-child(2), .lb-table td:nth-child(2) { width: auto; overflow: hidden; }
+    /* Hide Team column on mobile — tag badge on name is enough */
+    .lb-table th:nth-child(3), .lb-table td:nth-child(3) { display: none; }
+    .lb-table th:nth-child(4), .lb-table td:nth-child(4) { width: 48px; text-align: right; }
+    .lb-table th:nth-child(5), .lb-table td:nth-child(5) { width: 84px; text-align: right; }
+    .blader-name { font-size: 12px; }
+    .tag { font-size: 9px; padding: 1px 5px; margin-left: 4px; }
+    .score { font-size: 13px; }
+    .rank-badge { font-size: 9px; padding: 2px 6px; }
 
     /* Achievements grid */
     .ach-grid { grid-template-columns: 1fr; }
