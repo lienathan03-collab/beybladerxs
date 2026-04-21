@@ -2055,15 +2055,14 @@ function updateHeroStats() {
     const ep=document.getElementById(pts[i]);
     const card=document.getElementById(cards[i]);
     const p=players[i];
-    const hasPoints = p && p.total > 0;
-    if(el) el.textContent = hasPoints ? p.name : '—';
-    if(ep) ep.textContent = hasPoints ? p.total : '—';
-    if(card) card.style.display = hasPoints ? '' : 'none';
+    // Always show the card — just blank out name/pts if no data or 0 points
+    if(card) card.style.display = '';
+    if(el) el.textContent = (p && p.total > 0) ? p.name : '—';
+    if(ep) ep.textContent = (p && p.total > 0) ? p.total : '—';
   });
-  // Show/hide entire podium section if no one has points
+  // Always show the podium section
   const podiumEl = document.querySelector('.podium');
-  const anyPoints = players.some(p => p && p.total > 0);
-  if(podiumEl) podiumEl.style.display = anyPoints ? '' : 'none';
+  if(podiumEl) podiumEl.style.display = '';
   // Auto-refresh podium photos from player profile photos
   applyPodiumPhotos();
 }
