@@ -1983,69 +1983,43 @@ function renderAchievements() {
     achs.push({ icon:'⚡', name:'Most Events', desc:'Participated in most events', holder: byEvents[0].name + ' — ' + count + ' events' });
   }
 
-  // ── Highest single-event score ──
-  let topSingle = null, topSingleScore = 0;
-  players.forEach(p => {
-    const best = Math.max(...p.scores);
-    if (best > topSingleScore) { topSingleScore = best; topSingle = p; }
-  });
-  if (topSingle) achs.push({ icon:'💥', name:'Best Single Event', desc:'Highest score in one event', holder: topSingle.name + ' — ' + topSingleScore + ' pts' });
-
-  // ── Perfect / max score (8 pts = 1st place) in any event ──
-  const perfPlayers = players.filter(p => p.scores.some(s => s >= 8)).map(p=>p.name);
-  if (perfPlayers.length)
-    achs.push({ icon:'🎯', name:'Event Champion', desc:'Finished 1st in at least one event', holder: perfPlayers.join(', ') });
-
-  // ── Most consistent (lowest std deviation among players with 5+ events) ──
-  const active = players.filter(p => p.scores.filter(s=>s>0).length >= 5);
-  if (active.length) {
-    const consistency = active.map(p => {
-      const sc = p.scores.filter(s=>s>0);
-      const avg = sc.reduce((a,b)=>a+b,0)/sc.length;
-      const variance = sc.reduce((a,b)=>a+(b-avg)**2,0)/sc.length;
-      return { p, std: Math.sqrt(variance) };
-    }).sort((a,b)=>a.std-b.std);
-    achs.push({ icon:'🎱', name:'Most Consistent', desc:'Lowest score variance (5+ events)', holder: consistency[0].p.name + ' — avg ' + (consistency[0].p.scores.filter(s=>s>0).reduce((a,b)=>a+b,0)/consistency[0].p.scores.filter(s=>s>0).length).toFixed(1) + ' pts' });
-  }
-
-  // ── Top team members ──
+  // ── Top highest scoring points per team member ──
   const teams = ['VG','ZPC','HYDRA','HSTLR'];
-  const icons = { VG:'🔥', ZPC:'💎', HYDRA:'🐉', HSTLR:'🎧' };
+  const teamIcons = { VG:'🔥', ZPC:'💎', HYDRA:'🐉', HSTLR:'🎧' };
   teams.forEach(team => {
     const members = players.filter(p => getTeam(p.name) === team);
     if (members.length) {
       const top = members[0]; // already sorted by total
-      achs.push({ icon: icons[team], name:'Top ' + team, desc:'Highest scoring ' + team + ' member', holder: top.name + ' — ' + top.total + ' pts' });
+      achs.push({ icon: teamIcons[team], name:'Top ' + team, desc:'Highest scoring ' + team + ' member', holder: top.name + ' — ' + top.total + ' pts' });
     }
   });
 
-  // ── Most improved: biggest score in latest event vs average ──
-  if (eventLabels.length > 0) {
-    const lastIdx = eventLabels.length - 1;
-    const lastEventName = eventLabels[lastIdx];
-    const lastWinner = [...players].filter(p=>p.scores[lastIdx]>0).sort((a,b)=>b.scores[lastIdx]-a.scores[lastIdx])[0];
-    if (lastWinner)
-      achs.push({ icon:'⭐', name:'Latest Event Winner', desc:'Won ' + lastEventName, holder: lastWinner.name + ' — ' + lastWinner.scores[lastIdx] + ' pts' });
-  }
+  // ── Burst Finisher — most burst finishes ──
+  let topBurst = null, topBurstVal = 0;
+  players.forEach(p => {
+    const val = Number(getBladerStats(p.name).burstFinishes || 0);
+    if (val > topBurstVal) { topBurstVal = val; topBurst = p; }
+  });
+  if (topBurst && topBurstVal > 0)
+    achs.push({ icon:'💥', name:'Burst Finisher', desc:'Most burst finishes', holder: topBurst.name + ' — ' + topBurstVal + ' burst finishes' });
 
-  // ── First event winner ──
-  if (eventLabels.length > 0) {
-    const firstWinner = [...players].filter(p=>p.scores[0]>0).sort((a,b)=>b.scores[0]-a.scores[0])[0];
-    if (firstWinner)
-      achs.push({ icon:'🚀', name:'First Champion', desc:'Won ' + (eventLabels[0]||'Event 1'), holder: firstWinner.name + ' — ' + firstWinner.scores[0] + ' pts' });
-  }
+  // ── Spin Finisher — most spin finishes ──
+  let topSpin = null, topSpinVal = 0;
+  players.forEach(p => {
+    const val = Number(getBladerStats(p.name).spinFinishes || 0);
+    if (val > topSpinVal) { topSpinVal = val; topSpin = p; }
+  });
+  if (topSpin && topSpinVal > 0)
+    achs.push({ icon:'🌀', name:'Spin Finisher', desc:'Most spin finishes', holder: topSpin.name + ' — ' + topSpinVal + ' spin finishes' });
 
-  // ── Biggest comeback: low early average, high recent average ──
-  if (eventLabels.length >= 6) {
-    const mid = Math.floor(eventLabels.length / 2);
-    const comebacks = players.filter(p=>p.scores.filter(s=>s>0).length>=4).map(p=>{
-      const early = p.scores.slice(0,mid).reduce((a,b)=>a+b,0);
-      const late  = p.scores.slice(mid).reduce((a,b)=>a+b,0);
-      return { p, diff: late - early };
-    }).sort((a,b)=>b.diff-a.diff);
-    if (comebacks[0] && comebacks[0].diff > 0)
-      achs.push({ icon:'📈', name:'Biggest Climber', desc:'Most improved in second half of season', holder: comebacks[0].p.name });
-  }
+  // ── Extreme Finisher — most extreme finishes ──
+  let topXtreme = null, topXtremeVal = 0;
+  players.forEach(p => {
+    const val = Number(getBladerStats(p.name).extremeFinishes || 0);
+    if (val > topXtremeVal) { topXtremeVal = val; topXtreme = p; }
+  });
+  if (topXtreme && topXtremeVal > 0)
+    achs.push({ icon:'⚡', name:'Extreme Finisher', desc:'Most extreme finishes', holder: topXtreme.name + ' — ' + topXtremeVal + ' extreme finishes' });
 
   // ── Apply auto overrides (hidden/edited auto achievements) ──
   // autoAchOverrides: { [autoName]: { hidden: true } | { ...edited fields } }
