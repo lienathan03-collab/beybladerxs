@@ -2046,15 +2046,24 @@ function updateHeroStats() {
   document.getElementById('stat-events').textContent=eventLabels.length;
   document.getElementById('stat-ranks').textContent = players.length ? Math.max(...players.map(p => p.rank || 0)) : 0;
   document.getElementById('topScore').textContent=players[0]?.total||0;
-  // Podium names + pts — connected to sorted players array
+  // Podium names + pts — only show if player has points > 0
   const names=['p1-name','p2-name','p3-name'];
   const pts=['p1-pts','p2-pts','p3-pts'];
+  const cards=['card-1st','card-2nd','card-3rd'];
   [0,1,2].forEach(i=>{
     const el=document.getElementById(names[i]);
     const ep=document.getElementById(pts[i]);
-    if(el) el.textContent = players[i]?.name || '—';
-    if(ep) ep.textContent = players[i]?.total || 0;
+    const card=document.getElementById(cards[i]);
+    const p=players[i];
+    const hasPoints = p && p.total > 0;
+    if(el) el.textContent = hasPoints ? p.name : '—';
+    if(ep) ep.textContent = hasPoints ? p.total : '—';
+    if(card) card.style.display = hasPoints ? '' : 'none';
   });
+  // Show/hide entire podium section if no one has points
+  const podiumEl = document.querySelector('.podium');
+  const anyPoints = players.some(p => p && p.total > 0);
+  if(podiumEl) podiumEl.style.display = anyPoints ? '' : 'none';
   // Auto-refresh podium photos from player profile photos
   applyPodiumPhotos();
 }
@@ -2070,12 +2079,12 @@ function renderAchievements() {
 
   const achs = [];
 
-  // ── Podium ──
-  if (players[0]) achs.push({ icon:'👑', name:'Season King',   desc:'Highest total points this season',    holder: players[0].name + ' — ' + players[0].total + ' pts' });
-  if (players[1]) achs.push({ icon:'🥈', name:'Runner Up',     desc:'Second highest total points',          holder: players[1].name + ' — ' + players[1].total + ' pts' });
-  if (players[2]) achs.push({ icon:'🥉', name:'Third Place',   desc:'Third highest total points',           holder: players[2].name + ' — ' + players[2].total + ' pts' });
+  // ── Podium — only if player has points ──
+  if (players[0] && players[0].total > 0) achs.push({ icon:'👑', name:'Season King',   desc:'Highest total points this season',    holder: players[0].name + ' — ' + players[0].total + ' pts' });
+  if (players[1] && players[1].total > 0) achs.push({ icon:'🥈', name:'Runner Up',     desc:'Second highest total points',          holder: players[1].name + ' — ' + players[1].total + ' pts' });
+  if (players[2] && players[2].total > 0) achs.push({ icon:'🥉', name:'Third Place',   desc:'Third highest total points',           holder: players[2].name + ' — ' + players[2].total + ' pts' });
 
-  // ── Most Events Attended (most non-zero scores) ──
+  // ── Most Events Attended — only if winner has attended at least 1 event ──
   const byEvents = [...players].sort((a,b) => {
     const ea = a.scores.filter(s=>s>0).length;
     const eb = b.scores.filter(s=>s>0).length;
@@ -2083,17 +2092,17 @@ function renderAchievements() {
   });
   if (byEvents[0]) {
     const count = byEvents[0].scores.filter(s=>s>0).length;
-    achs.push({ icon:'⚡', name:'Most Events', desc:'Participated in most events', holder: byEvents[0].name + ' — ' + count + ' events' });
+    if (count > 0) achs.push({ icon:'⚡', name:'Most Events', desc:'Participated in most events', holder: byEvents[0].name + ' — ' + count + ' events' });
   }
 
-  // ── Top highest scoring points per team member ──
+  // ── Top highest scoring points per team — only if top member has points ──
   const teams = ['VG','ZPC','HYDRA','HSTLR'];
   const teamIcons = { VG:'🔥', ZPC:'💎', HYDRA:'🐉', HSTLR:'🎧' };
   teams.forEach(team => {
     const members = players.filter(p => getTeam(p.name) === team);
     if (members.length) {
       const top = members[0]; // already sorted by total
-      achs.push({ icon: teamIcons[team], name:'Top ' + team, desc:'Highest scoring ' + team + ' member', holder: top.name + ' — ' + top.total + ' pts' });
+      if (top.total > 0) achs.push({ icon: teamIcons[team], name:'Top ' + team, desc:'Highest scoring ' + team + ' member', holder: top.name + ' — ' + top.total + ' pts' });
     }
   });
 
@@ -2139,7 +2148,11 @@ function renderAchievements() {
     ...visibleAutoAchs
   ];
 
-  // ── Render ──
+  // ── Render — show placeholder if nothing earned yet ──
+  if (allAchs.length === 0) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--muted);font-family:'Rajdhani',sans-serif;letter-spacing:2px;font-size:13px;">NO ACHIEVEMENTS UNLOCKED YET — PLAY EVENTS TO EARN THEM</div>';
+    return;
+  }
   grid.innerHTML = allAchs.map(a => {
     // Auto-find player photo: check if holder starts with a known player name
     let autoPhoto = a.photo || '';
