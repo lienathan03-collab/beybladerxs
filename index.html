@@ -764,7 +764,7 @@
       <div class="podium-place">🥈</div>
       <button class="podium-edit-btn" onclick="adminEditPhoto(2)">📷 Edit</button>
       <div class="podium-stats">
-        <div class="podium-name" id="p2-name" style="cursor:pointer" onclick="openBladerProfileByIndex(1)">—</div>
+        <div class="podium-name" id="p2-name" style="cursor:pointer" onclick="if(this.textContent!=='—')openBladerProfile(this.textContent)">—</div>
         <div class="podium-pts" id="p2-pts">0</div>
         <div class="podium-label">2nd Place</div>
       </div>
@@ -777,7 +777,7 @@
       <div class="podium-place">👑</div>
       <button class="podium-edit-btn" onclick="adminEditPhoto(1)">📷 Edit</button>
       <div class="podium-stats">
-        <div class="podium-name" id="p1-name" style="cursor:pointer" onclick="openBladerProfileByIndex(0)">—</div>
+        <div class="podium-name" id="p1-name" style="cursor:pointer" onclick="if(this.textContent!=='—')openBladerProfile(this.textContent)">—</div>
         <div class="podium-pts" id="p1-pts">0</div>
         <div class="season-king-badge" style="margin-top:4px">👑 Season King</div>
       </div>
@@ -790,7 +790,7 @@
       <div class="podium-place">🥉</div>
       <button class="podium-edit-btn" onclick="adminEditPhoto(3)">📷 Edit</button>
       <div class="podium-stats">
-        <div class="podium-name" id="p3-name" style="cursor:pointer" onclick="openBladerProfileByIndex(2)">—</div>
+        <div class="podium-name" id="p3-name" style="cursor:pointer" onclick="if(this.textContent!=='—')openBladerProfile(this.textContent)">—</div>
         <div class="podium-pts" id="p3-pts">0</div>
         <div class="podium-label">3rd Place</div>
       </div>
