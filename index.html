@@ -532,20 +532,21 @@
     display: none;
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
     background: var(--surface); border-top: 1px solid var(--border);
-    padding: 0; height: 60px;
+    padding: 0; height: 56px;
   }
   .mobile-nav-inner {
     display: flex; align-items: stretch; height: 100%;
   }
   .mobile-nav-btn {
     flex: 1; display: flex; flex-direction: column; align-items: center;
-    justify-content: center; gap: 3px;
+    justify-content: center; gap: 2px;
     background: transparent; border: none; color: var(--muted);
-    font-family: 'Rajdhani', sans-serif; font-size: 9px; font-weight: 700;
-    letter-spacing: 1px; text-transform: uppercase; cursor: pointer;
-    padding: 6px 2px; transition: all .15s; border-top: 2px solid transparent;
+    font-family: 'Rajdhani', sans-serif; font-size: 8px; font-weight: 700;
+    letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer;
+    padding: 4px 1px; transition: all .15s; border-top: 2px solid transparent;
+    min-width: 0; overflow: hidden;
   }
-  .mobile-nav-btn .mn-icon { font-size: 18px; line-height: 1; }
+  .mobile-nav-btn .mn-icon { font-size: 16px; line-height: 1; }
   .mobile-nav-btn:hover, .mobile-nav-btn.active {
     color: var(--accent); border-top-color: var(--gold);
     background: var(--surface2);
@@ -557,7 +558,7 @@
     .mobile-nav { display: flex; }
 
     /* Push content above bottom nav */
-    body { padding-bottom: 60px; }
+    body { padding-bottom: 56px; }
 
     /* Header */
     header { padding: 0 14px; height: 52px; }
@@ -635,7 +636,7 @@
     .profile-modal { border-radius: 20px 20px 0 0; max-height: 92vh; }
 
     /* Toast */
-    .toast { bottom: 70px; right: 14px; left: 14px; max-width: 100%; text-align: center; }
+    .toast { bottom: 66px; right: 14px; left: 14px; max-width: 100%; text-align: center; }
 
     /* Weekly tab */
     .weekly-table th:nth-child(3), .weekly-table td:nth-child(3) { display: none; }
@@ -2927,13 +2928,28 @@ function renderCarousel() {
         ${p.date ? `<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.5);margin-bottom:4px">${p.date}</div>` : ''}
         ${p.caption ? `<div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:#fff;letter-spacing:1px">${p.caption}</div>` : ''}
       </div>` : '';
-    const linkWrap = p.fbUrl ? `href="${p.fbUrl}" target="_blank" rel="noopener"` : '';
+    const fbBtn = p.fbUrl ? `
+      <a href="${p.fbUrl}" target="_blank" rel="noopener"
+        style="position:absolute;top:10px;right:10px;z-index:6;
+          background:#1877f2;border-radius:8px;width:32px;height:32px;
+          display:flex;align-items:center;justify-content:center;
+          box-shadow:0 2px 8px rgba(0,0,0,0.5);text-decoration:none;
+          transition:opacity .15s;" title="View on Facebook"
+        onclick="event.stopPropagation()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff" xmlns="http://www.w3.org/2000/svg">
+          <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.514c-1.491 0-1.956.93-1.956 1.886v2.267h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
+        </svg>
+      </a>` : '';
     const imgEl = p.img
-      ? `<img src="${p.img}" alt="${p.caption||''}" style="width:100%;height:auto;display:block;max-height:600px;object-fit:contain;" onerror="this.style.display='none'" />`
+      ? `<img src="${p.img}" alt="${p.caption||''}"
+            style="width:100%;height:auto;display:block;max-height:600px;object-fit:contain;cursor:zoom-in;"
+            onclick="openLightbox('${p.img.replace(/'/g,"\\'")}')"
+            onerror="this.style.display='none'" />`
       : noImg;
-    return `<div style="min-width:100%;position:relative;flex-shrink:0;cursor:${p.fbUrl?'pointer':'default'};background:#000;">
+    return `<div style="min-width:100%;position:relative;flex-shrink:0;background:#000;">
       ${editBtn}
-      <a ${linkWrap} style="display:block;width:100%;text-decoration:none;">${imgEl}</a>
+      ${fbBtn}
+      <div style="display:block;width:100%;">${imgEl}</div>
       ${overlay}
     </div>`;
   }).join('');
@@ -2943,7 +2959,13 @@ function renderCarousel() {
       transform:${i===carouselIdx?'scale(1.3)':'scale(1)'}"></div>`
   ).join('');
   counter.textContent = `${carouselIdx+1} / ${homePosts.length}`;
-  track.style.transform = `translateX(-${carouselIdx * 100}%)`;
+  track.style.transform = `translateX(-${carouselIdx * slider.offsetWidth}px)`;
+
+  // Each slide must be exactly the slider's width
+  track.querySelectorAll(':scope > div').forEach(slide => {
+    slide.style.minWidth = slider.offsetWidth + 'px';
+    slide.style.width    = slider.offsetWidth + 'px';
+  });
   document.getElementById('carousel-prev').style.opacity = homePosts.length > 1 ? '1' : '0';
   document.getElementById('carousel-next').style.opacity = homePosts.length > 1 ? '1' : '0';
   if (isAdmin) document.querySelectorAll('.carousel-edit-btn').forEach(b => b.style.display = 'block');
@@ -2952,6 +2974,9 @@ function renderCarousel() {
 
 function goToSlide(idx) { carouselIdx = (idx + homePosts.length) % homePosts.length; renderCarousel(); }
 function carouselMove(dir) { goToSlide(carouselIdx + dir); resetCarouselTimer(); }
+
+// Re-render carousel on resize/orientation change so widths stay correct
+window.addEventListener('resize', () => { if (homePosts.length) renderCarousel(); });
 function startCarouselTimer() { stopCarouselTimer(); if (homePosts.length > 1) carouselTimer = setInterval(() => carouselMove(1), CAROUSEL_INTERVAL); }
 function stopCarouselTimer() { if (carouselTimer) { clearInterval(carouselTimer); carouselTimer = null; } }
 function resetCarouselTimer() { stopCarouselTimer(); startCarouselTimer(); }
@@ -3605,5 +3630,32 @@ function executeBulkAdd() {
   </div>
 </div>
 
+<!-- ══════════════ LIGHTBOX ══════════════ -->
+<div id="lightbox-overlay" onclick="closeLightbox()"
+  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:9999;
+    align-items:center;justify-content:center;cursor:zoom-out;padding:16px;">
+  <button onclick="event.stopPropagation();closeLightbox()" style="position:absolute;top:16px;right:16px;
+    background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);
+    border-radius:50%;width:36px;height:36px;color:#fff;font-size:18px;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;">✕</button>
+  <img id="lightbox-img" src="" alt=""
+    onclick="event.stopPropagation()"
+    style="max-width:100%;max-height:90vh;object-fit:contain;border-radius:8px;
+    box-shadow:0 8px 40px rgba(0,0,0,0.8);display:block;" />
+</div>
+
+<script>
+function openLightbox(src) {
+  const overlay = document.getElementById('lightbox-overlay');
+  document.getElementById('lightbox-img').src = src;
+  overlay.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox() {
+  document.getElementById('lightbox-overlay').style.display = 'none';
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+</script>
 
 </html>
