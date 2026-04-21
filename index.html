@@ -704,8 +704,8 @@
     </a>
   </div>
   <nav>
-    <button onclick="showTab('home', this)">Home</button>
-    <button class="active" onclick="showTab('leaderboard', this)">Leaderboard</button>
+    <button class="active" onclick="showTab('home', this)">Home</button>
+    <button onclick="showTab('leaderboard', this)">Leaderboard</button>
     <button onclick="showTab('weekly', this)">Weekly</button>
     <button onclick="showTab('achievements', this)">Achievements</button>
     <button onclick="showTab('challonge', this)">⚡ Challonge</button>
@@ -718,10 +718,10 @@
 <!-- ══════════════ MOBILE BOTTOM NAV ══════════════ -->
 <nav class="mobile-nav" id="mobile-nav">
   <div class="mobile-nav-inner">
-    <button class="mobile-nav-btn" onclick="showTab('home', this)" data-tab="home">
+    <button class="mobile-nav-btn active" onclick="showTab('home', this)" data-tab="home">
       <span class="mn-icon">🏠</span>Home
     </button>
-    <button class="mobile-nav-btn active" onclick="showTab('leaderboard', this)" data-tab="leaderboard">
+    <button class="mobile-nav-btn" onclick="showTab('leaderboard', this)" data-tab="leaderboard">
       <span class="mn-icon">🏆</span>Ranks
     </button>
     <button class="mobile-nav-btn" onclick="showTab('weekly', this)" data-tab="weekly">
@@ -759,7 +759,7 @@
 
 <!-- ══════════════ LEADERBOARD TAB ══════════════ -->
 <!-- ══════════════ HOME TAB ══════════════ -->
-<div id="tab-home" class="section">
+<div id="tab-home" class="section active">
 
   <!-- CAROUSEL -->
   <div class="section-header">
@@ -812,7 +812,7 @@
 
 </div>
 
-<div id="tab-leaderboard" class="section active">
+<div id="tab-leaderboard" class="section">
   <div class="podium">
 
     <!-- 2nd Place -->
@@ -1967,6 +1967,8 @@ function showTab(tab, btn) {
   // Sync mobile nav active state
   const mobileBtn = document.querySelector('.mobile-nav-btn[data-tab="'+tab+'"]');
   if (mobileBtn) mobileBtn.classList.add('active');
+  // Save current tab to URL hash so refresh restores it
+  history.replaceState(null, '', '#' + tab);
   // Stop carousel when leaving home tab
   if (tab !== 'home') {
     stopCarouselTimer();
@@ -3025,6 +3027,28 @@ loadSavedPhotos();
 applyHeroBgToPage();
 renderCarousel();
 renderHomeSnapshot();
+
+// Restore tab from URL hash on load (so refresh stays on same tab)
+(function restoreTabFromHash() {
+  const validTabs = ['home','leaderboard','weekly','achievements','challonge','points'];
+  const hash = window.location.hash.replace('#','');
+  const tab = validTabs.includes(hash) ? hash : 'home';
+  const btn = document.querySelector('nav button[onclick*="showTab(\''+tab+'"]') ||
+              document.querySelector('.mobile-nav-btn[data-tab="'+tab+'"]');
+  if (btn) {
+    // Manually activate without triggering challonge load yet
+    document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+    document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.mobile-nav-btn').forEach(b=>b.classList.remove('active'));
+    document.getElementById('tab-'+tab).classList.add('active');
+    const desktopBtn = document.querySelector('nav button[onclick*="showTab(\''+tab+'"]');
+    const mobileBtn  = document.querySelector('.mobile-nav-btn[data-tab="'+tab+'"]');
+    if (desktopBtn) desktopBtn.classList.add('active');
+    if (mobileBtn)  mobileBtn.classList.add('active');
+    if (tab === 'home') { renderHomeSnapshot(); startCarouselTimer(); }
+    if (tab === 'challonge') { loadPublicTournaments(); }
+  }
+})();
 
 // ═══════════════════════════════════════════════════════
 //  WEEKLY EDIT MODE
