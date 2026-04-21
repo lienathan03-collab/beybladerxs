@@ -324,6 +324,7 @@
   .rb-2 { background: #141414; color: var(--silver); border: 1px solid #666; }
   .rb-3 { background: #1a0e08; color: var(--bronze); border: 1px solid var(--bronze); }
   .rb-n { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+  .rb-unranked { background: var(--surface2); color: var(--muted2); border: 1px solid var(--border); font-style: italic; }
   .page-info { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--muted); text-align: right; margin-top: 12px; }
 
   /* ACHIEVEMENTS */
@@ -1796,7 +1797,8 @@ function getTagHtml(name) {
   const border = `rgba(${r},${g},${b},0.35)`;
   return `<span class="tag" style="color:${color};background:${bg};border:0.5px solid ${border}">${label}</span>`;
 }
-function getRankBadge(rank) {
+function getRankBadge(rank, total) {
+  if(!total || total === 0) return `<span class="rank-badge rb-unranked">Unranked</span>`;
   if(rank===1) return `<span class="rank-badge rb-1">Season King</span>`;
   if(rank===2) return `<span class="rank-badge rb-2">2nd</span>`;
   if(rank===3) return `<span class="rank-badge rb-3">3rd</span>`;
@@ -1821,7 +1823,7 @@ function renderLeaderboard() {
     const isTop3=i<3&&currentFilter==='all'&&currentSearch==='';
     const origIdx=players.indexOf(p);
     const safeName=encodeURIComponent(p.name);
-    return `<tr><td>${getRankDisplay(p.rank,origIdx)}</td><td><span class="blader-name${isTop3?' top3':''}" style="cursor:pointer" data-blader="${safeName}" onclick="openBladerProfile(decodeURIComponent(this.dataset.blader))">${p.name}</span>${getTagHtml(p.name)}</td><td>${getTeam(p.name)||'<span style="color:var(--muted2)">—</span>'}</td><td><span class="score${origIdx===0?' champ':''}" style="display:block;text-align:right">${p.total}</span></td><td style="text-align:right">${getRankBadge(p.rank)}</td></tr>`;
+    return `<tr><td>${getRankDisplay(p.rank,origIdx)}</td><td><span class="blader-name${isTop3?' top3':''}" style="cursor:pointer" data-blader="${safeName}" onclick="openBladerProfile(decodeURIComponent(this.dataset.blader))">${p.name}</span>${getTagHtml(p.name)}</td><td>${getTeam(p.name)||'<span style="color:var(--muted2)">—</span>'}</td><td><span class="score${origIdx===0?' champ':''}" style="display:block;text-align:right">${p.total}</span></td><td style="text-align:right">${getRankBadge(p.rank, p.total)}</td></tr>`;
     }).join('');
   document.getElementById('page-info').textContent=`Showing ${filtered.length} of ${players.length} bladers`;
 }
