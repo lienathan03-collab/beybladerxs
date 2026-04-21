@@ -2873,9 +2873,148 @@ function updateTeamFilterButtons() {
 }
 
 // ═══════════════════════════════════════════════════════
+//  HOMEPAGE POSTS / CAROUSEL
+// ═══════════════════════════════════════════════════════
+let homePosts = [];
+let carouselIdx = 0;
+let carouselTimer = null;
+const CAROUSEL_INTERVAL = 5000;
+
+function renderHomeSnapshot() {
+  const el = document.getElementById('home-snapshot');
+  if (!el) return;
+  const top = players[0];
+  const snap = [
+    { icon:'👑', label:'Season King',   value: top && top.total > 0 ? top.name : '—' },
+    { icon:'🏆', label:'Total Bladers', value: players.length },
+    { icon:'📅', label:'Events Held',   value: eventLabels.filter((_,i) => players.some(p => p.scores[i] > 0)).length },
+    { icon:'⚡', label:'Top Score',     value: (top && top.total > 0) ? top.total + ' pts' : '—' },
+  ];
+  el.innerHTML = snap.map(s => `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
+      <span style="font-size:26px">${s.icon}</span>
+      <div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:18px;color:var(--accent);font-weight:700">${s.value}</div>
+        <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-top:2px">${s.label}</div>
+      </div>
+    </div>`).join('');
+}
+
+function renderCarousel() {
+  const empty  = document.getElementById('carousel-empty');
+  const slider = document.getElementById('carousel-slider');
+  const track  = document.getElementById('carousel-track');
+  const dots   = document.getElementById('carousel-dots');
+  const counter= document.getElementById('carousel-counter');
+  if (!track) return;
+  if (!homePosts.length) {
+    empty.style.display  = 'block';
+    slider.style.display = 'none';
+    stopCarouselTimer();
+    return;
+  }
+  empty.style.display  = 'none';
+  slider.style.display = 'block';
+  track.innerHTML = homePosts.map((p, i) => {
+    const editBtn = `<button onclick="openEditPostModal(${i})" style="position:absolute;top:10px;left:10px;z-index:5;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:4px 10px;font-size:11px;color:#fff;cursor:pointer;display:none" class="carousel-edit-btn admin-only-btn">✏️ Edit</button>`;
+    const noImg = `<div style="width:100%;height:260px;display:flex;align-items:center;justify-content:center;font-size:48px;background:var(--surface2)">📢</div>`;
+    const overlay = (p.caption || p.date) ? `
+      <div style="position:absolute;bottom:0;left:0;right:0;
+        background:linear-gradient(to top,rgba(0,0,0,0.85) 0%,rgba(0,0,0,0) 100%);
+        padding:32px 20px 44px;pointer-events:none;">
+        ${p.date ? `<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.5);margin-bottom:4px">${p.date}</div>` : ''}
+        ${p.caption ? `<div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:#fff;letter-spacing:1px">${p.caption}</div>` : ''}
+      </div>` : '';
+    const linkWrap = p.fbUrl ? `href="${p.fbUrl}" target="_blank" rel="noopener"` : '';
+    const imgEl = p.img
+      ? `<img src="${p.img}" alt="${p.caption||''}" style="width:100%;height:auto;display:block;max-height:600px;object-fit:contain;" onerror="this.style.display='none'" />`
+      : noImg;
+    return `<div style="min-width:100%;position:relative;flex-shrink:0;cursor:${p.fbUrl?'pointer':'default'};background:#000;">
+      ${editBtn}
+      <a ${linkWrap} style="display:block;width:100%;text-decoration:none;">${imgEl}</a>
+      ${overlay}
+    </div>`;
+  }).join('');
+  dots.innerHTML = homePosts.map((_,i) =>
+    `<div onclick="goToSlide(${i})" style="width:8px;height:8px;border-radius:50%;cursor:pointer;transition:all .2s;
+      background:${i===carouselIdx?'var(--gold)':'rgba(255,255,255,0.35)'};
+      transform:${i===carouselIdx?'scale(1.3)':'scale(1)'}"></div>`
+  ).join('');
+  counter.textContent = `${carouselIdx+1} / ${homePosts.length}`;
+  track.style.transform = `translateX(-${carouselIdx * 100}%)`;
+  document.getElementById('carousel-prev').style.opacity = homePosts.length > 1 ? '1' : '0';
+  document.getElementById('carousel-next').style.opacity = homePosts.length > 1 ? '1' : '0';
+  if (isAdmin) document.querySelectorAll('.carousel-edit-btn').forEach(b => b.style.display = 'block');
+  startCarouselTimer();
+}
+
+function goToSlide(idx) { carouselIdx = (idx + homePosts.length) % homePosts.length; renderCarousel(); }
+function carouselMove(dir) { goToSlide(carouselIdx + dir); resetCarouselTimer(); }
+function startCarouselTimer() { stopCarouselTimer(); if (homePosts.length > 1) carouselTimer = setInterval(() => carouselMove(1), CAROUSEL_INTERVAL); }
+function stopCarouselTimer() { if (carouselTimer) { clearInterval(carouselTimer); carouselTimer = null; } }
+function resetCarouselTimer() { stopCarouselTimer(); startCarouselTimer(); }
+
+function openAddPostModal() {
+  if (!isAdmin) return;
+  document.getElementById('post-modal-title').textContent = '➕ Add Post';
+  document.getElementById('post-modal-idx').value = '';
+  document.getElementById('post-img-url').value = '';
+  document.getElementById('post-caption').value = '';
+  document.getElementById('post-fb-url').value = '';
+  document.getElementById('post-date').value = '';
+  document.getElementById('post-modal-error').textContent = '';
+  document.getElementById('post-delete-btn').style.display = 'none';
+  previewPostImage('');
+  document.getElementById('add-post-modal').classList.add('open');
+  setTimeout(() => document.getElementById('post-img-url').focus(), 150);
+}
+function openEditPostModal(idx) {
+  if (!isAdmin) return;
+  const p = homePosts[idx]; if (!p) return;
+  document.getElementById('post-modal-title').textContent = '✏️ Edit Post';
+  document.getElementById('post-modal-idx').value = idx;
+  document.getElementById('post-img-url').value = p.img || '';
+  document.getElementById('post-caption').value = p.caption || '';
+  document.getElementById('post-fb-url').value = p.fbUrl || '';
+  document.getElementById('post-date').value = p.date || '';
+  document.getElementById('post-modal-error').textContent = '';
+  document.getElementById('post-delete-btn').style.display = 'block';
+  previewPostImage(p.img || '');
+  document.getElementById('add-post-modal').classList.add('open');
+}
+function closeAddPostModal() { document.getElementById('add-post-modal').classList.remove('open'); }
+function previewPostImage(url) {
+  const el = document.getElementById('post-img-preview');
+  if (url && url.startsWith('http')) {
+    el.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='🖼'" />`;
+  } else { el.innerHTML = '🖼'; }
+}
+function savePost() {
+  const img = document.getElementById('post-img-url').value.trim();
+  const caption = document.getElementById('post-caption').value.trim();
+  const fbUrl = document.getElementById('post-fb-url').value.trim();
+  const date = document.getElementById('post-date').value.trim();
+  const errEl = document.getElementById('post-modal-error');
+  if (!img && !caption) { errEl.textContent = 'Add at least an image or caption.'; return; }
+  const post = { img, caption, fbUrl, date };
+  const idxRaw = document.getElementById('post-modal-idx').value;
+  if (idxRaw === '') { homePosts.unshift(post); } else { homePosts[parseInt(idxRaw)] = post; }
+  carouselIdx = 0;
+  cloudSave(); renderCarousel(); closeAddPostModal();
+  showToast(idxRaw === '' ? 'Post added!' : 'Post updated!', 'success');
+}
+function deletePost() {
+  const idx = parseInt(document.getElementById('post-modal-idx').value);
+  if (isNaN(idx)) return;
+  homePosts.splice(idx, 1);
+  carouselIdx = 0;
+  cloudSave(); renderCarousel(); closeAddPostModal();
+  showToast('Post deleted.', '');
+}
+
+// ═══════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════
-// Load saved data from cloud on startup
 renderLeaderboard();
 renderWeekly();
 renderTeamTotals();
@@ -3442,198 +3581,5 @@ function executeBulkAdd() {
   </div>
 </div>
 
-<script>
-// ═══════════════════════════════════════════════════════
-//  HOMEPAGE POSTS / CAROUSEL
-// ═══════════════════════════════════════════════════════
-let homePosts = []; // [{ img, caption, fbUrl, date }]
-let carouselIdx = 0;
-let carouselTimer = null;
-const CAROUSEL_INTERVAL = 5000;
 
-function renderHomeSnapshot() {
-  const el = document.getElementById('home-snapshot');
-  if (!el) return;
-  const top = players[0];
-  const snap = [
-    { icon:'👑', label:'Season King',   value: top && top.total > 0 ? top.name : '—' },
-    { icon:'🏆', label:'Total Bladers', value: players.length },
-    { icon:'📅', label:'Events Held',   value: eventLabels.filter((_,i) => players.some(p => p.scores[i] > 0)).length },
-    { icon:'⚡', label:'Top Score',     value: (top && top.total > 0) ? top.total + ' pts' : '—' },
-  ];
-  el.innerHTML = snap.map(s => `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
-      <span style="font-size:26px">${s.icon}</span>
-      <div>
-        <div style="font-family:'Share Tech Mono',monospace;font-size:18px;color:var(--accent);font-weight:700">${s.value}</div>
-        <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-top:2px">${s.label}</div>
-      </div>
-    </div>`).join('');
-}
-
-function renderCarousel() {
-  const empty  = document.getElementById('carousel-empty');
-  const slider = document.getElementById('carousel-slider');
-  const track  = document.getElementById('carousel-track');
-  const dots   = document.getElementById('carousel-dots');
-  const counter= document.getElementById('carousel-counter');
-  if (!track) return;
-
-  if (!homePosts.length) {
-    empty.style.display  = 'block';
-    slider.style.display = 'none';
-    stopCarouselTimer();
-    return;
-  }
-
-  empty.style.display  = 'none';
-  slider.style.display = 'block';
-
-  // Build slides
-  track.innerHTML = homePosts.map((p, i) => {
-    const editBtn = `<button onclick="openEditPostModal(${i})" style="position:absolute;top:10px;left:10px;z-index:5;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:4px 10px;font-size:11px;color:#fff;cursor:pointer;display:none" class="carousel-edit-btn admin-only-btn">✏️ Edit</button>`;
-    const imgHtml = p.img
-      ? `<img src="${p.img}" alt="${p.caption||''}" style="width:100%;height:100%;object-fit:cover;display:block;" />`
-      : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:48px;background:var(--surface2)">📢</div>`;
-    const overlay = (p.caption || p.date) ? `
-      <div style="position:absolute;bottom:0;left:0;right:0;
-        background:linear-gradient(to top,rgba(0,0,0,0.85) 0%,rgba(0,0,0,0) 100%);
-        padding:32px 20px 44px;pointer-events:none;">
-        ${p.date ? `<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.5);margin-bottom:4px">${p.date}</div>` : ''}
-        ${p.caption ? `<div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:#fff;letter-spacing:1px">${p.caption}</div>` : ''}
-      </div>` : '';
-    const linkWrap = p.fbUrl ? `href="${p.fbUrl}" target="_blank" rel="noopener"` : '';
-    return `<div style="min-width:100%;position:relative;height:360px;flex-shrink:0;cursor:${p.fbUrl?'pointer':'default'}">
-      ${editBtn}
-      <a ${linkWrap} style="display:block;width:100%;height:100%;text-decoration:none;">${imgHtml}</a>
-      ${overlay}
-    </div>`;
-  }).join('');
-
-  // Dots
-  dots.innerHTML = homePosts.map((_,i) =>
-    `<div onclick="goToSlide(${i})" style="width:8px;height:8px;border-radius:50%;cursor:pointer;transition:all .2s;
-      background:${i===carouselIdx?'var(--gold)':'rgba(255,255,255,0.35)'};
-      transform:${i===carouselIdx?'scale(1.3)':'scale(1)'}"></div>`
-  ).join('');
-
-  counter.textContent = `${carouselIdx+1} / ${homePosts.length}`;
-  track.style.transform = `translateX(-${carouselIdx * 100}%)`;
-
-  // Show/hide arrows
-  document.getElementById('carousel-prev').style.opacity = homePosts.length > 1 ? '1' : '0';
-  document.getElementById('carousel-next').style.opacity = homePosts.length > 1 ? '1' : '0';
-
-  // Show admin edit buttons if admin
-  if (isAdmin) {
-    document.querySelectorAll('.carousel-edit-btn').forEach(b => b.style.display = 'block');
-  }
-
-  startCarouselTimer();
-}
-
-function goToSlide(idx) {
-  carouselIdx = (idx + homePosts.length) % homePosts.length;
-  renderCarousel();
-}
-
-function carouselMove(dir) {
-  goToSlide(carouselIdx + dir);
-  resetCarouselTimer();
-}
-
-function startCarouselTimer() {
-  stopCarouselTimer();
-  if (homePosts.length > 1) {
-    carouselTimer = setInterval(() => { carouselMove(1); }, CAROUSEL_INTERVAL);
-  }
-}
-
-function stopCarouselTimer() {
-  if (carouselTimer) { clearInterval(carouselTimer); carouselTimer = null; }
-}
-
-function resetCarouselTimer() {
-  stopCarouselTimer();
-  startCarouselTimer();
-}
-
-// ── Post modal ──
-function openAddPostModal() {
-  if (!isAdmin) return;
-  document.getElementById('post-modal-title').textContent = '➕ Add Post';
-  document.getElementById('post-modal-idx').value = '';
-  document.getElementById('post-img-url').value = '';
-  document.getElementById('post-caption').value = '';
-  document.getElementById('post-fb-url').value = '';
-  document.getElementById('post-date').value = '';
-  document.getElementById('post-modal-error').textContent = '';
-  document.getElementById('post-delete-btn').style.display = 'none';
-  previewPostImage('');
-  document.getElementById('add-post-modal').classList.add('open');
-  setTimeout(() => document.getElementById('post-img-url').focus(), 150);
-}
-
-function openEditPostModal(idx) {
-  if (!isAdmin) return;
-  const p = homePosts[idx];
-  if (!p) return;
-  document.getElementById('post-modal-title').textContent = '✏️ Edit Post';
-  document.getElementById('post-modal-idx').value = idx;
-  document.getElementById('post-img-url').value = p.img || '';
-  document.getElementById('post-caption').value = p.caption || '';
-  document.getElementById('post-fb-url').value = p.fbUrl || '';
-  document.getElementById('post-date').value = p.date || '';
-  document.getElementById('post-modal-error').textContent = '';
-  document.getElementById('post-delete-btn').style.display = 'block';
-  previewPostImage(p.img || '');
-  document.getElementById('add-post-modal').classList.add('open');
-}
-
-function closeAddPostModal() {
-  document.getElementById('add-post-modal').classList.remove('open');
-}
-
-function previewPostImage(url) {
-  const el = document.getElementById('post-img-preview');
-  if (url && url.startsWith('http')) {
-    el.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='🖼'" />`;
-  } else {
-    el.innerHTML = '🖼';
-  }
-}
-
-function savePost() {
-  const img     = document.getElementById('post-img-url').value.trim();
-  const caption = document.getElementById('post-caption').value.trim();
-  const fbUrl   = document.getElementById('post-fb-url').value.trim();
-  const date    = document.getElementById('post-date').value.trim();
-  const errEl   = document.getElementById('post-modal-error');
-  if (!img && !caption) { errEl.textContent = 'Add at least an image or caption.'; return; }
-  const post = { img, caption, fbUrl, date };
-  const idxRaw = document.getElementById('post-modal-idx').value;
-  if (idxRaw === '') {
-    homePosts.unshift(post); // newest first
-  } else {
-    homePosts[parseInt(idxRaw)] = post;
-  }
-  carouselIdx = 0;
-  cloudSave();
-  renderCarousel();
-  closeAddPostModal();
-  showToast(idxRaw === '' ? 'Post added!' : 'Post updated!', 'success');
-}
-
-function deletePost() {
-  const idx = parseInt(document.getElementById('post-modal-idx').value);
-  if (isNaN(idx)) return;
-  homePosts.splice(idx, 1);
-  carouselIdx = 0;
-  cloudSave();
-  renderCarousel();
-  closeAddPostModal();
-  showToast('Post deleted.', '');
-}
-</script>
-</body>
 </html>
