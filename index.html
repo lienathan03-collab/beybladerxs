@@ -526,17 +526,95 @@
 
   footer { text-align: center; padding: 24px; border-top: 1px solid var(--border); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted2); margin-top: 40px; }
 
+  /* ══════════════ MOBILE BOTTOM NAV ══════════════ */
+  .mobile-nav {
+    display: none;
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding: 0; height: 60px;
+  }
+  .mobile-nav-inner {
+    display: flex; align-items: stretch; height: 100%;
+  }
+  .mobile-nav-btn {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 3px;
+    background: transparent; border: none; color: var(--muted);
+    font-family: 'Rajdhani', sans-serif; font-size: 9px; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase; cursor: pointer;
+    padding: 6px 2px; transition: all .15s; border-top: 2px solid transparent;
+  }
+  .mobile-nav-btn .mn-icon { font-size: 18px; line-height: 1; }
+  .mobile-nav-btn:hover, .mobile-nav-btn.active {
+    color: var(--accent); border-top-color: var(--gold);
+    background: var(--surface2);
+  }
+
   @media (max-width: 700px) {
-    header { padding: 0 16px; }
-    .hero-bg-area { min-height: 130px !important; }
-    .hero-stats-bar { padding: 14px 16px 12px; }
-    .hero-stats { gap: 20px; }
-    .section { padding: 20px 16px; }
-    .podium { grid-template-columns: 1fr; }
+    /* Hide desktop nav, show mobile bottom nav */
+    header nav { display: none; }
+    .mobile-nav { display: flex; }
+
+    /* Push content above bottom nav */
+    body { padding-bottom: 60px; }
+
+    /* Header */
+    header { padding: 0 14px; height: 52px; }
+    .logo-img { height: 28px; }
+
+    /* Hero */
+    .hero-bg-area { min-height: 110px !important; }
+    .hero-stats-bar { padding: 12px 14px 10px; }
+    .hero-stats { gap: 0; justify-content: space-around; }
+    .hero-stat .n { font-size: 24px; }
+    .hero-stat .l { font-size: 9px; }
+    .hero-divider { display: none; }
+    .hero-sub { font-size: 9px; letter-spacing: 2px; }
+
+    /* Sections */
+    .section { padding: 16px 14px; max-width: 100%; }
+
+    /* Podium — stack vertically, gold on top */
+    .podium { grid-template-columns: 1fr; gap: 10px; }
     .p2 { order: 0; }
-    nav button { font-size: 11px; padding: 6px 10px; }
+    .p1 { order: -1; }
+    .podium-card { min-height: 160px !important; }
+    .podium-pts { font-size: 20px; }
+
+    /* Leaderboard table */
+    table { font-size: 12px; }
+    th, td { padding: 8px 6px; }
+    /* Hide Season Rank column on mobile — too cramped */
+    th:last-child, td:last-child { display: none; }
+
+    /* Search & filter */
+    #search-input { font-size: 13px; }
+    .filter-bar { gap: 6px; flex-wrap: wrap; }
+    .filter-btn { font-size: 10px; padding: 5px 10px; }
+
+    /* Achievements grid */
+    .ach-grid { grid-template-columns: 1fr; }
+    .ach-card { padding: 12px; }
+
+    /* Points tab */
+    .points-table { font-size: 12px; }
+    .team-cards { grid-template-columns: 1fr; }
+
+    /* Challonge */
     .challonge-form { grid-template-columns: 1fr; }
     .challonge-cols { grid-template-columns: 1fr; }
+    .standings-grid { grid-template-columns: 1fr 1fr; }
+
+    /* Modals */
+    .modal { border-radius: 16px 16px 0 0 !important; position: fixed; bottom: 0; top: auto !important; transform: none !important; max-height: 90vh; overflow-y: auto; }
+    .modal-overlay { align-items: flex-end; }
+    .profile-modal { border-radius: 20px 20px 0 0; max-height: 92vh; }
+
+    /* Toast */
+    .toast { bottom: 70px; right: 14px; left: 14px; max-width: 100%; text-align: center; }
+
+    /* Weekly tab */
+    .weekly-table th:nth-child(3), .weekly-table td:nth-child(3) { display: none; }
   }
 
   /* ── PUBLIC CHALLONGE HERO ── */
@@ -611,6 +689,27 @@
     <button class="nav-admin-btn" id="nav-admin-badge" style="display:none" onclick="adminLogout()">👑 Admin</button>
   </nav>
 </header>
+
+<!-- ══════════════ MOBILE BOTTOM NAV ══════════════ -->
+<nav class="mobile-nav" id="mobile-nav">
+  <div class="mobile-nav-inner">
+    <button class="mobile-nav-btn active" onclick="showTab('leaderboard', this)" data-tab="leaderboard">
+      <span class="mn-icon">🏆</span>Ranks
+    </button>
+    <button class="mobile-nav-btn" onclick="showTab('weekly', this)" data-tab="weekly">
+      <span class="mn-icon">📅</span>Weekly
+    </button>
+    <button class="mobile-nav-btn" onclick="showTab('achievements', this)" data-tab="achievements">
+      <span class="mn-icon">🎖️</span>Awards
+    </button>
+    <button class="mobile-nav-btn" onclick="showTab('challonge', this)" data-tab="challonge">
+      <span class="mn-icon">⚡</span>Tourney
+    </button>
+    <button class="mobile-nav-btn" onclick="showTab('points', this)" data-tab="points">
+      <span class="mn-icon">📊</span>Points
+    </button>
+  </div>
+</nav>
 
 <div class="hero">
   <div class="hero-bg-area" id="hero-bg-area">
@@ -1763,8 +1862,12 @@ async function confirmImport(labelEnc, resultsEnc, tournamentId, tournamentUrl) 
 function showTab(tab, btn) {
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.mobile-nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
   btn.classList.add('active');
+  // Sync mobile nav active state
+  const mobileBtn = document.querySelector('.mobile-nav-btn[data-tab="'+tab+'"]');
+  if (mobileBtn) mobileBtn.classList.add('active');
   if (tab === 'challonge') {
     if (isAdmin) {
       document.getElementById('challonge-admin').style.display = 'block';
