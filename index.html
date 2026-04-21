@@ -2708,7 +2708,12 @@ async function executeReset() {
       players.forEach(p => { p.scores = []; p.total = 0; });
     }
   }
-  if (resetStat) { bladerStats = {}; }
+  if (resetStat) {
+    // Reset stats but preserve photos and bgPhotos
+    Object.keys(bladerStats).forEach(name => {
+      bladerStats[name] = { photo: bladerStats[name].photo || '', bgPhoto: bladerStats[name].bgPhoto || '', wins: 0, losses: 0, matchesPlayed: 0, matchPoints: 0, spinFinishes: 0, burstFinishes: 0, extremeFinishes: 0 };
+    });
+  }
   if (resetIDs)  { importedTournamentIds = []; }
   await cloudSave();
   renderLeaderboard(); renderWeekly(); renderTeamTotals(); updateHeroStats(); renderAchievements();
@@ -3187,7 +3192,7 @@ function executeBulkAdd() {
         <input type="checkbox" id="reset-blader-stats" style="width:16px;height:16px;accent-color:var(--red)" />
         <div>
           <div style="font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px">Blader Stats &amp; Match Records</div>
-          <div style="font-size:11px;color:var(--muted)">Clears photos, finishes, wins, and match data</div>
+          <div style="font-size:11px;color:var(--muted)">Clears finishes, wins, and match data (photos are kept)</div>
         </div>
       </label>
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--border2);border-radius:8px">
