@@ -2643,6 +2643,8 @@ async function adminManualSave() {
 // ═══════════════════════════════════════════════════════
 function openResetModal() {
   if (!isAdmin) return;
+  document.getElementById('reset-scores').checked = false;
+  document.getElementById('reset-events').checked = false;
   document.getElementById('reset-leaderboard').checked = false;
   document.getElementById('reset-blader-stats').checked = false;
   document.getElementById('reset-challonge-ids').checked = false;
@@ -2651,21 +2653,38 @@ function openResetModal() {
 }
 function closeResetModal() { document.getElementById('reset-modal').classList.remove('open'); }
 async function executeReset() {
-  const resetLB   = document.getElementById('reset-leaderboard').checked;
-  const resetStat = document.getElementById('reset-blader-stats').checked;
-  const resetIDs  = document.getElementById('reset-challonge-ids').checked;
-  if (!resetLB && !resetStat && !resetIDs) {
+  const resetScores = document.getElementById('reset-scores').checked;
+  const resetEvents = document.getElementById('reset-events').checked;
+  const resetLB     = document.getElementById('reset-leaderboard').checked;
+  const resetStat   = document.getElementById('reset-blader-stats').checked;
+  const resetIDs    = document.getElementById('reset-challonge-ids').checked;
+  if (!resetScores && !resetEvents && !resetLB && !resetStat && !resetIDs) {
     document.getElementById('reset-error').textContent = 'Select at least one option.';
     return;
   }
-  if (resetLB)   { players = []; eventLabels = []; podiumPhotos = {1:'',2:'',3:''}; applyPodiumPhotos(); }
+  if (resetLB) {
+    // Full wipe — remove all players and events
+    players = []; eventLabels = []; podiumPhotos = {1:'',2:'',3:''}; applyPodiumPhotos();
+  } else {
+    if (resetScores || resetEvents) {
+      // Zero out every player's scores
+      players.forEach(p => { p.scores = eventLabels.map(() => 0); p.total = 0; });
+    }
+    if (resetEvents) {
+      // Also remove event columns
+      eventLabels = [];
+      players.forEach(p => { p.scores = []; p.total = 0; });
+    }
+  }
   if (resetStat) { bladerStats = {}; }
   if (resetIDs)  { importedTournamentIds = []; }
   await cloudSave();
   renderLeaderboard(); renderWeekly(); renderTeamTotals(); updateHeroStats(); renderAchievements();
   closeResetModal();
   const parts = [];
-  if (resetLB)   parts.push('leaderboard');
+  if (resetScores && !resetEvents && !resetLB) parts.push('scores cleared');
+  if (resetEvents && !resetLB) parts.push('event columns cleared');
+  if (resetLB)   parts.push('all players removed');
   if (resetStat) parts.push('blader stats');
   if (resetIDs)  parts.push('imported IDs');
   showToast('✅ Reset: ' + parts.join(', '), 'success');
@@ -3112,10 +3131,24 @@ function executeBulkAdd() {
     <div class="modal-sub">Choose what to reset. This cannot be undone.</div>
     <div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--border2);border-radius:8px">
+        <input type="checkbox" id="reset-scores" style="width:16px;height:16px;accent-color:var(--red)" />
+        <div>
+          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px">Clear All Scores</div>
+          <div style="font-size:11px;color:var(--muted)">Resets every player's scores to 0 — keeps the player list</div>
+        </div>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--border2);border-radius:8px">
+        <input type="checkbox" id="reset-events" style="width:16px;height:16px;accent-color:var(--red)" />
+        <div>
+          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px">Clear Event Columns</div>
+          <div style="font-size:11px;color:var(--muted)">Removes all event columns — also clears scores</div>
+        </div>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--border2);border-radius:8px">
         <input type="checkbox" id="reset-leaderboard" style="width:16px;height:16px;accent-color:var(--red)" />
         <div>
-          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px">Leaderboard &amp; Players</div>
-          <div style="font-size:11px;color:var(--muted)">Clears all players, scores, and event columns</div>
+          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px">Clear All Players</div>
+          <div style="font-size:11px;color:var(--muted)">Removes all players, scores, and event columns entirely</div>
         </div>
       </label>
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--border2);border-radius:8px">
