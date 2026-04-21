@@ -1,0 +1,3171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beyblade RXS — Roxas City Community</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="preconnect" href="https://api.jsonbin.io" crossorigin />
+<link rel="preconnect" href="https://i.imgur.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080808; --surface: #0f0f0f; --surface2: #161616; --surface3: #1e1e1e;
+    --border: #242424; --border2: #333; --text: #f0f0f0; --muted: #666; --muted2: #444;
+    --accent: #ffffff; --gold: #d4a017; --gold2: #f5c842; --silver: #a8b0b8;
+    --bronze: #cd7f32; --red: #e03030; --green: #28a855; --blue: #3a8fd4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Exo 2', sans-serif; min-height: 100vh; }
+
+  /* HEADER */
+  header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 0 32px; display: flex; align-items: center; justify-content: space-between;
+    height: 60px; position: sticky; top: 0; z-index: 100;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-img { height: 36px; width: auto; display: block; }
+  .logo-x { color: var(--gold); font-style: italic; }
+  .fb-link { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; color: #1877f2; transition: opacity .2s; flex-shrink: 0; }
+  .fb-link:hover { opacity: 0.75; }
+  .fb-icon { width: 24px; height: 24px; }
+  nav { display: flex; gap: 4px; align-items: center; }
+  nav button {
+    background: transparent; border: none; color: var(--muted);
+    font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 600;
+    letter-spacing: 1.5px; text-transform: uppercase; padding: 8px 14px;
+    border-radius: 6px; cursor: pointer; transition: all .15s;
+  }
+  nav button:hover, nav button.active { background: var(--surface2); color: var(--accent); }
+  nav button.active { border-bottom: 2px solid var(--gold); border-radius: 6px 6px 0 0; }
+
+  /* ADMIN BADGE IN NAV */
+  .nav-admin-btn {
+    display: flex; align-items: center; gap: 6px;
+    background: #1a1200 !important; border: 1px solid var(--gold) !important;
+    color: var(--gold) !important; border-radius: 6px !important;
+    font-size: 12px !important; padding: 6px 12px !important;
+  }
+  .nav-admin-btn:hover { background: #2a1e00 !important; }
+  .nav-login-hint {
+    font-family: 'Share Tech Mono', monospace; font-size: 11px;
+    color: var(--muted2); padding: 6px 10px; letter-spacing: 1px;
+    cursor: pointer; border-radius: 6px; transition: color .15s;
+  }
+  .nav-login-hint:hover { color: var(--muted); }
+
+  /* HERO */
+  .hero { border-bottom: 1px solid var(--border); }
+  .hero-bg-area {
+    min-height: 200px; background: var(--surface2) center center / cover no-repeat;
+    position: relative; overflow: hidden;
+  }
+  .hero-bg-area::before {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.6) 100%);
+    pointer-events: none;
+  }
+  .hero-bg-edit-btn {
+    position: absolute; top: 12px; right: 14px; z-index: 4;
+    background: rgba(0,0,0,0.65); border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 8px; padding: 6px 14px; font-size: 12px; cursor: pointer;
+    display: none; color: #fff; font-family: 'Rajdhani', sans-serif;
+    font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+  }
+  .admin-active .hero-bg-edit-btn { display: block; }
+  .hero-stats-bar {
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding: 20px 32px 16px; text-align: center;
+  }
+  .hero-sub { font-size: 11px; letter-spacing: 4px; text-transform: uppercase; color: var(--muted); margin-top: 8px; }
+  .hero-stats { display: flex; justify-content: center; gap: 40px; margin-bottom: 4px; }
+  .hero-stat { text-align: center; }
+  .hero-stat .n { font-family: 'Share Tech Mono', monospace; font-size: 34px; color: var(--accent); display: block; }
+  .hero-stat .l { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+  .hero-divider { width: 1px; background: var(--border); align-self: stretch; }
+
+  /* SECTIONS */
+  .section { display: none; padding: 28px 32px; max-width: 1200px; margin: 0 auto; }
+  .section.active { display: block; }
+  .section-header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
+  .section-title { font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+  .section-line { flex: 1; height: 1px; background: var(--border); }
+
+  /* ── PODIUM ── */
+  .podium { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 32px; align-items: end; }
+  .podium-card {
+    border-radius: 12px; text-align: center;
+    position: relative; overflow: hidden;
+    min-height: 200px;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    border: 2px solid var(--border);
+  }
+  .podium-card.p1 { border-color: var(--gold); min-height: 220px; }
+  .podium-card.p2 { border-color: var(--silver); order: -1; }
+  .podium-card.p3 { border-color: var(--bronze); }
+
+  /* Photo fills the whole card as background */
+  .podium-bg {
+    position: absolute; inset: 0;
+    background-size: cover; background-position: center top;
+    background-color: var(--surface);
+  }
+  .pa-gold .podium-bg   { background-color: #1a1200; }
+  .pa-silver .podium-bg { background-color: #141414; }
+  .pa-bronze .podium-bg { background-color: #1a0e08; }
+
+  /* Dark gradient overlay so text is always readable */
+  .podium-card::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.88) 100%);
+    pointer-events: none;
+  }
+  /* Colored top bar */
+  .podium-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; z-index: 2; }
+  .p1::before { background: var(--gold); }
+  .p2::before { background: var(--silver); }
+  .p3::before { background: var(--bronze); }
+
+  /* Place emoji — top left */
+  .podium-place {
+    position: absolute; top: 10px; left: 14px;
+    font-size: 22px; z-index: 3; line-height: 1;
+  }
+
+  /* Admin edit button — top right */
+  .podium-edit-btn {
+    position: absolute; top: 8px; right: 10px; z-index: 4;
+    background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px; padding: 4px 8px; font-size: 13px;
+    cursor: pointer; display: none; color: #fff;
+  }
+  .admin-active .podium-card:hover .podium-edit-btn { display: block; }
+
+  /* Stats sit at the bottom, above the gradient */
+  .podium-stats {
+    position: relative; z-index: 3;
+    padding: 14px 14px 16px;
+  }
+  .podium-name { font-family: 'Rajdhani', sans-serif; font-size: 15px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #fff; margin-bottom: 2px; text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
+  .podium-pts { font-family: 'Share Tech Mono', monospace; font-size: 26px; margin-bottom: 2px; text-shadow: 0 1px 6px rgba(0,0,0,0.8); }
+  .p1 .podium-pts { color: var(--gold2); }
+  .p2 .podium-pts { color: var(--silver); }
+  .p3 .podium-pts { color: var(--bronze); }
+  .podium-label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.6); }
+
+  /* No-photo silhouette */
+  .podium-no-photo {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    pointer-events: none; overflow: hidden;
+  }
+  .podium-no-photo img {
+    width: 100%; height: 100%; object-fit: cover; object-position: center top; opacity: 0.5;
+  }
+
+
+  /* ── BLADER PROFILE MODAL ── */
+  .profile-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.88);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9100; opacity: 0; pointer-events: none; transition: opacity .25s;
+  }
+  .profile-overlay.open { opacity: 1; pointer-events: all; }
+  .profile-modal {
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 20px; width: 100%; max-width: 420px;
+    max-height: 90vh; overflow-y: auto;
+    position: relative; transform: translateY(16px); transition: transform .25s;
+  }
+  .profile-overlay.open .profile-modal { transform: translateY(0); }
+  .profile-hero {
+    border-radius: 20px 20px 0 0; overflow: hidden;
+    position: relative; min-height: 180px;
+    background: var(--surface2);
+  }
+  .profile-hero-bg {
+    position: absolute; inset: 0; overflow: hidden;
+  }
+  .profile-hero-bg img {
+    width: 100%; height: 100%; object-fit: cover; object-position: center top;
+    filter: brightness(0.75); transform: scale(1);
+    display: block;
+  }
+  .profile-hero-content {
+    position: relative; z-index: 2;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 28px 20px 16px;
+  }
+  .profile-avatar {
+    width: 120px; height: 120px; border-radius: 50%;
+    border: 3px solid var(--gold); overflow: hidden;
+    background: var(--surface2); margin-bottom: 12px;
+    display: flex; align-items: center; justify-content: center; font-size: 48px;
+  }
+  .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .profile-pname {
+    font-family: 'Rajdhani', sans-serif; font-size: 22px; font-weight: 800;
+    letter-spacing: 2px; text-transform: uppercase; color: #fff;
+    text-align: center; text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+  }
+  .profile-tags { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; justify-content: center; }
+  .profile-rank-pill {
+    font-family: 'Share Tech Mono', monospace; font-size: 13px;
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 20px; padding: 3px 12px; color: #fff;
+  }
+  .profile-body { padding: 20px; }
+  .profile-stat-cards {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 20px;
+  }
+  .profile-stat-card {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 8px; text-align: center;
+  }
+  .profile-stat-card .psv {
+    font-family: 'Share Tech Mono', monospace; font-size: 20px; font-weight: 700;
+    color: var(--accent); display: block;
+  }
+  .profile-stat-card .psl {
+    font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--muted); margin-top: 3px; display: block;
+  }
+  .profile-stat-card.highlight { border-color: var(--gold); }
+  .profile-stat-card.highlight .psv { color: var(--gold2); }
+  .profile-section-title {
+    font-family: 'Rajdhani', sans-serif; font-size: 11px; font-weight: 700;
+    letter-spacing: 3px; text-transform: uppercase; color: var(--muted);
+    margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 6px;
+  }
+  .profile-stat-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 9px 0; border-bottom: 1px solid var(--border);
+  }
+  .profile-stat-row:last-child { border-bottom: none; }
+  .profile-stat-row .label { font-size: 13px; color: var(--muted); }
+  .profile-stat-row .value {
+    font-family: 'Share Tech Mono', monospace; font-size: 14px;
+    color: var(--accent); font-weight: 700;
+  }
+  .profile-close {
+    position: absolute; top: 14px; right: 16px; z-index: 10;
+    background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 50%; width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; cursor: pointer; color: #fff;
+  }
+  .profile-close:hover { background: rgba(255,255,255,0.15); }
+  .profile-edit-section {
+    background: #1a1200; border: 1px solid var(--gold);
+    border-radius: 10px; padding: 14px; margin-top: 16px; display: none;
+  }
+  .admin-active .profile-edit-section { display: block; }
+  .profile-edit-title {
+    font-family: 'Rajdhani', sans-serif; font-size: 11px; font-weight: 700;
+    letter-spacing: 2px; text-transform: uppercase; color: var(--gold);
+    margin-bottom: 10px;
+  }
+  .profile-edit-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  }
+  .profile-edit-field { display: flex; flex-direction: column; gap: 4px; }
+  .profile-edit-field label {
+    font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted);
+  }
+  .profile-edit-field input {
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 6px; padding: 7px 10px; color: var(--text);
+    font-family: 'Share Tech Mono', monospace; font-size: 12px;
+    outline: none; transition: border-color .15s; width: 100%;
+  }
+  .profile-edit-field input:focus { border-color: var(--gold); }
+  .profile-edit-field.full { grid-column: 1 / -1; }
+
+  /* SEASON KING badge */
+  .season-king-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: linear-gradient(135deg, #1f1500, #2a1e00);
+    border: 1px solid var(--gold); border-radius: 20px;
+    padding: 3px 12px; margin-top: 6px;
+    font-family: 'Rajdhani', sans-serif; font-size: 11px;
+    font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--gold2);
+  }
+
+  /* LEADERBOARD */
+  .search-row { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; }
+  .search-input { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; color: var(--text); font-family: 'Exo 2', sans-serif; font-size: 14px; outline: none; transition: border-color .15s; }
+  .search-input:focus { border-color: var(--border2); }
+  .search-input::placeholder { color: var(--muted2); }
+  .filter-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; color: var(--muted); font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: all .15s; white-space: nowrap; }
+  .filter-btn:hover, .filter-btn.active { border-color: var(--gold); color: var(--gold); }
+  .lb-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .lb-table th { font-family: 'Rajdhani', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .lb-table th.right { text-align: right; }
+  .lb-table td { padding: 11px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .lb-table tr:hover td { background: var(--surface); }
+  .lb-table tr:last-child td { border-bottom: none; }
+  .rank-num { font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--muted); text-align: center; min-width: 30px; }
+  .rank-num.gold { color: var(--gold2); font-size: 15px; }
+  .rank-num.silver { color: var(--silver); font-size: 15px; }
+  .rank-num.bronze { color: var(--bronze); font-size: 15px; }
+  .blader-name { font-weight: 600; font-size: 14px; color: var(--text); }
+  .blader-name.top3 { color: var(--accent); }
+  .tag { display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; margin-left: 6px; vertical-align: middle; }
+  /* tag colors now driven by teamConfig at runtime */
+  .score { font-family: 'Share Tech Mono', monospace; font-size: 15px; text-align: right; color: var(--accent); }
+  .score.champ { color: var(--gold2); }
+  .ws { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--muted); background: var(--surface2); border-radius: 3px; padding: 1px 5px; min-width: 22px; text-align: center; }
+  .ws.high { color: var(--gold); background: #1a1200; }
+  .ws.win { color: var(--green); }
+  .rank-badge { font-family: 'Rajdhani', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 3px 10px; border-radius: 20px; text-align: center; white-space: nowrap; }
+  .rb-1 { background: #1f1500; color: var(--gold2); border: 1px solid var(--gold); }
+  .rb-2 { background: #141414; color: var(--silver); border: 1px solid #666; }
+  .rb-3 { background: #1a0e08; color: var(--bronze); border: 1px solid var(--bronze); }
+  .rb-n { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+  .page-info { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--muted); text-align: right; margin-top: 12px; }
+
+  /* ACHIEVEMENTS */
+  .ach-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .ach-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px 20px; display: flex; align-items: center; gap: 18px; transition: border-color .2s; position: relative; }
+  .ach-card:hover { border-color: var(--border2); }
+  .ach-icon { font-size: 38px; flex-shrink: 0; }
+  .ach-info { flex: 1; min-width: 0; }
+  .ach-info .name { font-family: 'Rajdhani', sans-serif; font-size: 17px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--accent); margin-bottom: 3px; }
+  .ach-info .desc { font-size: 12px; color: var(--muted); letter-spacing: .5px; line-height: 1.5; }
+  .ach-info .holder { font-size: 13px; color: var(--gold); margin-top: 6px; font-weight: 600; }
+  .ach-edit-btn { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.5); border: 1px solid var(--border2); border-radius: 6px; padding: 3px 8px; font-size: 12px; cursor: pointer; color: var(--muted); display: none; }
+  .admin-active .ach-card:hover .ach-edit-btn { display: block; }
+  .ach-add-btn { border: 2px dashed var(--border2); border-radius: 14px; padding: 22px 20px; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; color: var(--muted); font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; transition: all .2s; }
+  .ach-add-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* POINTS */
+  .points-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-bottom: 32px; }
+  .point-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; }
+  .point-card .pts { font-family: 'Share Tech Mono', monospace; font-size: 20px; color: var(--gold); }
+  .point-card .lbl { font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+
+  /* TEAM CARDS */
+  .team-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 32px; }
+  .team-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; display: flex; align-items: center; gap: 12px;
+    position: relative; transition: border-color .15s;
+  }
+  .team-card-logo-wrap {
+    width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
+    background: var(--surface2); border: 1px solid var(--border2);
+    display: flex; align-items: center; justify-content: center; font-size: 20px;
+    cursor: pointer; transition: opacity .15s;
+  }
+  .team-card-logo-wrap:hover { opacity: 0.8; }
+  .team-card-logo-wrap img { width: 100%; height: 100%; object-fit: cover; }
+  .team-card-info { flex: 1; min-width: 0; }
+  .team-card-pts { font-family: 'Share Tech Mono', monospace; font-size: 22px; font-weight: 700; line-height: 1; }
+  .team-card-name { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-top: 3px; }
+  .team-card-delete-btn {
+    margin-left:4px; background:transparent; border:1px solid var(--red);
+    color:var(--red); border-radius:6px; padding:4px 8px; font-size:12px;
+    cursor:pointer; transition:all .15s; flex-shrink:0;
+  }
+  .team-card-delete-btn:hover { background:#1a0000; }
+  .team-card-edit-btn {
+    position: absolute; top: 6px; right: 8px;
+    background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 5px; padding: 2px 7px; font-size: 11px; cursor: pointer;
+    color: var(--muted); display: none;
+  }
+  .admin-active .team-card:hover .team-card-edit-btn { display: block; }
+  .admin-active .team-card:hover { border-color: var(--gold); }
+
+  /* ── MODAL OVERLAY ── */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9000; opacity: 0; pointer-events: none;
+    transition: opacity .25s;
+  }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 16px; padding: 32px; width: 100%; max-width: 400px;
+    position: relative; transform: translateY(16px);
+    transition: transform .25s;
+  }
+  .modal-overlay.open .modal { transform: translateY(0); }
+  .modal-title {
+    font-family: 'Rajdhani', sans-serif; font-size: 20px; font-weight: 700;
+    letter-spacing: 3px; text-transform: uppercase; color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .modal-sub { font-size: 12px; color: var(--muted); letter-spacing: 1px; margin-bottom: 24px; }
+  .modal-close {
+    position: absolute; top: 16px; right: 16px;
+    background: none; border: none; color: var(--muted);
+    font-size: 20px; cursor: pointer; line-height: 1;
+  }
+  .modal-close:hover { color: var(--text); }
+  .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .form-label { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+  .form-input { background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; padding: 10px 14px; color: var(--text); font-family: 'Share Tech Mono', monospace; font-size: 13px; outline: none; transition: border-color .15s; width: 100%; }
+  .form-input:focus { border-color: var(--gold); }
+  .form-input::placeholder { color: var(--muted2); }
+  .modal-error { color: var(--red); font-size: 12px; margin-bottom: 12px; min-height: 16px; letter-spacing: .5px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 4px; }
+
+  /* BUTTONS */
+  .btn { background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; padding: 10px 18px; color: var(--text); font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; transition: all .15s; white-space: nowrap; }
+  .btn:hover { border-color: var(--gold); color: var(--gold); }
+  .btn.primary { background: var(--gold); border-color: var(--gold); color: #000; font-weight: 800; }
+  .btn.primary:hover { background: var(--gold2); border-color: var(--gold2); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+  .btn.danger { border-color: var(--red); color: var(--red); }
+  .btn.danger:hover { background: #1f0a0a; }
+
+  /* ── CHALLONGE TAB ── */
+  .challonge-locked {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 80px 20px; text-align: center;
+  }
+  .lock-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
+  .lock-title { font-family: 'Rajdhani', sans-serif; font-size: 18px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+  .lock-sub { font-size: 13px; color: var(--muted2); margin-bottom: 24px; line-height: 1.6; }
+
+  /* Public live view */
+  .challonge-live-view { }
+  .live-tournament-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; margin-bottom: 12px;
+  }
+  .ltc-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .ltc-icon { font-size: 24px; }
+  .ltc-name { font-family: 'Rajdhani', sans-serif; font-size: 16px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); }
+  .ltc-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .ltc-status { margin-left: auto; font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; padding: 3px 10px; border-radius: 20px; }
+  .ltc-status.live { color: var(--green); border: 1px solid var(--green); background: #0a1f0f; animation: pulse 2s ease-in-out infinite; }
+  .ltc-status.done { color: var(--silver); border: 1px solid #444; background: var(--surface2); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+  .ltc-participants { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px; }
+  .ltc-p { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .ltc-p .pr { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--muted); width: 20px; }
+  .ltc-p .pn { flex: 1; font-weight: 600; }
+  .ltc-p .pp { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--gold); }
+
+  /* Admin challonge panel */
+  .challonge-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 28px; }
+  .challonge-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .challonge-logo { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #e8531d, #c93d10); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .challonge-title { font-family: 'Rajdhani', sans-serif; font-size: 16px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); }
+  .challonge-subtitle { font-size: 11px; color: var(--muted); letter-spacing: 1px; margin-top: 2px; }
+  .challonge-status { margin-left: auto; font-family: 'Share Tech Mono', monospace; font-size: 11px; padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border2); color: var(--muted); }
+  .challonge-status.connected { color: var(--green); border-color: var(--green); background: #0a1f0f; }
+  .challonge-status.error { color: var(--red); border-color: var(--red); background: #1f0a0a; }
+  .challonge-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; margin-bottom: 16px; }
+  .challonge-actions { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 16px; border-top: 1px solid var(--border); }
+  .api-note { background: #0d1a10; border: 1px solid #1a3a1f; border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #5aaa7a; margin-bottom: 16px; line-height: 1.6; }
+  .api-note a { color: var(--gold); text-decoration: none; }
+  .proxy-banner { background: #1a120a; border: 1px solid #5a3a1a; border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #d47a3a; margin-bottom: 16px; line-height: 1.6; display: none; }
+  .challonge-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+  .challonge-col-title { font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .tournament-list { display: flex; flex-direction: column; gap: 8px; }
+  .tournament-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; display: flex; align-items: center; gap: 14px; cursor: pointer; transition: border-color .15s; }
+  .tournament-item:hover { border-color: var(--gold); }
+  .tournament-item.selected { border-color: var(--gold); background: #1a1500; }
+  .t-icon { font-size: 20px; flex-shrink: 0; }
+  .t-info { flex: 1; min-width: 0; }
+  .t-name { font-family: 'Rajdhani', sans-serif; font-size: 14px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--accent); margin-bottom: 2px; }
+  .t-meta { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--muted); }
+  .t-status { font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; padding: 3px 10px; border-radius: 20px; }
+  .t-status.complete { color: var(--green); border: 1px solid var(--green); background: #0a1f0f; }
+  .t-status.underway { color: var(--gold); border: 1px solid var(--gold); background: #1a1200; }
+  .t-status.pending { color: var(--muted); border: 1px solid var(--border2); }
+  .bracket-preview { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-top: 16px; }
+  .bracket-title { font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); margin-bottom: 12px; }
+  .bracket-participant { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .bracket-participant:last-child { border-bottom: none; }
+  .bp-rank { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--muted); width: 24px; text-align: center; flex-shrink: 0; }
+  .bp-name { font-size: 13px; font-weight: 600; flex: 1; }
+  .bp-pts { font-family: 'Share Tech Mono', monospace; font-size: 13px; color: var(--gold); }
+  .import-preview { background: var(--surface2); border: 1px solid #1a3a1f; border-radius: 8px; padding: 16px; margin-top: 16px; }
+  .import-title { font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--green); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .import-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .import-row:last-child { border-bottom: none; }
+  .ir-rank { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--muted); width: 20px; }
+  .ir-name { flex: 1; }
+  .ir-pts { font-family: 'Share Tech Mono', monospace; font-size: 12px; }
+  .ir-pts.new { color: var(--green); }
+  .ir-pts.existing { color: var(--gold); }
+  .loader { display: flex; align-items: center; gap: 10px; padding: 20px; color: var(--muted); font-family: 'Share Tech Mono', monospace; font-size: 12px; }
+  .spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border2); border-top-color: var(--gold); animation: spin .8s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .empty-state { text-align: center; padding: 32px; color: var(--muted); font-family: 'Share Tech Mono', monospace; font-size: 12px; letter-spacing: 1px; }
+  .event-name-input-wrap { display: flex; gap: 8px; margin-top: 12px; }
+  .inline-tag { font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; margin-left: 6px; vertical-align: middle; background: #0d1a1a; color: #3aaa8f; border: 0.5px solid #1a3a3a; }
+
+  /* PHOTO UPLOAD MODAL */
+  .photo-preview { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin: 0 auto 12px; display: block; border: 2px solid var(--border2); }
+  .photo-url-note { font-size: 11px; color: var(--muted); line-height: 1.6; margin-bottom: 10px; }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface3); border: 1px solid var(--border2); border-radius: 10px; padding: 14px 20px; font-family: 'Rajdhani', sans-serif; font-size: 14px; font-weight: 600; letter-spacing: 1px; color: var(--text); z-index: 9999; opacity: 0; transform: translateY(10px); transition: opacity .3s, transform .3s; max-width: 320px; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.success { border-color: var(--green); color: var(--green); }
+  .toast.error { border-color: var(--red); color: var(--red); }
+
+  /* ADMIN INDICATOR BAR */
+  .admin-bar {
+    background: #1a1200; border-bottom: 1px solid var(--gold);
+    padding: 6px 32px; display: flex; align-items: center;
+    gap: 12px; display: none;
+  }
+  .admin-bar.visible { display: flex; }
+  .admin-bar-text { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--gold); letter-spacing: 1px; }
+  .admin-bar-actions { margin-left: auto; display: flex; gap: 8px; }
+
+  footer { text-align: center; padding: 24px; border-top: 1px solid var(--border); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted2); margin-top: 40px; }
+
+  @media (max-width: 700px) {
+    header { padding: 0 16px; }
+    .hero-bg-area { min-height: 130px !important; }
+    .hero-stats-bar { padding: 14px 16px 12px; }
+    .hero-stats { gap: 20px; }
+    .section { padding: 20px 16px; }
+    .podium { grid-template-columns: 1fr; }
+    .p2 { order: 0; }
+    nav button { font-size: 11px; padding: 6px 10px; }
+    .challonge-form { grid-template-columns: 1fr; }
+    .challonge-cols { grid-template-columns: 1fr; }
+  }
+
+  /* ── PUBLIC CHALLONGE HERO ── */
+  .challonge-live-hero {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 24px; margin-bottom: 20px; position: relative; overflow: hidden;
+  }
+  .challonge-live-hero::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .challonge-live-hero.state-underway::before { background: linear-gradient(90deg, var(--red), #ff6b35); }
+  .challonge-live-hero.state-complete::before { background: linear-gradient(90deg, var(--green), #5aaa7a); }
+  .challonge-live-hero.state-pending::before { background: linear-gradient(90deg, var(--gold), var(--gold2)); }
+  .clh-top { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
+  .clh-icon { font-size: 32px; flex-shrink: 0; margin-top: 2px; }
+  .clh-info { flex: 1; }
+  .clh-name { font-family: 'Rajdhani', sans-serif; font-size: 22px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
+  .clh-meta { font-size: 12px; color: var(--muted); letter-spacing: 1px; }
+  .status-pill { display: inline-flex; align-items: center; gap: 6px; font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 6px 14px; border-radius: 20px; }
+  .status-pill.live { color: var(--red); border: 1px solid var(--red); background: #1f0808; animation: pulse 2s ease-in-out infinite; }
+  .status-pill.complete { color: var(--green); border: 1px solid var(--green); background: #0a1f0f; }
+  .status-pill.pending { color: var(--gold); border: 1px solid var(--gold); background: #1a1200; }
+  .auto-import-banner { background: #0a1f0f; border: 1px solid var(--green); border-radius: 10px; padding: 14px 18px; display: flex; align-items: center; gap: 12px; font-size: 13px; color: #5aaa7a; margin-bottom: 16px; }
+  .auto-import-banner .aib-icon { font-size: 20px; flex-shrink: 0; }
+  .auto-import-banner strong { color: var(--green); }
+  .standings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-top: 8px; }
+  .sg-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; }
+  .sg-rank { font-family: 'Share Tech Mono', monospace; font-size: 13px; color: var(--muted); width: 28px; flex-shrink: 0; text-align: center; }
+  .sg-rank.r1 { color: var(--gold2); font-size: 16px; }
+  .sg-rank.r2 { color: var(--silver); font-size: 16px; }
+  .sg-rank.r3 { color: var(--bronze); font-size: 16px; }
+  .sg-name { flex: 1; font-size: 13px; font-weight: 600; }
+  .sg-pts { font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--gold); }
+  .sg-new { font-size: 9px; font-weight: 700; letter-spacing: 1px; padding: 1px 5px; border-radius: 3px; background: #0a1f0f; color: var(--green); border: 1px solid var(--green); margin-left: 4px; vertical-align: middle; }
+  .tournament-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+  .t-tab { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; cursor: pointer; transition: all .15s; font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .t-tab:hover { border-color: var(--gold); color: var(--gold); }
+  .t-tab.active { border-color: var(--gold); color: var(--gold); background: #1a1200; }
+  .t-tab .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+</style>
+</head>
+<body>
+
+<!-- ADMIN BAR (shown when admin is logged in) -->
+<div class="admin-bar" id="admin-bar">
+  <span style="font-size:14px">👑</span>
+  <span class="admin-bar-text">ADMIN MODE — Changes are live. Viewers see Challonge results only.</span>
+  <div class="admin-bar-actions">
+    <button class="btn primary" style="font-size:11px;padding:5px 12px;" onclick="adminManualSave()">💾 Save Changes</button>
+    <button class="btn" style="font-size:11px;padding:5px 12px;" onclick="openBulkAddModal()">➕ Add Players</button>
+    <button class="btn" style="font-size:11px;padding:5px 12px;" onclick="openPhotoModal()">📸 Edit Podium Photos</button>
+    <button class="btn" style="font-size:11px;padding:5px 12px;" onclick="openHeroBgModal()">🖼 Edit Background</button>
+    <button class="btn danger" style="font-size:11px;padding:5px 12px;" onclick="openResetModal()">🗑 Reset Data</button>
+    <button class="btn danger" style="font-size:11px;padding:5px 12px;" onclick="adminLogout()">Logout</button>
+  </div>
+</div>
+
+<header>
+  <div class="logo">
+    <img src="data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCAMMBJwDASIAAhEBAxEB/8QAHQABAAICAwEBAAAAAAAAAAAAAAgJBgcBBAUDAv/EAGIQAQABAwICBAgGCwoKBwUJAAABAgMEBQYHEQgSITETGEFRVmGU0hQWIlJxkwkyN2aBkZWxs9HTFTM0OEJicnWhshcjJjVDRnN0wcQkJTZVgqKjJ2Nlg+FFU1RkdoSSwvD/xAAUAQEAAAAAAAAAAAAAAAAAAAAA/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8AhkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA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x7rKuEnSts794gaXtS3tK5h1Z9yaPD1ZUVRRyiZ58uXb3Is+Lpxq9AdQ+us++2N0bOCnFLa3Gfb2u69tDMwNOxb9VV6/XdtTFEdWY8lfME+uczE/2K8uix/G7r/3nO/PUsMjly7O71K8+ixPPpc1VR3Tk50x+OoFhlVUxE8u2YjshD6702sei7XR8R73yapj+Gx7qYF2JmiqOXPnHLkrFyejvxorybtdOwtQmmquZifDWe7n/TBvjx3Mf0Gve2x7p47mP6DXvbY91oPxdeNXoDqH11n3zxdeNXoDqH11n3wSW2F0v7O6N66LtujZtzHq1TOtYkXZzImKJuVxTFXLq9velNkWbeTYrs36Kbtqumaa6KqedNUTHdMeVXdwe4EcW9E4q7W1jVdlZ2Lg4erY1/IvVXbUxbopuUzVM8q+fZHNYpExNPPvBXNw403E0bprYmlYFqLWLi7kuW7VuO6mmKquUQsaq7leG0qqaunVTXzjlO57nbz/AJ1Sw6rnMeYFRvE77ou4/wCs8j9JUxxvHfvADjDqG99czsPY2fexsjUL921ci9a5VU1VzMT218+6XieLpxq9ANQ+us++DVI2t4unGr0A1D66z754unGr0A1D66z74NUsu4Lfde2d/XmH+mpZR4uvGiO2dg5/19nt/wDO8vh/oOrbY497X0PXcG5g6hi69hU3rFcxNVEzdont5dndILVec90Is8R+lzY2hvrWNsVbQu5U6blV483oy4p6/V8vLl2JSqrOkl93nef9a3fzgkf47mP6DXvbY908dzH9Br3tse6haAmpZ6bWPXdoojY135VUR/DY91L7Huzes0XJp5daiKvxwpzwv4ZZ/p0/nXE4H8Cx/wDZU/mgFfvTI/jV2fowfzwsKp7levTI/jV2fowfzwsKp7gVndND+MRuP6bX6OlpmUpulLwY4n7q4165rm39oZmfp2RNvwV+i7aiK+VFMT31RPf6mr/F041egOofXWffBqlzHe2r4unGr0A1D66z75HR140xPbsHUPrrPvgsd4Xfc527/VuP+jpQn+yK/do0b+obX6e8m/sDEydP2TouDmWarORj4Nm1dt1d9FUUREx2IQfZFJpnjTo9POOcaDZ5+r/H3gTu27/mHT/92tf3IaI4+dJS1ws39VtavbNzUZpxbeR4anJiiOVfPs5cv5re225623tOqiYmJxbU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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/9k=" alt="Beyblade RXS" class="logo-img" />
+    <a href="https://www.facebook.com/profile.php?id=61574598407458" target="_blank" rel="noopener" class="fb-link" title="Find us on Facebook">
+      <svg class="fb-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+        <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.514c-1.491 0-1.956.93-1.956 1.886v2.267h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
+      </svg>
+    </a>
+  </div>
+  <nav>
+    <button class="active" onclick="showTab('leaderboard', this)">Leaderboard</button>
+    <button onclick="showTab('weekly', this)">Weekly</button>
+    <button onclick="showTab('achievements', this)">Achievements</button>
+    <button onclick="showTab('challonge', this)">⚡ Challonge</button>
+    <button onclick="showTab('points', this)">Points</button>
+    <span class="nav-login-hint" id="nav-login-hint" onclick="openLoginModal()" title="Admin Login">🔐</span>
+    <button class="nav-admin-btn" id="nav-admin-badge" style="display:none" onclick="adminLogout()">👑 Admin</button>
+  </nav>
+</header>
+
+<div class="hero">
+  <div class="hero-bg-area" id="hero-bg-area">
+    <button class="hero-bg-edit-btn" onclick="openHeroBgModal()">🖼 Edit Background</button>
+  </div>
+  <div class="hero-stats-bar">
+    <div class="hero-stats">
+      <div class="hero-stat"><span class="n" id="stat-bladers">0</span><span class="l">Bladers</span></div>
+      <div class="hero-divider"></div>
+      <div class="hero-stat"><span class="n" id="stat-events">0</span><span class="l">Events</span></div>
+      <div class="hero-divider"></div>
+      <div class="hero-stat"><span class="n" id="stat-ranks">0</span><span class="l">Ranks</span></div>
+      <div class="hero-divider"></div>
+      <div class="hero-stat"><span class="n" id="topScore">0</span><span class="l">Top Score</span></div>
+    </div>
+    <div class="hero-sub">Roxas City Community · Season Rankings</div>
+  </div>
+</div>
+
+<!-- ══════════════ LEADERBOARD TAB ══════════════ -->
+<div id="tab-leaderboard" class="section active">
+  <div class="podium">
+
+    <!-- 2nd Place -->
+    <div class="podium-card p2 pa-silver" id="card-2nd">
+      <div class="podium-bg" id="bg-2nd"></div>
+      <div class="podium-no-photo"><img src="https://i.imgur.com/0KtgsFq.png" alt="" /></div>
+      <div class="podium-place">🥈</div>
+      <button class="podium-edit-btn" onclick="adminEditPhoto(2)">📷 Edit</button>
+      <div class="podium-stats">
+        <div class="podium-name" id="p2-name" style="cursor:pointer" onclick="openBladerProfileByIndex(1)">—</div>
+        <div class="podium-pts" id="p2-pts">0</div>
+        <div class="podium-label">2nd Place</div>
+      </div>
+    </div>
+
+    <!-- 1st Place — Season King -->
+    <div class="podium-card p1 pa-gold" id="card-1st">
+      <div class="podium-bg" id="bg-1st"></div>
+      <div class="podium-no-photo"><img src="https://i.imgur.com/0KtgsFq.png" alt="" /></div>
+      <div class="podium-place">👑</div>
+      <button class="podium-edit-btn" onclick="adminEditPhoto(1)">📷 Edit</button>
+      <div class="podium-stats">
+        <div class="podium-name" id="p1-name" style="cursor:pointer" onclick="openBladerProfileByIndex(0)">—</div>
+        <div class="podium-pts" id="p1-pts">0</div>
+        <div class="season-king-badge" style="margin-top:4px">👑 Season King</div>
+      </div>
+    </div>
+
+    <!-- 3rd Place -->
+    <div class="podium-card p3 pa-bronze" id="card-3rd">
+      <div class="podium-bg" id="bg-3rd"></div>
+      <div class="podium-no-photo"><img src="https://i.imgur.com/0KtgsFq.png" alt="" /></div>
+      <div class="podium-place">🥉</div>
+      <button class="podium-edit-btn" onclick="adminEditPhoto(3)">📷 Edit</button>
+      <div class="podium-stats">
+        <div class="podium-name" id="p3-name" style="cursor:pointer" onclick="openBladerProfileByIndex(2)">—</div>
+        <div class="podium-pts" id="p3-pts">0</div>
+        <div class="podium-label">3rd Place</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="section-header">
+    <span class="section-title">Full Rankings</span>
+    <div class="section-line"></div>
+  </div>
+  <div class="search-row">
+    <input class="search-input" type="text" placeholder="Search blader..." oninput="filterTable(this.value)" />
+    <button class="filter-btn active" onclick="filterTag('all', this)">All</button>
+    <button class="filter-btn" data-team="VG" onclick="filterTag('VG', this)">VG</button>
+    <button class="filter-btn" data-team="ZPC" onclick="filterTag('ZPC', this)">ZPC</button>
+    <button class="filter-btn" data-team="HYDRA" onclick="filterTag('HYDRA', this)">HYDRA</button>
+    <button class="filter-btn" data-team="HSTLR" onclick="filterTag('HSTLR', this)">HSTLR</button>
+  </div>
+  <table class="lb-table">
+    <thead><tr>
+      <th style="width:40px;text-align:center">Rank</th>
+      <th>Blader</th><th>Team</th>
+      <th class="right">Points</th><th class="right">Season Rank</th>
+    </tr></thead>
+    <tbody id="lb-body"></tbody>
+  </table>
+  <div class="page-info" id="page-info"></div>
+</div>
+
+<!-- ══════════════ WEEKLY TAB ══════════════ -->
+<div id="tab-weekly" class="section">
+  <div class="section-header">
+    <span class="section-title">Weekly Scores — Top 20 Bladers</span>
+    <div class="section-line"></div>
+    <button class="btn admin-only-btn" id="weekly-add-col-btn" style="display:none;font-size:11px;padding:5px 12px;" onclick="openWeeklyAddColModal()">➕ Add Event</button>
+    <button class="btn admin-only-btn" id="weekly-edit-btn" style="display:none;font-size:11px;padding:5px 12px;" onclick="toggleWeeklyEdit()">✏️ Edit Scores</button>
+    <button class="btn primary" id="weekly-save-btn" style="display:none;font-size:11px;padding:5px 12px;" onclick="saveWeeklyEdits()">💾 Save</button>
+    <button class="btn" id="weekly-cancel-btn" style="display:none;font-size:11px;padding:5px 12px;" onclick="cancelWeeklyEdit()">✕ Cancel</button>
+  </div>
+  <div id="weekly-edit-banner" style="display:none;background:#1a1200;border:1px solid var(--gold);border-radius:8px;padding:10px 16px;margin-bottom:14px;font-size:12px;color:var(--gold);font-family:'Share Tech Mono',monospace;letter-spacing:1px;">
+    ✏️ EDIT MODE — Click any score cell to change it. Press Save when done.
+  </div>
+  <div style="overflow-x:auto">
+    <table class="lb-table">
+      <thead><tr id="weekly-header-row"><th>Blader</th></tr></thead>
+      <tbody id="weekly-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════ ACHIEVEMENTS TAB ══════════════ -->
+<div id="tab-achievements" class="section">
+  <div class="section-header">
+    <span class="section-title">Hall of Fame</span>
+    <div class="section-line"></div>
+    <button class="btn admin-only-btn" style="display:none;font-size:11px;padding:5px 12px;" onclick="openAchModal()">➕ Add</button>
+  </div>
+  <div id="ach-grid" class="ach-grid"></div>
+</div>
+
+
+<!-- ══════════════ CHALLONGE TAB ══════════════ -->
+<div id="tab-challonge" class="section">
+
+  <!-- PUBLIC VIEW -->
+  <div id="challonge-public">
+    <div id="pub-loading" class="loader"><div class="spinner"></div>Loading latest tournament…</div>
+    <div id="pub-hero" style="display:none"></div>
+    <div id="pub-others" style="display:none">
+      <div class="section-header" style="margin-top:24px">
+        <span class="section-title">All Tournaments</span>
+        <div class="section-line"></div>
+        <button class="btn" onclick="loadPublicTournaments()" style="font-size:11px;padding:5px 12px;">🔄 Refresh</button>
+      </div>
+      <div id="pub-tabs" class="tournament-tabs"></div>
+    </div>
+    <div id="pub-error" style="display:none;padding:40px;text-align:center">
+      <div style="font-size:32px;margin-bottom:12px">⚠️</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:16px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Could not load tournaments</div>
+      <div id="pub-error-msg" style="font-size:13px;color:var(--muted2);margin-bottom:20px"></div>
+      <button class="btn" onclick="loadPublicTournaments()">🔄 Try Again</button>
+    </div>
+  </div>
+
+  <!-- ADMIN VIEW (only shown when logged in as admin) -->
+  <div id="challonge-admin" style="display:none">
+    <div class="challonge-panel">
+      <div class="challonge-header">
+        <div class="challonge-logo">🏆</div>
+        <div>
+          <div class="challonge-title">Challonge Integration</div>
+          <div class="challonge-subtitle">Auto-connected via Vercel · Account: lienathan</div>
+        </div>
+        <div class="challonge-status connected" id="challonge-status">● Connected</div>
+      </div>
+
+      <div class="api-note">
+        ✅ <strong>Auto-connected!</strong> Your API key is securely stored in Netlify — it's never visible to anyone. Tournaments from your <strong>lienathan</strong> Challonge account load automatically. Just create a tournament on Challonge and click Refresh below.
+      </div>
+
+      <div class="challonge-actions">
+        <button class="btn primary" id="btn-load-tournaments" onclick="loadTournaments()">📋 Load My Tournaments</button>
+        <button class="btn" id="btn-refresh" onclick="loadTournaments()">🔄 Refresh</button>
+        
+      </div>
+    </div>
+
+    <div class="challonge-cols">
+      <div>
+        <div class="challonge-col-title">📋 Your Tournaments</div>
+        <div id="tournament-list-wrap"><div class="empty-state">Click "Load My Tournaments" to begin</div></div>
+      </div>
+      <div>
+        <div class="challonge-col-title">🎯 Selected Tournament</div>
+        <div id="tournament-detail-wrap"><div class="empty-state">Select a tournament to view details</div></div>
+      </div>
+    </div>
+
+    <div id="import-section" style="display:none;margin-top:24px">
+      <div class="section-header">
+        <span class="section-title">Import to Leaderboard</span>
+        <div class="section-line"></div>
+      </div>
+      <div style="margin-bottom:12px;font-size:13px;color:var(--muted);line-height:1.7">
+        Assign final placements to season points, then add as a new event column. Give the event a label first:
+      </div>
+      <div class="event-name-input-wrap">
+        <input class="form-input" type="text" id="event-label-input" placeholder="e.g. W14 or HYDRA ER" style="max-width:280px" />
+        <button class="btn primary" id="btn-import" onclick="importTournamentResults()">⬇ Import to Leaderboard</button>
+      </div>
+      <div id="import-preview-wrap" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════ POINTS TAB ══════════════ -->
+<div id="tab-points" class="section">
+  <div class="section-header"><span class="section-title">Point System</span><div class="section-line"></div></div>
+  <div class="points-grid">
+    <div class="point-card" style="border-color:var(--gold)"><span class="pts" style="color:var(--gold2)">8</span><span class="lbl">👑 Season King</span></div>
+    <div class="point-card"><span class="pts">6</span><span class="lbl">🥈 2nd Place</span></div>
+    <div class="point-card"><span class="pts">5</span><span class="lbl">🥉 3rd Place</span></div>
+    <div class="point-card"><span class="pts">4</span><span class="lbl">4️⃣ 4th Place</span></div>
+    <div class="point-card"><span class="pts">3</span><span class="lbl">🏅 Top 8</span></div>
+    <div class="point-card"><span class="pts">2</span><span class="lbl">🎖️ Top 16</span></div>
+    <div class="point-card"><span class="pts">1</span><span class="lbl">✅ Participant</span></div>
+    <div class="point-card"><span class="pts">3</span><span class="lbl">👑 Swiss King/Queen</span></div>
+    <div class="point-card"><span class="pts">2</span><span class="lbl">⚔️ Swiss Slayer</span></div>
+  </div>
+  <div class="section-header" style="margin-top:20px"><span class="section-title">Team Totals</span><div class="section-line"></div><button class="btn admin-only-btn" id="add-team-btn" style="font-size:11px;padding:5px 12px;display:none" onclick="openAddTeamModal()">➕ Add Team</button></div>
+  <div class="team-grid" id="team-totals"></div>
+</div>
+
+<footer>Beyblade RXS · Roxas City Community · Season 1</footer>
+<div class="toast" id="toast"></div>
+
+<!-- ══════════════ LOGIN MODAL ══════════════ -->
+<div class="modal-overlay" id="login-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeLoginModal()">✕</button>
+    <div class="modal-title">Admin Login</div>
+    <div class="modal-sub">Enter your admin credentials to access Challonge controls</div>
+    <div class="form-group">
+      <label class="form-label">Username</label>
+      <input class="form-input" type="text" id="login-user" placeholder="admin username" autocomplete="username" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input class="form-input" type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password"
+        onkeydown="if(event.key==='Enter')doLogin()" />
+    </div>
+    <div class="modal-error" id="login-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" onclick="doLogin()">Login</button>
+      <button class="btn" onclick="closeLoginModal()">Cancel</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════ PHOTO EDIT MODAL ══════════════ -->
+<div class="modal-overlay" id="photo-modal">
+  <div class="modal" style="max-width:460px">
+    <button class="modal-close" onclick="closePhotoModal()">✕</button>
+    <div class="modal-title">Edit Podium Photos</div>
+    <div class="modal-sub">Paste an image URL for each Top 3 player. Works with any direct image link (Facebook, Imgur, Discord CDN, etc.)</div>
+
+    <div class="photo-url-note">💡 Tip: On Facebook, right-click a photo → "Open image in new tab" → copy the URL from the address bar.</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+      <div style="text-align:center">
+        <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin-bottom:6px">👑 1st</div>
+        <img id="prev-1" class="photo-preview" src="" onerror="this.style.display='none'" style="display:none" />
+        <div id="prev-1-sil" style="width:80px;height:80px;border-radius:50%;background:#1a1200;border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 6px">🧍</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--silver);margin-bottom:6px">🥈 2nd</div>
+        <img id="prev-2" class="photo-preview" src="" onerror="this.style.display='none'" style="display:none" />
+        <div id="prev-2-sil" style="width:80px;height:80px;border-radius:50%;background:#141414;border:2px solid var(--silver);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 6px">🧍</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--bronze);margin-bottom:6px">🥉 3rd</div>
+        <img id="prev-3" class="photo-preview" src="" onerror="this.style.display='none'" style="display:none" />
+        <div id="prev-3-sil" style="width:80px;height:80px;border-radius:50%;background:#1a0e08;border:2px solid var(--bronze);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 6px">🧍</div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">👑 1st Place — Image URL</label>
+      <input class="form-input" type="text" id="photo-url-1" placeholder="https://..." oninput="previewPhoto(1,this.value)" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">🥈 2nd Place — Image URL</label>
+      <input class="form-input" type="text" id="photo-url-2" placeholder="https://..." oninput="previewPhoto(2,this.value)" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">🥉 3rd Place — Image URL</label>
+      <input class="form-input" type="text" id="photo-url-3" placeholder="https://..." oninput="previewPhoto(3,this.value)" />
+    </div>
+
+    <div class="modal-actions" style="margin-top:8px">
+      <button class="btn primary" style="flex:1" onclick="applyPhotos()">✅ Apply Photos</button>
+      <button class="btn danger" onclick="clearPhotos()">🗑 Clear All</button>
+      <button class="btn" onclick="closePhotoModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ HERO BG MODAL ══════════════ -->
+<div class="modal-overlay" id="herobg-modal">
+  <div class="modal" style="max-width:420px">
+    <button class="modal-close" onclick="closeHeroBgModal()">✕</button>
+    <div class="modal-title">Edit Hero Background</div>
+    <div class="modal-sub">Paste a direct image URL to use as the banner background.</div>
+    <div class="photo-url-note">💡 Tip: On Facebook, right-click photo → "Open image in new tab" → copy that URL.</div>
+    <div id="herobg-preview" style="width:100%;height:120px;border-radius:10px;background:var(--surface2);border:1px solid var(--border2);margin-bottom:16px;overflow:hidden;display:flex;align-items:center;justify-content:center;"><span style="font-size:32px;opacity:0.3">🖼</span></div>
+    <div class="form-group">
+      <label class="form-label">Background Image URL</label>
+      <input class="form-input" type="text" id="herobg-url-input" placeholder="https://..." oninput="previewHeroBg(this.value)" />
+    </div>
+    <div class="modal-actions" style="margin-top:8px">
+      <button class="btn primary" style="flex:1" onclick="applyHeroBg()">✅ Apply</button>
+      <button class="btn danger" onclick="clearHeroBg()">🗑 Clear</button>
+      <button class="btn" onclick="closeHeroBgModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  ADMIN AUTH — passwords are stored in Vercel Environment
+//  Variables, NOT here. Safe from View Source / AI reading.
+// ═══════════════════════════════════════════════════════
+let isAdmin = false;
+
+// ═══════════════════════════════════════════════════════
+//  DATA
+// ═══════════════════════════════════════════════════════
+let players = [];
+let eventLabels = [];
+
+// Podium photos stored in localStorage
+let podiumPhotos = { 1: '', 2: '', 3: '' };
+let heroBgUrl = '';
+
+// Challonge state
+let challongeApiKey = '', challongeUsername = '', selectedTournament = null, currentParticipants = [];
+let publishedTournaments = [];
+
+// ═══ POINT MAP ═══
+const POINT_MAP = {1:8,2:6,3:5,4:4};
+function getPointsForRank(rank) {
+  if (POINT_MAP[rank]) return POINT_MAP[rank];
+  if (rank <= 8) return 3;
+  if (rank <= 16) return 2;
+  return 1;
+}
+
+// ═══ TOAST ═══
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show ' + type;
+  setTimeout(()=>{ t.className='toast'; }, 3200);
+}
+
+// ═══════════════════════════════════════════════════════
+//  ADMIN AUTH
+// ═══════════════════════════════════════════════════════
+function openLoginModal() {
+  document.getElementById('login-user').value = '';
+  document.getElementById('login-pass').value = '';
+  document.getElementById('login-error').textContent = '';
+  document.getElementById('login-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('login-user').focus(), 100);
+}
+function closeLoginModal() { document.getElementById('login-modal').classList.remove('open'); }
+
+async function doLogin() {
+  const u = document.getElementById('login-user').value.trim();
+  const p = document.getElementById('login-pass').value;
+  const btn = document.querySelector('#login-modal .btn.primary');
+  btn.disabled = true; btn.textContent = 'Checking…';
+  document.getElementById('login-error').textContent = '';
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: u, password: p })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      isAdmin = true;
+      closeLoginModal();
+      applyAdminUI();
+      showToast('Welcome, ' + u + '! Admin mode active.', 'success');
+    } else {
+      document.getElementById('login-error').textContent = data.error || 'Incorrect username or password.';
+      document.getElementById('login-pass').value = '';
+    }
+  } catch(e) {
+    document.getElementById('login-error').textContent = 'Login failed. Please try again.';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Login';
+  }
+}
+
+function adminLogout() {
+  isAdmin = false;
+  document.getElementById('admin-bar').classList.remove('visible');
+  document.getElementById('nav-admin-badge').style.display = 'none';
+  document.getElementById('nav-login-hint').style.display = '';
+  document.body.classList.remove('admin-active');
+  document.querySelectorAll('.admin-only-btn').forEach(b => b.style.display = 'none');
+  // Switch challonge tab back to public view
+  document.getElementById('challonge-admin').style.display = 'none';
+  document.getElementById('challonge-public').style.display = 'block';
+  showToast('Logged out of admin.', '');
+}
+
+function applyAdminUI() {
+  document.getElementById('admin-bar').classList.add('visible');
+  document.getElementById('nav-admin-badge').style.display = '';
+  document.getElementById('nav-login-hint').style.display = 'none';
+  document.body.classList.add('admin-active');
+  document.querySelectorAll('.admin-only-btn').forEach(b => b.style.display = '');
+  // If currently on challonge tab, show admin panel
+  if (document.getElementById('tab-challonge').classList.contains('active')) {
+    document.getElementById('challonge-admin').style.display = 'block';
+    document.getElementById('challonge-public').style.display = 'none';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  CLOUD STORAGE — proxied through /api/data (Vercel)
+//  Set JSONBIN_BIN_ID and JSONBIN_API_KEY in Vercel
+//  Environment Variables — never exposed to the browser.
+// ═══════════════════════════════════════════════════════
+const DATA_API = '/api/data';
+
+let cloudSaveTimeout = null;
+
+// ── localStorage fallback ──
+const LS_KEY = 'beyblade_rxs_data';
+function localSave() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify({ photos: podiumPhotos, heroBgUrl: heroBgUrl||'', players, eventLabels, importedIds: importedTournamentIds, teamConfig, bladerStats, manualAchs: manualAchievements, autoAchOv: autoAchOverrides })); } catch(e) {}
+}
+function localLoad() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    if (d.photos)                    { podiumPhotos = d.photos; applyPodiumPhotos(); }
+    if (d.heroBgUrl !== undefined)   { heroBgUrl = d.heroBgUrl; applyHeroBgToPage(); }
+    if (d.players)                   { players = d.players; }
+    if (d.eventLabels)               { eventLabels = d.eventLabels; }
+    if (d.importedIds)               { importedTournamentIds = d.importedIds; }
+    if (d.teamConfig)                  { teamConfig = Object.assign(teamConfig, d.teamConfig); }
+    if (d.bladerStats)                 { bladerStats = Object.assign(bladerStats, d.bladerStats); }
+    if (d.manualAchs)                  { manualAchievements = d.manualAchs; }
+    if (d.autoAchOv)                   { autoAchOverrides = d.autoAchOv; }
+    renderLeaderboard(); renderWeekly(); renderTeamTotals(); updateHeroStats(); renderAchievements();
+    return true;
+  } catch(e) { return false; }
+}
+
+async function cloudLoad() {
+  localLoad(); // show local data instantly while cloud fetches
+  try {
+    const res = await fetch(DATA_API);
+    if (!res.ok) {
+      console.error('[Cloud] Load failed:', res.status, await res.text());
+      showToast('⚠️ Cloud load failed (' + res.status + ')', 'error');
+      return;
+    }
+    const data = await res.json();
+    console.log('[Cloud] Loaded OK');
+    if (data.photos)                  { podiumPhotos = data.photos; applyPodiumPhotos(); }
+    if (data.heroBgUrl !== undefined) { heroBgUrl = data.heroBgUrl; applyHeroBgToPage(); }
+    if (data.players)                 { players = data.players; }
+    if (data.eventLabels)             { eventLabels = data.eventLabels; }
+    if (data.importedIds)             { importedTournamentIds = data.importedIds; }
+    if (data.teamConfig)               { teamConfig = Object.assign(teamConfig, data.teamConfig); }
+    if (data.bladerStats)              { bladerStats = Object.assign(bladerStats, data.bladerStats); }
+    if (data.manualAchs)               { manualAchievements = data.manualAchs; }
+    if (data.autoAchOv)                { autoAchOverrides = data.autoAchOv; }
+    renderLeaderboard(); renderWeekly(); renderTeamTotals(); updateHeroStats(); renderAchievements();
+    updateTeamFilterButtons();
+    localSave();
+  } catch(e) { console.error('[Cloud] Load error:', e); }
+}
+
+async function cloudSave() {
+  localSave();
+  clearTimeout(cloudSaveTimeout);
+  cloudSaveTimeout = setTimeout(async () => {
+    try {
+      const res = await fetch(DATA_API, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          photos: podiumPhotos,
+          heroBgUrl: heroBgUrl || '',
+          players: players,
+          eventLabels: eventLabels,
+          importedIds: importedTournamentIds,
+          teamConfig: teamConfig,
+          bladerStats: bladerStats,
+          manualAchs: manualAchievements,
+          autoAchOv: autoAchOverrides
+        })
+      });
+      if (!res.ok) {
+        console.error('[Cloud] Save failed:', res.status, await res.text());
+        showToast('⚠️ Cloud save failed (' + res.status + ')', 'error');
+      } else { console.log('[Cloud] Saved OK'); }
+    } catch(e) { console.error('[Cloud] Save error:', e); }
+  }, 800);
+}
+
+// ═══════════════════════════════════════════════════════
+//  PODIUM PHOTO MANAGEMENT
+// ═══════════════════════════════════════════════════════
+function loadSavedPhotos() {
+  cloudLoad();
+}
+
+const DEFAULT_CARD_BG = 'https://i.imgur.com/0KtgsFq.png';
+function applyPodiumPhotos() {
+  [1,2,3].forEach(n => {
+    // Manual override first, then auto from player profile photo
+    const playerIdx = n - 1;
+    const playerName = players[playerIdx]?.name;
+    const autoPhoto = playerName ? (getBladerStats(playerName).photo || '') : '';
+    const url = podiumPhotos[n] || autoPhoto;
+    const bgId = n===1?'bg-1st':n===2?'bg-2nd':'bg-3rd';
+    const cardId = n===1?'card-1st':n===2?'card-2nd':'card-3rd';
+    const bgEl = document.getElementById(bgId);
+    const noPhotoEl = document.querySelector('#'+cardId+' .podium-no-photo');
+    if (!bgEl) return;
+    if (url) {
+      bgEl.innerHTML = '<img src="'+url+'" style="width:100%;height:100%;object-fit:cover;object-position:center top;display:block;" onerror="this.parentElement.innerHTML=\'\';" />';
+      if (noPhotoEl) noPhotoEl.style.display = 'none';
+    } else {
+      bgEl.innerHTML = '';
+      if (noPhotoEl) noPhotoEl.style.display = '';
+    }
+  });
+}
+
+function adminEditPhoto(n) {
+  if (!isAdmin) return;
+  openPhotoModal();
+  setTimeout(()=> document.getElementById('photo-url-'+n).focus(), 200);
+}
+
+function openPhotoModal() {
+  if (!isAdmin) return;
+  [1,2,3].forEach(n => {
+    document.getElementById('photo-url-'+n).value = podiumPhotos[n] || '';
+    previewPhoto(n, podiumPhotos[n] || '');
+  });
+  document.getElementById('photo-modal').classList.add('open');
+}
+function closePhotoModal() { document.getElementById('photo-modal').classList.remove('open'); }
+
+function previewPhoto(n, url) {
+  const img = document.getElementById('prev-'+n);
+  const sil = document.getElementById('prev-'+n+'-sil');
+  if (url && url.startsWith('http')) {
+    img.src = url; img.style.display = 'block'; sil.style.display = 'none';
+    img.onerror = () => { img.style.display='none'; sil.style.display='flex'; };
+  } else {
+    img.style.display = 'none'; sil.style.display = 'flex';
+  }
+}
+
+function applyPhotos() {
+  [1,2,3].forEach(n => {
+    podiumPhotos[n] = document.getElementById('photo-url-'+n).value.trim();
+  });
+  cloudSave();
+  applyPodiumPhotos();
+  closePhotoModal();
+  showToast('Podium photos updated!', 'success');
+}
+
+function clearPhotos() {
+  podiumPhotos = {1:'',2:'',3:''};
+  cloudSave();
+  applyPodiumPhotos();
+  [1,2,3].forEach(n => {
+    document.getElementById('photo-url-'+n).value = '';
+    previewPhoto(n, '');
+  });
+  showToast('Photos cleared.', '');
+}
+
+// ── HERO BACKGROUND ──
+function applyHeroBgToPage() {
+  const el = document.getElementById('hero-bg-area');
+  if (!el) return;
+  if (heroBgUrl) {
+    el.style.backgroundImage = 'url("' + heroBgUrl + '")';
+    el.style.minHeight = '240px';
+  } else {
+    el.style.backgroundImage = '';
+    el.style.minHeight = '200px';
+  }
+}
+function openHeroBgModal() {
+  if (!isAdmin) return;
+  document.getElementById('herobg-url-input').value = heroBgUrl || '';
+  previewHeroBg(heroBgUrl || '');
+  document.getElementById('herobg-modal').classList.add('open');
+  setTimeout(() => document.getElementById('herobg-url-input').focus(), 150);
+}
+function closeHeroBgModal() { document.getElementById('herobg-modal').classList.remove('open'); }
+function previewHeroBg(url) {
+  const wrap = document.getElementById('herobg-preview');
+  if (!wrap) return;
+  if (url && url.startsWith('http')) {
+    wrap.innerHTML = '<img src="' + url + '" style="width:100%;height:100%;object-fit:cover;border-radius:8px;" />';
+  } else {
+    wrap.innerHTML = '<span style="font-size:32px;opacity:0.3">🖼</span>';
+  }
+}
+function applyHeroBg() {
+  heroBgUrl = document.getElementById('herobg-url-input').value.trim();
+  applyHeroBgToPage();
+  cloudSave();
+  closeHeroBgModal();
+  showToast('Background updated!', 'success');
+}
+function clearHeroBg() {
+  heroBgUrl = '';
+  document.getElementById('herobg-url-input').value = '';
+  previewHeroBg('');
+  applyHeroBgToPage();
+  cloudSave();
+  showToast('Background cleared.', '');
+}
+
+// ═══════════════════════════════════════════════════════
+//  CHALLONGE
+// ═══════════════════════════════════════════════════════
+const API = '/api/challonge';
+
+// Track imported tournament IDs
+let importedTournamentIds = [];
+
+async function fetchChallonge(query) {
+  const resp = await fetch(`${API}${query}`);
+  const text = await resp.text();
+  let data;
+  try { data = JSON.parse(text); } catch(_) { throw new Error(`HTTP ${resp.status} — ${text.slice(0,120)}`); }
+  if (data && data.error) throw new Error(data.error);
+  return data;
+}
+
+// ── Name matching ──
+// Challonge names with "/" mean "either name works" e.g. "NONOY X / NOY MAHAW!"
+// Strategy: exact match first, then slash-alias match, then NO fuzzy guessing on short tokens
+function findPlayerByName(challongeName) {
+  const cn = challongeName.toLowerCase().trim();
+
+  // 1. Exact match
+  let found = players.find(p => p.name.toLowerCase() === cn);
+  if (found) return found;
+
+  // 2. Challonge name contains "/" — try each part as an alias against all player names/aliases
+  const challongeAliases = cn.split(/\s*\/\s*/).map(s => s.trim()).filter(Boolean);
+
+  // 3. Player name contains "/" — expand player aliases too
+  // For each player, build their alias list from their name split by "/"
+  for (const alias of challongeAliases) {
+    if (alias.length < 2) continue;
+    found = players.find(p => {
+      const playerAliases = p.name.toLowerCase().split(/\s*\/\s*/).map(s => s.trim());
+      return playerAliases.some(pa => pa === alias);
+    });
+    if (found) return found;
+  }
+
+  // 4. Challonge name is contained exactly within a player name (or vice versa) — only if long enough
+  if (cn.length >= 4) {
+    found = players.find(p => p.name.toLowerCase() === cn);
+    if (found) return found;
+    // Check if challonge name matches any player alias exactly
+    found = players.find(p => {
+      const playerAliases = p.name.toLowerCase().split(/\s*\/\s*/).map(s => s.trim());
+      return playerAliases.some(pa => pa === cn);
+    });
+    if (found) return found;
+  }
+
+  // 5. Dot-separated: "ZPC.JUANDER" → try "zpc.juander" vs player names as-is
+  // Also try stripping dots: "ZPC.JUANDER" → "zpcjuander"
+  const cnNoDots = cn.replace(/\./g, '');
+  if (cnNoDots !== cn && cnNoDots.length >= 4) {
+    found = players.find(p => {
+      const pAliases = p.name.toLowerCase().split(/\s*\/\s*/).map(s => s.trim());
+      return pAliases.some(pa => pa.replace(/\./g, '') === cnNoDots);
+    });
+    if (found) return found;
+  }
+
+  // 6. Last resort: full name starts-with match — only if the match is SPECIFIC enough
+  // Require at least 6 chars to avoid "vg" matching "vg.xuyapos" wrongly for "vg. ms. lyn"
+  const cnClean = cn.replace(/[^a-z0-9]/g, '');
+  if (cnClean.length >= 5) {
+    found = players.find(p => {
+      const pAliases = p.name.toLowerCase().split(/\s*\/\s*/).map(s => s.trim());
+      return pAliases.some(pa => {
+        const paClean = pa.replace(/[^a-z0-9]/g, '');
+        return paClean === cnClean || paClean.startsWith(cnClean) || cnClean.startsWith(paClean);
+      });
+    });
+    if (found) return found;
+  }
+
+  return null;
+}
+
+// ── PUBLIC VIEW: auto-load best tournament ──
+async function loadPublicTournaments() {
+  document.getElementById('pub-loading').style.display = 'flex';
+  document.getElementById('pub-hero').style.display = 'none';
+  document.getElementById('pub-others').style.display = 'none';
+  document.getElementById('pub-error').style.display = 'none';
+  try {
+    const data = await fetchChallonge('?action=list');
+    if (!data || !data.length) { showPubError('No tournaments found.'); return; }
+    const stateOrder = {underway:0, pending:1, complete:2};
+    const sorted = [...data].sort((a,b) => {
+      const sa = stateOrder[a.tournament.state]??2, sb = stateOrder[b.tournament.state]??2;
+      if (sa !== sb) return sa - sb;
+      return new Date(b.tournament.created_at) - new Date(a.tournament.created_at);
+    });
+    await renderFeaturedTournament(sorted[0].tournament);
+    renderPublicTabs(sorted);
+    document.getElementById('pub-loading').style.display = 'none';
+    document.getElementById('pub-others').style.display = 'block';
+  } catch(e) { showPubError(e.message); }
+}
+
+function showPubError(msg) {
+  document.getElementById('pub-loading').style.display = 'none';
+  document.getElementById('pub-error').style.display = 'block';
+  document.getElementById('pub-error-msg').textContent = msg;
+}
+
+async function renderFeaturedTournament(tour) {
+  const state = tour.state;
+  const stateLabel = {underway:'🔴 LIVE', complete:'✅ Complete', pending:'⏳ Upcoming'}[state] || state;
+  const stateClass = {underway:'live', complete:'complete', pending:'pending'}[state] || 'pending';
+  const date = tour.started_at ? new Date(tour.started_at).toLocaleDateString('en-PH', {year:'numeric',month:'long',day:'numeric'}) : 'Not started yet';
+  const isImported = importedTournamentIds.includes(String(tour.id));
+  const heroEl = document.getElementById('pub-hero');
+  heroEl.innerHTML = '<div class="loader" id="hero-loading"><div class="spinner"></div>Loading bracket…</div>';
+  heroEl.style.display = 'block';
+  let participants = [];
+  try {
+    const pData = await fetchChallonge(`?action=participants&tournament_id=${encodeURIComponent(tour.url)}`);
+    participants = pData.map(p=>p.participant).sort((a,b)=>(a.final_rank||999)-(b.final_rank||999));
+  } catch(e) {}
+  const standingsHtml = participants.length ? `
+    <div style="margin-top:16px">
+      <div style="font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">
+        Final Standings — ${participants.length} Participants
+      </div>
+      <div class="standings-grid">
+        ${participants.map((p,i) => {
+          const rank = p.final_rank||(i+1);
+          const pts = getPointsForRank(rank);
+          const medal = rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':`#${rank}`;
+          const rClass = rank===1?'r1':rank===2?'r2':rank===3?'r3':'';
+          const matchedPlayer = findPlayerByName(p.display_name||p.name||'');
+          const newTag = !matchedPlayer ? '<span class="sg-new">NEW</span>' : '';
+          return `<div class="sg-card"><div class="sg-rank ${rClass}">${medal}</div><div class="sg-name">${p.display_name||p.name}${newTag}</div><div class="sg-pts">+${pts} pts</div></div>`;
+        }).join('')}
+      </div>
+    </div>` : '';
+  const autoBanner = (state === 'complete' && !isImported) ? `
+    <div class="auto-import-banner"><div class="aib-icon">💡</div><div>This tournament is <strong>complete</strong> but not yet added to the leaderboard. <strong>Admin can import</strong> from the Admin panel.</div></div>` :
+    (isImported ? `<div class="auto-import-banner" style="background:#0a0f1a;border-color:var(--blue)"><div class="aib-icon">✅</div><div style="color:#5a9fd4">Results from this tournament have been <strong style="color:var(--blue)">added to the leaderboard</strong>.</div></div>` : '');
+  heroEl.innerHTML = `
+    <div class="challonge-live-hero state-${stateClass}">
+      <div class="clh-top">
+        <div class="clh-icon">🏆</div>
+        <div class="clh-info">
+          <div class="clh-name">${tour.name}</div>
+          <div class="clh-meta">${(tour.tournament_type||'TOURNAMENT').toUpperCase()} · ${tour.participants_count} players · ${date}</div>
+        </div>
+        <div><div class="status-pill ${stateClass}">${stateLabel}</div></div>
+      </div>
+      ${autoBanner}
+      <div style="border-radius:10px;overflow:hidden;border:1px solid var(--border);margin-bottom:16px">
+        <iframe src="https://challonge.com/${tour.url}/module?theme=1&multiplier=1.0&show_final_results=1&show_standings=1"
+          width="100%" height="500" frameborder="0" scrolling="auto" allowtransparency="true"
+          style="background:transparent;display:block"></iframe>
+      </div>
+      ${standingsHtml}
+    </div>`;
+}
+
+function renderPublicTabs(sorted) {
+  const emoji = {underway:'🔴', complete:'✅', pending:'⏳'};
+  document.getElementById('pub-tabs').innerHTML = sorted.map((t,i) => {
+    const tour = t.tournament;
+    return `<div class="t-tab${i===0?' active':''}" onclick="switchPublicTournament('${tour.id}','${tour.url}','${tour.name.replace(/'/g,"'")}','${tour.state}',this)">
+      <span class="dot"></span>${emoji[tour.state]||''} ${tour.name}
+    </div>`;
+  }).join('');
+}
+
+async function switchPublicTournament(id, url, name, state, el) {
+  document.querySelectorAll('.t-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  const heroEl = document.getElementById('pub-hero');
+  heroEl.innerHTML = '<div class="loader"><div class="spinner"></div>Loading…</div>';
+  heroEl.style.display = 'block';
+  await renderFeaturedTournament({id, url, name, state, tournament_type:'', participants_count:'?', started_at:null});
+}
+
+// ── Admin: load tournament list ──
+async function loadTournaments() {
+  document.getElementById('tournament-list-wrap').innerHTML = '<div class="loader"><div class="spinner"></div>Loading from Challonge…</div>';
+  document.getElementById('tournament-detail-wrap').innerHTML = '<div class="empty-state">Select a tournament to view details</div>';
+  document.getElementById('import-section').style.display = 'none';
+  try {
+    const data = await fetchChallonge('?action=list');
+    document.getElementById('challonge-status').textContent = '● Connected';
+    document.getElementById('challonge-status').className = 'challonge-status connected';
+    renderTournamentList(data);
+    showToast(`Loaded ${data.length} tournaments!`, 'success');
+  } catch(e) {
+    document.getElementById('challonge-status').textContent = '● Error';
+    document.getElementById('challonge-status').className = 'challonge-status error';
+    document.getElementById('tournament-list-wrap').innerHTML = `<div class="empty-state">Error: ${e.message}<br><br>Make sure CHALLONGE_API_KEY is set in Netlify Environment Variables and the site has been redeployed since the key was added.</div>`;
+  }
+}
+
+
+
+function renderPublicTournamentList(data) {
+  if (!data || !data.length) {
+    document.getElementById('public-tournament-list').innerHTML = '<div class="challonge-locked"><div class="lock-icon">🏆</div><div class="lock-title">No Tournaments Yet</div><div class="lock-sub">Tournaments from the lienathan Challonge account will appear here automatically.</div></div>';
+    return;
+  }
+  // Sort: underway first, then complete, then pending
+  const order = {underway:0, complete:1, pending:2};
+  const sorted = [...data].sort((a,b) => (order[a.tournament.state]||2)-(order[b.tournament.state]||2));
+  const html = sorted.map(t => {
+    const tour = t.tournament;
+    const s = {complete:'complete',underway:'underway',pending:'pending'}[tour.state]||'pending';
+    const sl = {complete:'✅ Complete',underway:'🔴 LIVE',pending:'⏳ Upcoming'}[s];
+    const date = tour.started_at ? new Date(tour.started_at).toLocaleDateString() : 'Not started yet';
+    return `<div class="tournament-item" onclick="openPublicBracket('${tour.id}','${tour.url}','${tour.name.replace(/'/g,"\\'")}','${s}')">
+      <div class="t-icon">🏆</div>
+      <div class="t-info">
+        <div class="t-name">${tour.name}</div>
+        <div class="t-meta">${tour.tournament_type.toUpperCase()} · ${tour.participants_count} players · ${date}</div>
+      </div>
+      <div class="t-status ${s}">${sl}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('public-tournament-list').innerHTML = `<div class="tournament-list">${html}</div>`;
+}
+
+async function openPublicBracket(id, url, name, state) {
+  document.getElementById('public-tournament-list').style.display = 'none';
+  document.getElementById('public-bracket-view').style.display = 'block';
+  document.getElementById('pub-bracket-title').textContent = name;
+  const statusEl = document.getElementById('pub-bracket-status');
+  statusEl.textContent = state === 'underway' ? '🔴 LIVE' : state === 'complete' ? '✅ Complete' : '⏳ Upcoming';
+  statusEl.className = 'ltc-status ' + (state === 'underway' ? 'live' : 'done');
+
+  // Embed the Challonge bracket iframe
+  document.getElementById('pub-bracket-embed').innerHTML = `
+    <div style="border-radius:10px;overflow:hidden;border:1px solid var(--border)">
+      <iframe src="https://challonge.com/${url}/module?theme=1&multiplier=1.0&match_width_multiplier=1.0&show_final_results=1&show_standings=1"
+        width="100%" height="500" frameborder="0" scrolling="auto" allowtransparency="true"
+        style="background:transparent;display:block"></iframe>
+    </div>`;
+
+  // Also load participants
+  document.getElementById('pub-participants-wrap').innerHTML = '<div class="loader"><div class="spinner"></div>Loading standings…</div>';
+  try {
+    const data = await fetchChallonge(`?action=participants&tournament_id=${encodeURIComponent(url)}`);
+    const participants = data.map(p=>p.participant).sort((a,b)=>(a.final_rank||999)-(b.final_rank||999));
+    if (!participants.length) { document.getElementById('pub-participants-wrap').innerHTML = ''; return; }
+    const rows = participants.map((p,i) => {
+      const rank = p.final_rank||(i+1);
+      const pts = getPointsForRank(rank);
+      const medal = rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':`#${rank}`;
+      return `<div class="bracket-participant">
+        <div class="bp-rank">${medal}</div>
+        <div class="bp-name">${p.display_name||p.name}</div>
+        <div class="bp-pts">+${pts} pts</div>
+      </div>`;
+    }).join('');
+    document.getElementById('pub-participants-wrap').innerHTML = `
+      <div class="bracket-preview" style="margin-top:16px">
+        <div class="bracket-title">Final Standings — ${participants.length} Participants</div>
+        ${rows}
+      </div>`;
+  } catch(e) {
+    document.getElementById('pub-participants-wrap').innerHTML = '';
+  }
+}
+
+function backToTournamentList() {
+  document.getElementById('public-bracket-view').style.display = 'none';
+  document.getElementById('public-tournament-list').style.display = 'block';
+}
+
+function renderTournamentList(data) {
+  if (!data || !data.length) { document.getElementById('tournament-list-wrap').innerHTML = '<div class="empty-state">No tournaments found.</div>'; return; }
+  const html = data.map(t => {
+    const tour = t.tournament;
+    const s = {complete:'complete',underway:'underway',pending:'pending'}[tour.state]||'pending';
+    const sl = {complete:'Complete',underway:'Live',pending:'Pending'}[s];
+    const date = tour.started_at ? new Date(tour.started_at).toLocaleDateString() : 'Not started';
+    return `<div class="tournament-item" onclick="selectTournament('${tour.id}','${tour.url}',this)">
+      <div class="t-icon">🏆</div>
+      <div class="t-info"><div class="t-name">${tour.name}</div><div class="t-meta">${tour.tournament_type.toUpperCase()} · ${tour.participants_count} players · ${date}</div></div>
+      <div class="t-status ${s}">${sl}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('tournament-list-wrap').innerHTML = '<div class="tournament-list">'+html+'</div>';
+}
+
+async function selectTournament(id, url, el) {
+  document.querySelectorAll('.tournament-item').forEach(i=>i.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedTournament = {id, url};
+  document.getElementById('tournament-detail-wrap').innerHTML = '<div class="loader"><div class="spinner"></div>Loading participants…</div>';
+  try {
+    const data = await fetchChallonge(`?action=participants&tournament_id=${encodeURIComponent(url)}`);
+    currentParticipants = data.map(p=>p.participant).sort((a,b)=>(a.final_rank||999)-(b.final_rank||999));
+    renderTournamentDetail();
+    const alreadyImported = importedTournamentIds.includes(String(id));
+    const importSection = document.getElementById('import-section');
+    importSection.style.display = 'block';
+    const btnImport = document.getElementById('btn-import');
+    const labelInput = document.getElementById('event-label-input');
+    if (alreadyImported) {
+      btnImport.disabled = true;
+      btnImport.style.cssText = 'background:#0a1f0f;border:1px solid var(--green);color:var(--green);cursor:default;opacity:1;font-family:\'Rajdhani\',sans-serif;font-weight:700;letter-spacing:2px;padding:8px 18px;border-radius:6px;font-size:12px';
+      btnImport.textContent = '\u2705 RECORDED';
+      labelInput.disabled = true;
+      labelInput.style.opacity = '0.4';
+      document.getElementById('import-preview-wrap').innerHTML = '<div class="api-note" style="color:var(--green)">\u2705 This tournament has already been recorded to the leaderboard.</div>';
+    } else {
+      btnImport.disabled = false;
+      btnImport.style.cssText = '';
+      btnImport.className = 'btn primary';
+      btnImport.textContent = '\u2b07 Import to Leaderboard';
+      labelInput.disabled = false;
+      labelInput.style.opacity = '1';
+      document.getElementById('import-preview-wrap').innerHTML = '';
+    }
+  } catch(e) {
+    document.getElementById('tournament-detail-wrap').innerHTML = `<div class="empty-state">Could not load: ${e.message}</div>`;
+  }
+}
+
+function renderTournamentDetail() {
+  const html = `<div class="bracket-preview">
+    <div class="bracket-title">Final Standings — ${currentParticipants.length} Participants</div>
+    ${currentParticipants.slice(0,20).map((p,i)=>{
+      const rank = p.final_rank||(i+1);
+      const pts = getPointsForRank(rank);
+      return `<div class="bracket-participant"><div class="bp-rank">#${rank}</div><div class="bp-name">${p.display_name||p.name}</div><div class="bp-pts">+${pts}pts</div></div>`;
+    }).join('')}
+    ${currentParticipants.length>20?`<div style="text-align:center;padding:8px;color:var(--muted);font-size:11px">+${currentParticipants.length-20} more</div>`:''}
+  </div>`;
+  document.getElementById('tournament-detail-wrap').innerHTML = html;
+}
+
+
+
+// ─── Import ───
+function importTournamentResults() {
+  const label = document.getElementById('event-label-input').value.trim() || `Event ${eventLabels.length+1}`;
+  if (!currentParticipants.length) { showToast('No tournament selected.', 'error'); return; }
+
+  // Snapshot everything RIGHT NOW so clicking another tournament won't affect this import
+  const snapshotParticipants = currentParticipants.slice();
+  const snapshotTournamentId = selectedTournament?.id || '';
+  const snapshotTournamentUrl = selectedTournament?.url || '';
+
+  const results = snapshotParticipants.map((p,i) => {
+    const challongeName = (p.display_name||p.name||'').trim();
+    const matched = findPlayerByName(challongeName);
+    return {
+      challongeName,
+      rank: p.final_rank||(i+1),
+      pts: getPointsForRank(p.final_rank||(i+1)),
+      matchedPlayer: matched ? matched.name : null
+    };
+  });
+
+  // Player name options for dropdown (existing players + NEW)
+  const playerOptions = ['__NEW__', ...players.map(p => p.name)];
+
+  const rowsHtml = results.map((r, i) => {
+    const selectedVal = r.matchedPlayer || '__NEW__';
+    const dropdownOptions = playerOptions.map(name =>
+      `<option value="${name}" ${name === selectedVal ? 'selected' : ''}>${name === '__NEW__' ? '➕ Add as NEW player' : name}</option>`
+    ).join('');
+    const matchColor = r.matchedPlayer ? 'var(--green)' : 'var(--gold)';
+    return `<div class="import-row" style="align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+      <div class="ir-rank">#${r.rank}</div>
+      <div style="flex:1;min-width:140px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:3px">Challonge: <strong style="color:var(--accent)">${r.challongeName}</strong></div>
+        <select class="import-match-select" data-idx="${i}"
+          style="width:100%;background:var(--surface2);border:1px solid ${matchColor};color:var(--accent);
+          border-radius:6px;padding:4px 6px;font-family:'Exo 2',sans-serif;font-size:12px;cursor:pointer">
+          ${dropdownOptions}
+        </select>
+      </div>
+      <input type="number" class="import-pts-input" data-idx="${i}" value="${r.pts}" min="0" max="99"
+        style="width:52px;background:var(--surface2);border:1px solid var(--border2);color:var(--accent);
+        border-radius:6px;padding:3px 6px;font-family:'Share Tech Mono',monospace;font-size:13px;text-align:center" />
+      <span style="font-size:11px;color:var(--muted)">pts</span>
+    </div>`;
+  }).join('');
+
+  const safeLabel = encodeURIComponent(label);
+  const safeResults = encodeURIComponent(JSON.stringify(results));
+  const safeTid = encodeURIComponent(snapshotTournamentId);
+  const safeTurl = encodeURIComponent(snapshotTournamentUrl);
+
+  const preview = `<div class="import-preview">
+    <div class="import-title">✏️ Confirm Import — ${results.length} participants</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Check each player matches correctly. Use the dropdown to fix any wrong matches.</div>
+    <div style="font-size:11px;color:var(--muted2);margin-bottom:12px">🟢 green = auto-matched &nbsp;|&nbsp; 🟡 gold = new player</div>
+    <div id="editable-results-wrap">${rowsHtml}</div>
+    <div style="margin-top:14px;display:flex;gap:8px">
+      <button class="btn primary" onclick="confirmImportFinal('${safeLabel}','${safeResults}','${safeTid}','${safeTurl}')">✅ Confirm Import</button>
+      <button class="btn" onclick="document.getElementById('import-preview-wrap').innerHTML=''">Cancel</button>
+    </div>
+  </div>`;
+  document.getElementById('import-preview-wrap').innerHTML = preview;
+}
+
+function confirmImportFinal(labelEnc, resultsEnc, tidEnc, turlEnc) {
+  const baseResults = JSON.parse(decodeURIComponent(resultsEnc));
+  const tournamentId = decodeURIComponent(tidEnc);
+  const tournamentUrl = decodeURIComponent(turlEnc);
+
+  // Read dropdown selections and pts overrides
+  document.querySelectorAll('.import-match-select').forEach(sel => {
+    const idx = parseInt(sel.dataset.idx);
+    if (!isNaN(idx) && baseResults[idx]) {
+      const val = sel.value;
+      baseResults[idx].matchedPlayer = val === '__NEW__' ? null : val;
+    }
+  });
+  document.querySelectorAll('.import-pts-input').forEach(inp => {
+    const idx = parseInt(inp.dataset.idx);
+    if (!isNaN(idx) && baseResults[idx]) {
+      baseResults[idx].pts = parseInt(inp.value) || 0;
+    }
+  });
+
+  const safeResults = encodeURIComponent(JSON.stringify(baseResults));
+  confirmImport(labelEnc, safeResults, tournamentId, tournamentUrl);
+}
+
+async function confirmImport(labelEnc, resultsEnc, tournamentId, tournamentUrl) {
+  const label = decodeURIComponent(labelEnc);
+  const results = JSON.parse(decodeURIComponent(resultsEnc));
+  eventLabels.push(label);
+  players.forEach(p => { p.scores.push(0); });
+  results.forEach(r => {
+    if (r.matchedPlayer) {
+      const player = players.find(p => p.name === r.matchedPlayer);
+      if (player) { player.scores[player.scores.length-1] = r.pts; player.total += r.pts; }
+    } else {
+      const sc = new Array(eventLabels.length).fill(0);
+      sc[sc.length-1] = r.pts;
+      players.push({no:players.length+1, name:r.challongeName, scores:sc, total:r.pts, rank:players.length+1});
+    }
+  });
+  players.sort((a,b)=>b.total-a.total);
+  let rank=1;
+  players.forEach((p,i)=>{ if(i>0&&p.total<players[i-1].total) rank=i+1; p.rank=rank; });
+
+  // ── Read wins/losses/scores from Challonge match data ──
+  if ((tournamentUrl || tournamentId) && !importedTournamentIds.includes(String(tournamentId))) {
+    try {
+      const tid = tournamentUrl || tournamentId;
+      const matchData = await fetchChallonge(`?action=matches&tournament_id=${encodeURIComponent(tid)}`);
+      // Build participant id → player name map
+      const pidMap = {};
+      results.forEach(r => {
+        const cp = currentParticipants.find(p => (p.display_name||p.name||'').trim() === r.challongeName);
+        if (cp) pidMap[cp.id] = r.matchedPlayer || r.challongeName;
+      });
+      // Count wins, losses, and match points from every completed match
+      const winCounts  = {};
+      const lossCounts = {};
+      const matchPtCounts = {};
+      (matchData || []).forEach(m => {
+        const match = m.match || m;
+        if (match.state !== 'complete' || !match.winner_id) return;
+        const winnerName = pidMap[match.winner_id];
+        const p1Name     = pidMap[match.player1_id];
+        const p2Name     = pidMap[match.player2_id];
+        const loserName  = match.winner_id === match.player1_id ? p2Name : p1Name;
+        if (winnerName) winCounts[winnerName]   = (winCounts[winnerName]  || 0) + 1;
+        if (loserName)  lossCounts[loserName]    = (lossCounts[loserName] || 0) + 1;
+        // scores_csv: Challonge always stores higher score first
+        if (match.scores_csv && winnerName && loserName) {
+          let winnerPts = 0, loserPts = 0;
+          match.scores_csv.split(',').forEach(set => {
+            const parts = set.trim().split('-');
+            if (parts.length === 2) {
+              const a = parseInt(parts[0]) || 0;
+              const b = parseInt(parts[1]) || 0;
+              winnerPts += Math.max(a, b);
+              loserPts  += Math.min(a, b);
+            }
+          });
+          matchPtCounts[winnerName] = (matchPtCounts[winnerName] || 0) + winnerPts;
+          matchPtCounts[loserName]  = (matchPtCounts[loserName]  || 0) + loserPts;
+        }
+      });
+      // Collect all unique player names across both wins and losses
+      const allNames = new Set([...Object.keys(winCounts), ...Object.keys(lossCounts)]);
+      allNames.forEach(name => {
+        const st = ensureBladerStats(name);
+        const w = winCounts[name] || 0;
+        const l = lossCounts[name] || 0;
+        st.wins          = (st.wins || 0) + w;
+        st.losses        = (st.losses || 0) + l;
+        st.matchesPlayed = (st.matchesPlayed || 0) + w + l;
+      });
+      Object.entries(matchPtCounts).forEach(([name, pts]) => {
+        const st = ensureBladerStats(name);
+        st.matchPoints = (st.matchPoints || 0) + pts;
+      });
+      console.log('[Import] Wins:', winCounts, 'Losses:', lossCounts, 'Match pts:', matchPtCounts);
+    } catch(e) { console.warn('[Import] Could not fetch matches:', e); }
+  }
+
+  if (tournamentId && !importedTournamentIds.includes(String(tournamentId))) {
+    importedTournamentIds.push(String(tournamentId));
+    cloudSave();
+  }
+  renderLeaderboard(); renderWeekly(); renderTeamTotals(); updateHeroStats(); renderAchievements();
+  cloudSave();
+  document.getElementById('import-preview-wrap').innerHTML = `<div class="api-note" style="color:var(--green)">✅ <strong>${label}</strong> recorded! A new column has been added to Weekly Scores.</div>`;
+  showToast(`${label} recorded!`, 'success');
+  // Update the import button to RECORDED state
+  const btnImport = document.getElementById('btn-import');
+  const labelInput = document.getElementById('event-label-input');
+  if (btnImport) {
+    btnImport.disabled = true;
+    btnImport.style.cssText = 'background:#0a1f0f;border:1px solid var(--green);color:var(--green);cursor:default;opacity:1;font-family:\'Rajdhani\',sans-serif;font-weight:700;letter-spacing:2px;padding:8px 18px;border-radius:6px;font-size:12px';
+    btnImport.textContent = '\u2705 RECORDED';
+  }
+  if (labelInput) { labelInput.disabled = true; labelInput.style.opacity = '0.4'; }
+}
+
+// ═══════════════════════════════════════════════════════
+//  TAB SWITCHING
+// ═══════════════════════════════════════════════════════
+function showTab(tab, btn) {
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  btn.classList.add('active');
+  if (tab === 'challonge') {
+    if (isAdmin) {
+      document.getElementById('challonge-admin').style.display = 'block';
+      document.getElementById('challonge-public').style.display = 'none';
+    } else {
+      document.getElementById('challonge-admin').style.display = 'none';
+      document.getElementById('challonge-public').style.display = 'block';
+      loadPublicTournaments();
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  LEADERBOARD RENDER
+// ═══════════════════════════════════════════════════════
+let currentFilter='all', currentSearch='';
+function getTeam(name) {
+  const keys = Object.keys(teamConfig).filter(k => k !== 'Independent');
+  for (const key of keys) { if (name.startsWith(key)) return key; }
+  return '';
+}
+function getTagHtml(name) {
+  const t = getTeam(name); if (!t) return '';
+  const cfg = teamConfig[t];
+  const color = cfg ? cfg.color : '#888888';
+  const label = cfg ? cfg.name : t;
+  const hex = color.replace('#','');
+  const r=parseInt(hex.slice(0,2),16)||136, g=parseInt(hex.slice(2,4),16)||136, b=parseInt(hex.slice(4,6),16)||136;
+  const bg = `rgba(${r},${g},${b},0.12)`;
+  const border = `rgba(${r},${g},${b},0.35)`;
+  return `<span class="tag" style="color:${color};background:${bg};border:0.5px solid ${border}">${label}</span>`;
+}
+function getRankBadge(rank) {
+  if(rank===1) return `<span class="rank-badge rb-1">Season King</span>`;
+  if(rank===2) return `<span class="rank-badge rb-2">2nd</span>`;
+  if(rank===3) return `<span class="rank-badge rb-3">3rd</span>`;
+  if(rank<=8) return `<span class="rank-badge rb-n">Top 8</span>`;
+  if(rank<=16) return `<span class="rank-badge rb-n">Top 16</span>`;
+  return `<span class="rank-badge rb-n">Rank ${rank}</span>`;
+}
+function getRankDisplay(rank,i) {
+  if(i===0) return `<span class="rank-num gold">🥇</span>`;
+  if(i===1) return `<span class="rank-num silver">🥈</span>`;
+  if(i===2) return `<span class="rank-num bronze">🥉</span>`;
+  return `<span class="rank-num">#${i+1}</span>`;
+}
+function renderLeaderboard() {
+  const body=document.getElementById('lb-body');
+  let filtered=players.filter(p=>{
+    const ms=p.name.toLowerCase().includes(currentSearch.toLowerCase());
+    const mt=currentFilter==='all'||getTeam(p.name)===currentFilter;
+    return ms&&mt;
+  });
+  body.innerHTML=filtered.map((p,i)=>{
+    const isTop3=i<3&&currentFilter==='all'&&currentSearch==='';
+    const origIdx=players.indexOf(p);
+    const safeName=encodeURIComponent(p.name);
+    return `<tr><td>${getRankDisplay(p.rank,origIdx)}</td><td><span class="blader-name${isTop3?' top3':''}" style="cursor:pointer" data-blader="${safeName}" onclick="openBladerProfile(decodeURIComponent(this.dataset.blader))">${p.name}</span>${getTagHtml(p.name)}</td><td>${getTeam(p.name)||'<span style="color:var(--muted2)">—</span>'}</td><td><span class="score${origIdx===0?' champ':''}" style="display:block;text-align:right">${p.total}</span></td><td style="text-align:right">${getRankBadge(p.rank)}</td></tr>`;
+    }).join('');
+  document.getElementById('page-info').textContent=`Showing ${filtered.length} of ${players.length} bladers`;
+}
+function filterTable(val){currentSearch=val;renderLeaderboard();}
+function filterTag(tag,btn){
+  currentFilter=tag;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active'); renderLeaderboard();
+}
+
+// ═══════════════════════════════════════════════════════
+//  WEEKLY RENDER
+// ═══════════════════════════════════════════════════════
+function renderWeekly() {
+  const hr=document.getElementById('weekly-header-row');
+  hr.innerHTML='<th>Blader</th>'+eventLabels.map((l,i)=>{
+    const labelHtml = (weeklyEditMode && isAdmin)
+      ? `<span style="cursor:pointer;color:var(--gold)" title="Rename column" onclick="renameWeeklyCol(${i},'${l.replace(/'/g,"\\'")}')">${l} ✏️</span>`
+      : l;
+    return `<th style="text-align:center">${labelHtml}</th>`;
+  }).join('')+'<th class="right">Total</th>';
+  const body=document.getElementById('weekly-body');
+  const top20=players.slice(0,20);
+  body.innerHTML=top20.map((p,i)=>{
+    const maxScore=Math.max(...p.scores);
+    const safeName = encodeURIComponent(p.name);
+    const cells=p.scores.map((s,evIdx)=>{
+      if (weeklyEditMode && isAdmin) {
+        return `<td style="text-align:center;padding:4px 6px"><input
+          type="number" min="0" max="99"
+          class="weekly-score-input"
+          data-player="${safeName}"
+          data-event="${evIdx}"
+          value="${s}"
+          style="width:48px;background:var(--surface2);border:1px solid var(--gold);border-radius:5px;
+          color:var(--accent);font-family:'Share Tech Mono',monospace;font-size:13px;text-align:center;
+          padding:3px 4px;outline:none"
+          oninput="previewWeeklyTotal(this)"
+        /></td>`;
+      }
+      if(s===0) return `<td style="text-align:center;color:var(--muted2)">—</td>`;
+      const cls=s===maxScore&&s>=8?' class="ws high"':s>=6?' class="ws win"':' class="ws"';
+      return `<td style="text-align:center"><span${cls}>${s}</span></td>`;
+    }).join('');
+    const rd=i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`;
+    return `<tr><td><span style="color:var(--muted);font-size:12px;margin-right:8px">${rd}</span><span class="blader-name">${p.name}</span>${getTagHtml(p.name)}</td>${cells}<td><span class="score${i===0?' champ':''}" style="display:block;text-align:right">${p.total}</span></td></tr>`;
+  }).join('');
+}
+
+// Live-preview row total while typing
+function previewWeeklyTotal(inp) {
+  const row = inp.closest('tr');
+  const allInputs = row.querySelectorAll('.weekly-score-input');
+  let sum = 0;
+  allInputs.forEach(i => sum += (parseInt(i.value) || 0));
+  const totalEl = row.querySelector('.score');
+  if (totalEl) totalEl.textContent = sum;
+}
+
+function renameWeeklyCol(idx, oldLabel) {
+  const newLabel = prompt('Rename "' + oldLabel + '" to:', oldLabel);
+  if (!newLabel || !newLabel.trim() || newLabel.trim() === oldLabel) return;
+  eventLabels[idx] = newLabel.trim();
+  cloudSave();
+  renderWeekly();
+  showToast('Column renamed to "' + newLabel.trim() + '"', 'success');
+}
+
+// ═══════════════════════════════════════════════════════
+//  TEAM TOTALS & HERO STATS
+// ═══════════════════════════════════════════════════════
+// ── Team config stored in cloud ──
+let teamConfig = {
+  VG:          { name:'VG',          color:'#4a9fd4', icon:'⚡', logo:'', fbUrl:'' },
+  ZPC:         { name:'ZPC',         color:'#9977cc', icon:'💫', logo:'', fbUrl:'' },
+  HYDRA:       { name:'HYDRA',       color:'#4aaa6a', icon:'🐉', logo:'', fbUrl:'' },
+  HSTLR:       { name:'HSTLR',       color:'#d47a3a', icon:'🎧', logo:'', fbUrl:'' },
+  Independent: { name:'Independent', color:'#888888', icon:'⚔️', logo:'', fbUrl:'' }
+};
+
+function renderTeamTotals() {
+  // Build totals dynamically from all teamConfig keys
+  const totals = {};
+  Object.keys(teamConfig).forEach(k => { totals[k] = 0; });
+  players.forEach(p => {
+    const t = getTeam(p.name) || 'Independent';
+    if (totals[t] !== undefined) totals[t] += p.total;
+    else { totals['Independent'] = (totals['Independent']||0) + p.total; }
+  });
+  document.getElementById('team-totals').innerHTML = Object.keys(totals).sort((a,b)=>totals[b]-totals[a]).map(key => {
+    const cfg = teamConfig[key] || {name:key, color:'#888', icon:'⚔️', logo:'', fbUrl:''};
+    const logoHtml = cfg.logo
+      ? `<img src="${cfg.logo}" alt="${cfg.name}" onerror="this.style.display='none';this.nextSibling.style.display='block'"><span style="display:none">${cfg.icon}</span>`
+      : `<span>${cfg.icon}</span>`;
+    const logoEl = cfg.fbUrl
+      ? `<a class="team-card-logo-wrap" href="${cfg.fbUrl}" target="_blank" rel="noopener" title="Visit ${cfg.name} on Facebook" style="text-decoration:none">${logoHtml}</a>`
+      : `<div class="team-card-logo-wrap">${logoHtml}</div>`;
+    const canDelete = key !== 'Independent';
+    const deleteBtn = canDelete ? `<button class="team-card-delete-btn admin-only-btn" style="display:none" onclick="confirmDeleteTeam('${key}')" title="Delete team">🗑</button>` : '';
+    return `<div class="team-card" style="border-color:${cfg.color}33">
+      ${logoEl}
+      <div class="team-card-info">
+        <div class="team-card-pts" style="color:${cfg.color}">${totals[key]}</div>
+        <div class="team-card-name">${cfg.name}</div>
+      </div>
+      <button class="team-card-edit-btn admin-only-btn" style="display:none" onclick="openTeamEditModal('${key}')">✏️ Edit</button>
+      ${deleteBtn}
+    </div>`;
+  }).join('');
+  // Show/hide admin buttons based on current admin state
+  if (isAdmin) {
+    document.querySelectorAll('.admin-only-btn').forEach(b => b.style.display = '');
+  }
+}
+function updateHeroStats() {
+  document.getElementById('stat-bladers').textContent=players.length;
+  document.getElementById('stat-events').textContent=eventLabels.length;
+  document.getElementById('stat-ranks').textContent = players.length ? Math.max(...players.map(p => p.rank || 0)) : 0;
+  document.getElementById('topScore').textContent=players[0]?.total||0;
+  // Podium names + pts — connected to sorted players array
+  const names=['p1-name','p2-name','p3-name'];
+  const pts=['p1-pts','p2-pts','p3-pts'];
+  [0,1,2].forEach(i=>{
+    const el=document.getElementById(names[i]);
+    const ep=document.getElementById(pts[i]);
+    if(el) el.textContent = players[i]?.name || '—';
+    if(ep) ep.textContent = players[i]?.total || 0;
+  });
+  // Auto-refresh podium photos from player profile photos
+  applyPodiumPhotos();
+}
+
+// ═══════════════════════════════════════════════════════
+//  ACHIEVEMENTS — auto-computed + manual custom ones
+// ═══════════════════════════════════════════════════════
+let manualAchievements = []; // { icon, name, desc, holder, photo }
+
+function renderAchievements() {
+  const grid = document.getElementById('ach-grid');
+  if (!grid || players.length === 0) return;
+
+  const achs = [];
+
+  // ── Podium ──
+  if (players[0]) achs.push({ icon:'👑', name:'Season King',   desc:'Highest total points this season',    holder: players[0].name + ' — ' + players[0].total + ' pts' });
+  if (players[1]) achs.push({ icon:'🥈', name:'Runner Up',     desc:'Second highest total points',          holder: players[1].name + ' — ' + players[1].total + ' pts' });
+  if (players[2]) achs.push({ icon:'🥉', name:'Third Place',   desc:'Third highest total points',           holder: players[2].name + ' — ' + players[2].total + ' pts' });
+
+  // ── Most Events Attended (most non-zero scores) ──
+  const byEvents = [...players].sort((a,b) => {
+    const ea = a.scores.filter(s=>s>0).length;
+    const eb = b.scores.filter(s=>s>0).length;
+    return eb - ea;
+  });
+  if (byEvents[0]) {
+    const count = byEvents[0].scores.filter(s=>s>0).length;
+    achs.push({ icon:'⚡', name:'Most Events', desc:'Participated in most events', holder: byEvents[0].name + ' — ' + count + ' events' });
+  }
+
+  // ── Highest single-event score ──
+  let topSingle = null, topSingleScore = 0;
+  players.forEach(p => {
+    const best = Math.max(...p.scores);
+    if (best > topSingleScore) { topSingleScore = best; topSingle = p; }
+  });
+  if (topSingle) achs.push({ icon:'💥', name:'Best Single Event', desc:'Highest score in one event', holder: topSingle.name + ' — ' + topSingleScore + ' pts' });
+
+  // ── Perfect / max score (8 pts = 1st place) in any event ──
+  const perfPlayers = players.filter(p => p.scores.some(s => s >= 8)).map(p=>p.name);
+  if (perfPlayers.length)
+    achs.push({ icon:'🎯', name:'Event Champion', desc:'Finished 1st in at least one event', holder: perfPlayers.join(', ') });
+
+  // ── Most consistent (lowest std deviation among players with 5+ events) ──
+  const active = players.filter(p => p.scores.filter(s=>s>0).length >= 5);
+  if (active.length) {
+    const consistency = active.map(p => {
+      const sc = p.scores.filter(s=>s>0);
+      const avg = sc.reduce((a,b)=>a+b,0)/sc.length;
+      const variance = sc.reduce((a,b)=>a+(b-avg)**2,0)/sc.length;
+      return { p, std: Math.sqrt(variance) };
+    }).sort((a,b)=>a.std-b.std);
+    achs.push({ icon:'🎱', name:'Most Consistent', desc:'Lowest score variance (5+ events)', holder: consistency[0].p.name + ' — avg ' + (consistency[0].p.scores.filter(s=>s>0).reduce((a,b)=>a+b,0)/consistency[0].p.scores.filter(s=>s>0).length).toFixed(1) + ' pts' });
+  }
+
+  // ── Top team members ──
+  const teams = ['VG','ZPC','HYDRA','HSTLR'];
+  const icons = { VG:'🔥', ZPC:'💎', HYDRA:'🐉', HSTLR:'🎧' };
+  teams.forEach(team => {
+    const members = players.filter(p => getTeam(p.name) === team);
+    if (members.length) {
+      const top = members[0]; // already sorted by total
+      achs.push({ icon: icons[team], name:'Top ' + team, desc:'Highest scoring ' + team + ' member', holder: top.name + ' — ' + top.total + ' pts' });
+    }
+  });
+
+  // ── Most improved: biggest score in latest event vs average ──
+  if (eventLabels.length > 0) {
+    const lastIdx = eventLabels.length - 1;
+    const lastEventName = eventLabels[lastIdx];
+    const lastWinner = [...players].filter(p=>p.scores[lastIdx]>0).sort((a,b)=>b.scores[lastIdx]-a.scores[lastIdx])[0];
+    if (lastWinner)
+      achs.push({ icon:'⭐', name:'Latest Event Winner', desc:'Won ' + lastEventName, holder: lastWinner.name + ' — ' + lastWinner.scores[lastIdx] + ' pts' });
+  }
+
+  // ── First event winner ──
+  if (eventLabels.length > 0) {
+    const firstWinner = [...players].filter(p=>p.scores[0]>0).sort((a,b)=>b.scores[0]-a.scores[0])[0];
+    if (firstWinner)
+      achs.push({ icon:'🚀', name:'First Champion', desc:'Won ' + (eventLabels[0]||'Event 1'), holder: firstWinner.name + ' — ' + firstWinner.scores[0] + ' pts' });
+  }
+
+  // ── Biggest comeback: low early average, high recent average ──
+  if (eventLabels.length >= 6) {
+    const mid = Math.floor(eventLabels.length / 2);
+    const comebacks = players.filter(p=>p.scores.filter(s=>s>0).length>=4).map(p=>{
+      const early = p.scores.slice(0,mid).reduce((a,b)=>a+b,0);
+      const late  = p.scores.slice(mid).reduce((a,b)=>a+b,0);
+      return { p, diff: late - early };
+    }).sort((a,b)=>b.diff-a.diff);
+    if (comebacks[0] && comebacks[0].diff > 0)
+      achs.push({ icon:'📈', name:'Biggest Climber', desc:'Most improved in second half of season', holder: comebacks[0].p.name });
+  }
+
+  // ── Apply auto overrides (hidden/edited auto achievements) ──
+  // autoAchOverrides: { [autoName]: { hidden: true } | { ...edited fields } }
+  const visibleAutoAchs = achs
+    .filter(a => !autoAchOverrides[a.name]?.hidden)
+    .map(a => {
+      const ov = autoAchOverrides[a.name];
+      return ov ? { ...a, ...ov, _auto: true, _autoKey: a.name } : { ...a, _auto: true, _autoKey: a.name };
+    });
+
+  // Manual achievements shown at top
+  const allAchs = [
+    ...manualAchievements.map((a,i) => ({...a, _manual: true, _idx: i})),
+    ...visibleAutoAchs
+  ];
+
+  // ── Render ──
+  grid.innerHTML = allAchs.map(a => {
+    // Auto-find player photo: check if holder starts with a known player name
+    let autoPhoto = a.photo || '';
+    if (!autoPhoto) {
+      // holder format is usually "PLAYERNAME — X pts" — extract the name part
+      const holderName = (a.holder || '').split(/\s*[—–-]\s*/)[0].trim();
+      // Try exact match first, then partial
+      const matchedPlayer = players.find(p => p.name.toLowerCase() === holderName.toLowerCase())
+        || players.find(p => holderName.toLowerCase().startsWith(p.name.toLowerCase()));
+      if (matchedPlayer) autoPhoto = getBladerStats(matchedPlayer.name).photo || '';
+    }
+    const photoHtml = autoPhoto
+      ? `<img src="${autoPhoto}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--border2)" onerror="this.style.display='none';this.nextSibling.style.display='flex'" /><div class="ach-icon" style="display:none">${a.icon||'🏆'}</div>`
+      : `<div class="ach-icon">${a.icon||'🏆'}</div>`;
+    const safeKey = JSON.stringify(a._manual ? null : (a._autoKey || '')).replace(/"/g, '&quot;');
+    const editBtn = a._manual
+      ? `<button class="ach-edit-btn" onclick="editAch(${a._idx})">✏️</button>`
+      : `<button class="ach-edit-btn" onclick="editAutoAch('${(a._autoKey||'').replace(/'/g,"\'")}')">✏️</button>`;
+    return `<div class="ach-card">
+      ${editBtn}
+      ${photoHtml}
+      <div class="ach-info">
+        <div class="name">${a.name}</div>
+        <div class="desc">${a.desc}</div>
+        <div class="holder">${a.holder}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// autoAchOverrides persisted in cloud: { autoName: { hidden, icon, name, desc, holder, photo } }
+let autoAchOverrides = {};
+
+function openAchModal(idx) {
+  const isEdit = idx !== undefined;
+  const a = isEdit ? manualAchievements[idx] : {icon:'🏆', name:'', desc:'', holder:'', photo:''};
+  document.getElementById('ach-modal-title').textContent = isEdit ? '✏️ Edit Achievement' : '➕ Add Achievement';
+  document.getElementById('ach-modal-idx').value = isEdit ? ('manual:' + idx) : '';
+  document.getElementById('ach-modal-icon').value = a.icon || '🏆';
+  document.getElementById('ach-modal-name').value = a.name || '';
+  document.getElementById('ach-modal-desc').value = a.desc || '';
+  document.getElementById('ach-modal-holder').value = a.holder || '';
+  document.getElementById('ach-modal-photo').value = a.photo || '';
+  document.getElementById('ach-modal-delete').style.display = isEdit ? 'block' : 'none';
+  document.getElementById('ach-modal').classList.add('open');
+}
+function editAch(idx) { if (isAdmin) openAchModal(idx); }
+function closeAchModal() { document.getElementById('ach-modal').classList.remove('open'); }
+
+function editAutoAch(autoKey) {
+  if (!isAdmin) return;
+  const ov = autoAchOverrides[autoKey] || {};
+  // Get current rendered card values as fallback (find the card by its name text)
+  const cards = document.querySelectorAll('#ach-grid .ach-card');
+  let cardName = autoKey, cardDesc = '', cardHolder = '', cardIcon = '🏆';
+  cards.forEach(card => {
+    if (card.querySelector('.name')?.textContent === autoKey) {
+      cardDesc   = card.querySelector('.desc')?.textContent || '';
+      cardHolder = card.querySelector('.holder')?.textContent || '';
+      const iconEl = card.querySelector('.ach-icon');
+      if (iconEl) cardIcon = iconEl.textContent;
+    }
+  });
+  document.getElementById('ach-modal-title').textContent = '✏️ Edit Achievement';
+  document.getElementById('ach-modal-idx').value = 'auto:' + autoKey;
+  document.getElementById('ach-modal-icon').value  = ov.icon   || cardIcon;
+  document.getElementById('ach-modal-name').value  = ov.name   || cardName;
+  document.getElementById('ach-modal-desc').value  = ov.desc   || cardDesc;
+  document.getElementById('ach-modal-holder').value= ov.holder || cardHolder;
+  document.getElementById('ach-modal-photo').value = ov.photo  || '';
+  document.getElementById('ach-modal-delete').style.display = 'block';
+  document.getElementById('ach-modal').classList.add('open');
+}
+
+function saveAchModal() {
+  const idxRaw = document.getElementById('ach-modal-idx').value;
+  const a = {
+    icon: document.getElementById('ach-modal-icon').value.trim() || '🏆',
+    name: document.getElementById('ach-modal-name').value.trim(),
+    desc: document.getElementById('ach-modal-desc').value.trim(),
+    holder: document.getElementById('ach-modal-holder').value.trim(),
+    photo: document.getElementById('ach-modal-photo').value.trim()
+  };
+  if (!a.name) { showToast('Name is required', 'error'); return; }
+
+  if (idxRaw === '') {
+    // New manual achievement
+    manualAchievements.push(a);
+    showToast('Achievement added!', 'success');
+  } else if (idxRaw.startsWith('manual:')) {
+    // Edit existing manual achievement
+    const idx = parseInt(idxRaw.replace('manual:', ''));
+    manualAchievements[idx] = a;
+    showToast('Achievement updated!', 'success');
+  } else if (idxRaw.startsWith('auto:')) {
+    // Override auto achievement
+    const autoKey = idxRaw.replace('auto:', '');
+    autoAchOverrides[autoKey] = { ...a, hidden: false };
+    showToast('Achievement updated!', 'success');
+  }
+  cloudSave();
+  renderAchievements();
+  closeAchModal();
+}
+
+function deleteAchModal() {
+  const idxRaw = document.getElementById('ach-modal-idx').value;
+  if (idxRaw.startsWith('manual:')) {
+    const idx = parseInt(idxRaw.replace('manual:', ''));
+    if (!isNaN(idx)) manualAchievements.splice(idx, 1);
+  } else if (idxRaw.startsWith('auto:')) {
+    const autoKey = idxRaw.replace('auto:', '');
+    autoAchOverrides[autoKey] = { hidden: true };
+  }
+  cloudSave();
+  renderAchievements();
+  closeAchModal();
+  showToast('Achievement removed.', '');
+}
+
+
+// ═══════════════════════════════════════════════════════
+//  BLADER PROFILES & STATS
+// ═══════════════════════════════════════════════════════
+// bladerStats keyed by player name — manually entered fields
+// auto-computed fields come live from players[] & challonge data
+// bladerStats: manually entered + accumulated per-event data
+// finishes are CUMULATIVE — admin adds per event, totals accumulate
+// wins are auto-tracked from Challonge match imports
+let bladerStats = {};
+// { "NAME": { photo:'', wins:0, spinFinishes:0, burstFinishes:0, extremeFinishes:0 } }
+
+function getBladerStats(name) {
+  return bladerStats[name] || { photo:'', wins:0, spinFinishes:0, burstFinishes:0, extremeFinishes:0 };
+}
+function ensureBladerStats(name) {
+  if (!bladerStats[name]) bladerStats[name] = { photo:'', wins:0, spinFinishes:0, burstFinishes:0, extremeFinishes:0 };
+  return bladerStats[name];
+}
+
+function computeBladerProfile(name) {
+  const p = players.find(pl => pl.name === name);
+  if (!p) return null;
+  const st = getBladerStats(name);
+  const eventsJoined  = p.scores.filter(s => s > 0).length;
+  const gamesTotal    = eventLabels.length;
+  const attendRate    = gamesTotal > 0 ? ((eventsJoined / gamesTotal) * 100).toFixed(1) + '%' : '—';
+  const rank          = players.indexOf(p) + 1;
+  const wins           = st.wins || 0;
+  const losses         = st.losses || 0;
+  const matchesPlayed  = st.matchesPlayed || 0;
+  const matchPoints    = st.matchPoints || 0;
+  // Match Win Rate = wins / (wins + losses)
+  const totalDecided   = wins + losses;
+  const winRate        = totalDecided > 0 ? ((wins / totalDecided) * 100).toFixed(1) + '%' : '—';
+  // PPG = total match points earned ÷ total matches played (Swiss 0-6, Finals 0-9)
+  // Falls back to season pts ÷ events if no match point data yet
+  const ppg = matchesPlayed > 0 && matchPoints > 0
+    ? (matchPoints / matchesPlayed).toFixed(2)
+    : eventsJoined > 0 ? (p.total / eventsJoined).toFixed(2) : '0.00';
+  return { name, rank, total: p.total, gamesPlayed: matchesPlayed, eventsJoined, gamesTotal, attendRate, ppg, winRate, wins, losses,
+           photo: st.photo||'',
+           spinFinishes: st.spinFinishes||0, burstFinishes: st.burstFinishes||0,
+           extremeFinishes: st.extremeFinishes||0 };
+}
+
+function openBladerProfile(name) {
+  const profile = computeBladerProfile(name);
+  if (!profile) return;
+  const team = getTeam(name);
+  const cfg  = teamConfig[team] || {};
+  const teamColor = cfg.color || '#888';
+  const tagHtml = team ? `<span class="profile-rank-pill" style="color:${teamColor};border-color:${teamColor}66">${cfg.name||team}</span>` : '';
+  const rankEmoji = profile.rank===1?'👑':profile.rank===2?'🥈':profile.rank===3?'🥉':'';
+
+  const modal = document.getElementById('blader-profile-modal');
+  const st0 = getBladerStats(name);
+  const DEFAULT_HERO_BG = 'https://i.imgur.com/ixgnPf6.jpeg';
+  const heroBgSrc = st0.bgPhoto || DEFAULT_HERO_BG;
+  const heroBgEl = modal.querySelector('.profile-hero-bg');
+  heroBgEl.innerHTML = `<img src="${heroBgSrc}" crossorigin="anonymous" />`;
+  heroBgEl.style.background = '';
+
+  const av = modal.querySelector('.profile-avatar');
+  const DEFAULT_AVATAR = 'https://i.imgur.com/0KtgsFq.png';
+  av.innerHTML = `<img src="${profile.photo || DEFAULT_AVATAR}" alt="${name}" onerror="this.src='${DEFAULT_AVATAR}'" />`;
+
+  modal.querySelector('.profile-pname').textContent = name;
+  modal.querySelector('.profile-tags').innerHTML =
+    tagHtml +
+    `<span class="profile-rank-pill">${rankEmoji} Rank #${profile.rank}</span>` +
+    `<span class="profile-rank-pill">${profile.total} pts</span>`;
+
+  // stat cards row
+  modal.querySelector('#pc-winrate').textContent   = profile.winRate;
+  modal.querySelector('#pc-rank').textContent      = '#' + profile.rank;
+  modal.querySelector('#pc-ppg').textContent       = profile.ppg;
+
+  // season stats rows
+  modal.querySelector('#ps-total').textContent     = profile.total;
+  modal.querySelector('#ps-ppg').textContent       = profile.ppg;
+  modal.querySelector('#ps-games').textContent     = profile.wins + profile.losses;
+  modal.querySelector('#ps-attend').textContent    = profile.eventsJoined + ' / ' + profile.gamesTotal;
+  modal.querySelector('#ps-spin').textContent      = profile.spinFinishes;
+  modal.querySelector('#ps-burst').textContent     = profile.burstFinishes;
+  modal.querySelector('#ps-extreme').textContent   = profile.extremeFinishes;
+
+  // admin edit fields
+  const st = getBladerStats(name);
+  modal.querySelector('#pe-name').value            = name;
+  modal.querySelector('#pe-display-name').value    = name;
+  modal.querySelector('#pe-photo').value           = st.photo||'';
+  modal.querySelector('#pe-bgphoto').value         = st.bgPhoto||'';
+  // fill URL fields (only if not base64)
+  const photoUrlEl = modal.querySelector('#pe-photo-url');
+  if (photoUrlEl) photoUrlEl.value = (st.photo && !st.photo.startsWith('data:')) ? st.photo : '';
+  const bgUrlEl = modal.querySelector('#pe-bgphoto-url');
+  if (bgUrlEl) bgUrlEl.value = (st.bgPhoto && !st.bgPhoto.startsWith('data:')) ? st.bgPhoto : '';
+  // update photo preview thumbnail
+  const photoPrev = modal.querySelector('#pe-photo-preview');
+  photoPrev.innerHTML = st.photo
+    ? `<img src="${st.photo}" style="width:100%;height:100%;object-fit:cover" />`
+    : '👤';
+  // update bg photo preview thumbnail
+  const bgPrev = modal.querySelector('#pe-bgphoto-preview');
+  if (st.bgPhoto) {
+    bgPrev.style.backgroundImage = `url("${st.bgPhoto}")`;
+    bgPrev.style.backgroundSize = 'cover';
+    bgPrev.style.backgroundPosition = 'center';
+  } else {
+    bgPrev.style.backgroundImage = '';
+  }
+  modal.querySelector('#pe-spin').value            = st.spinFinishes||0;
+  modal.querySelector('#pe-burst').value           = st.burstFinishes||0;
+  modal.querySelector('#pe-extreme').value         = st.extremeFinishes||0;
+  modal.querySelector('#pe-wins-input').value      = st.wins||0;
+  modal.querySelector('#pe-losses-input').value    = st.losses||0;
+  modal.querySelector('#pe-matchpts-input').value  = st.matchPoints||0;
+
+  // populate event scores override grid
+  const p = players.find(pl => pl.name === name);
+  const evGrid = modal.querySelector('#pe-event-scores-grid');
+  if (p && eventLabels.length > 0) {
+    evGrid.innerHTML = eventLabels.map((lbl, i) =>
+      `<div class="profile-edit-field">
+        <label>${lbl} <span style="color:var(--muted2);font-size:10px">(now: ${p.scores[i]||0})</span></label>
+        <input type="number" class="pe-event-score-input" data-event-idx="${i}" placeholder="${p.scores[i]||0}" min="0" max="99"
+          style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--accent);border-radius:6px;padding:4px 8px;font-family:'Share Tech Mono',monospace;font-size:13px" />
+      </div>`
+    ).join('');
+  } else {
+    evGrid.innerHTML = '<div style="font-size:11px;color:var(--muted2);grid-column:span 2">No events recorded yet.</div>';
+  }
+
+  document.getElementById('blader-profile-modal').classList.add('open');
+}
+
+function openBladerProfileByIndex(idx) {
+  if (players[idx]) openBladerProfile(players[idx].name);
+}
+
+function closeBladerProfile() {
+  document.getElementById('blader-profile-modal').classList.remove('open');
+}
+
+function applyProfilePhotoFromUrl(url) {
+  url = url.trim();
+  document.getElementById('pe-photo').value = url;
+  const prev = document.getElementById('pe-photo-preview');
+  if (url) {
+    prev.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.innerHTML='👤'" />`;
+    const bgHidden = document.getElementById('pe-bgphoto').value;
+    if (!bgHidden) {
+      const heroBgEl = document.querySelector('#blader-profile-modal .profile-hero-bg');
+      heroBgEl.innerHTML = `<img src="${url}" crossorigin="anonymous" />`;
+    }
+  } else {
+    prev.innerHTML = '👤';
+  }
+}
+
+function applyBgPhotoFromUrl(url) {
+  url = url.trim();
+  document.getElementById('pe-bgphoto').value = url;
+  const prev = document.getElementById('pe-bgphoto-preview');
+  const heroBgEl = document.querySelector('#blader-profile-modal .profile-hero-bg');
+  if (url) {
+    prev.style.backgroundImage = `url("${url}")`;
+    prev.style.backgroundSize = 'cover';
+    prev.style.backgroundPosition = 'center';
+    heroBgEl.innerHTML = `<img src="${url}" crossorigin="anonymous" />`;
+  } else {
+    prev.style.backgroundImage = '';
+    heroBgEl.innerHTML = '';
+    heroBgEl.style.background = '#1e1e1e';
+  }
+}
+
+function handleProfilePhotoUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const dataUrl = e.target.result;
+    document.getElementById('pe-photo').value = dataUrl;
+    document.getElementById('pe-photo-url').value = '';
+    const prev = document.getElementById('pe-photo-preview');
+    prev.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover" />`;
+    const bgHidden = document.getElementById('pe-bgphoto').value;
+    if (!bgHidden) {
+      const heroBgEl = document.querySelector('#blader-profile-modal .profile-hero-bg');
+      heroBgEl.innerHTML = `<img src="${dataUrl}" crossorigin="anonymous" />`;
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearProfilePhoto() {
+  document.getElementById('pe-photo').value = '';
+  document.getElementById('pe-photo-file').value = '';
+  document.getElementById('pe-photo-url').value = '';
+  document.getElementById('pe-photo-preview').innerHTML = '👤';
+  const bgHidden = document.getElementById('pe-bgphoto').value;
+  if (!bgHidden) {
+    const heroBgEl = document.querySelector('#blader-profile-modal .profile-hero-bg');
+    heroBgEl.innerHTML = '';
+    heroBgEl.style.background = '#1e1e1e';
+  }
+}
+
+function handleBgPhotoUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const dataUrl = e.target.result;
+    document.getElementById('pe-bgphoto').value = dataUrl;
+    document.getElementById('pe-bgphoto-url').value = '';
+    const prev = document.getElementById('pe-bgphoto-preview');
+    prev.style.backgroundImage = `url("${dataUrl}")`;
+    prev.style.backgroundSize = 'cover';
+    prev.style.backgroundPosition = 'center';
+    const heroBgEl = document.querySelector('#blader-profile-modal .profile-hero-bg');
+    heroBgEl.innerHTML = `<img src="${dataUrl}" crossorigin="anonymous" />`;
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearBgPhoto() {
+  document.getElementById('pe-bgphoto').value = '';
+  document.getElementById('pe-bgphoto-file').value = '';
+  document.getElementById('pe-bgphoto-url').value = '';
+  document.getElementById('pe-bgphoto-preview').style.backgroundImage = '';
+  const photo = document.getElementById('pe-photo').value;
+  const heroBgEl = document.querySelector('#blader-profile-modal .profile-hero-bg');
+  if (photo) {
+    heroBgEl.innerHTML = `<img src="${photo}" crossorigin="anonymous" />`;
+  } else {
+    heroBgEl.innerHTML = '';
+    heroBgEl.style.background = '#1e1e1e';
+  }
+}
+
+function saveBladerProfile() {
+  const name = document.getElementById('pe-name').value;
+  if (!name) return;
+  const st = ensureBladerStats(name);
+  st.photo = document.getElementById('pe-photo').value.trim();
+  st.bgPhoto = document.getElementById('pe-bgphoto').value.trim();
+  // finishes are now direct total values
+  const spinVal    = document.getElementById('pe-spin').value.trim();
+  const burstVal   = document.getElementById('pe-burst').value.trim();
+  const extremeVal = document.getElementById('pe-extreme').value.trim();
+  if (spinVal    !== '') st.spinFinishes    = parseInt(spinVal)    || 0;
+  if (burstVal   !== '') st.burstFinishes   = parseInt(burstVal)   || 0;
+  if (extremeVal !== '') st.extremeFinishes = parseInt(extremeVal) || 0;
+  const addSpin = 0, addBurst = 0, addExtreme = 0; // kept for toast message compat
+  // handle rename
+  const newDisplayName = document.getElementById('pe-display-name').value.trim();
+  if (newDisplayName && newDisplayName !== name) {
+    const p = players.find(pl => pl.name === name);
+    if (p) {
+      // move bladerStats to new key
+      bladerStats[newDisplayName] = st;
+      delete bladerStats[name];
+      p.name = newDisplayName;
+    }
+  }
+  // event score overrides — only update slots where admin typed a value
+  const evInputs = document.querySelectorAll('.pe-event-score-input');
+  evInputs.forEach(inp => {
+    const idx = parseInt(inp.dataset.eventIdx);
+    const val = inp.value.trim();
+    if (val === '' || isNaN(idx)) return;
+    const p = players.find(pl => pl.name === name);
+    if (!p || idx >= p.scores.length) return;
+    const oldVal = p.scores[idx] || 0;
+    const newVal = parseInt(val) || 0;
+    p.scores[idx] = newVal;
+    p.total = p.total - oldVal + newVal;
+  });
+  // re-sort and re-rank after score changes
+  players.sort((a,b) => b.total - a.total);
+  let rank = 1;
+  players.forEach((pl, i) => { if (i > 0 && pl.total < players[i-1].total) rank = i+1; pl.rank = rank; });
+
+  // wins/matches OVERRIDE (only if a value was entered)
+  const winsOverride    = document.getElementById('pe-wins-input').value.trim();
+  const lossesOverride  = document.getElementById('pe-losses-input').value.trim();
+  const matchPtsOverride = document.getElementById('pe-matchpts-input').value.trim();
+  if (winsOverride    !== '') st.wins   = parseInt(winsOverride)    || 0;
+  if (lossesOverride  !== '') st.losses = parseInt(lossesOverride)  || 0;
+  if (matchPtsOverride !== '') st.matchPoints = parseInt(matchPtsOverride) || 0;
+  // Always recompute matchesPlayed from wins+losses
+  st.matchesPlayed = (st.wins || 0) + (st.losses || 0);
+  // clear inputs
+  document.getElementById('pe-spin').value           = '';
+  document.getElementById('pe-burst').value          = '';
+  document.getElementById('pe-extreme').value        = '';
+  document.getElementById('pe-wins-input').value     = '';
+  document.getElementById('pe-losses-input').value   = '';
+  document.getElementById('pe-matchpts-input').value = '';
+  cloudSave();
+  renderLeaderboard(); renderWeekly(); updateHeroStats(); renderAchievements(); applyPodiumPhotos();
+  openBladerProfile(name);
+  showToast(`Saved! +${addSpin} spin, +${addBurst} burst, +${addExtreme} extreme`, 'success');
+}
+
+// ═══════════════════════════════════════════════════════
+//  TEAM EDIT MODAL
+// ═══════════════════════════════════════════════════════
+function openTeamEditModal(key) {
+  if (!isAdmin) return;
+  const cfg = teamConfig[key] || {};
+  document.getElementById('team-edit-key').value = key;
+  document.getElementById('team-edit-sub').textContent = 'Editing: ' + (cfg.name || key);
+  document.getElementById('team-edit-name').value = cfg.name || key;
+  document.getElementById('team-edit-logo').value = cfg.logo || '';
+  document.getElementById('team-edit-fb').value = cfg.fbUrl || '';
+  document.getElementById('team-edit-color').value = cfg.color || '#888888';
+  document.getElementById('team-edit-colorpicker').value = cfg.color || '#888888';
+  previewTeamLogo(cfg.logo || '');
+  document.getElementById('team-edit-error').textContent = '';
+  document.getElementById('team-edit-modal').classList.add('open');
+}
+function closeTeamEditModal() {
+  document.getElementById('team-edit-modal').classList.remove('open');
+}
+function previewTeamLogo(url) {
+  const el = document.getElementById('team-logo-preview');
+  if (url && url.startsWith('http')) {
+    el.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.textContent='?'" />`;
+  } else {
+    const key = document.getElementById('team-edit-key').value;
+    el.textContent = teamConfig[key]?.icon || '?';
+  }
+}
+function applyTeamEdit() {
+  const key = document.getElementById('team-edit-key').value;
+  if (!teamConfig[key]) return;
+  teamConfig[key].name   = document.getElementById('team-edit-name').value.trim() || key;
+  teamConfig[key].logo   = document.getElementById('team-edit-logo').value.trim();
+  teamConfig[key].fbUrl  = document.getElementById('team-edit-fb').value.trim();
+  teamConfig[key].color  = document.getElementById('team-edit-color').value.trim() || '#888888';
+  cloudSave();
+  renderTeamTotals();
+  closeTeamEditModal();
+  showToast('Team updated!', 'success');
+}
+
+// ═══════════════════════════════════════════════════════
+//  MANUAL SAVE BUTTON
+// ═══════════════════════════════════════════════════════
+async function adminManualSave() {
+  if (!isAdmin) return;
+  const btn = document.querySelector('.admin-bar-actions .btn.primary');
+  if (btn) { btn.textContent = '⏳ Saving…'; btn.disabled = true; }
+  await cloudSave();
+  setTimeout(() => {
+    if (btn) { btn.textContent = '💾 Save Changes'; btn.disabled = false; }
+    showToast('✅ All changes saved to cloud!', 'success');
+  }, 1200);
+}
+
+
+// ═══════════════════════════════════════════════════════
+//  RESET MODAL
+// ═══════════════════════════════════════════════════════
+function openResetModal() {
+  if (!isAdmin) return;
+  document.getElementById('reset-leaderboard').checked = false;
+  document.getElementById('reset-blader-stats').checked = false;
+  document.getElementById('reset-challonge-ids').checked = false;
+  document.getElementById('reset-error').textContent = '';
+  document.getElementById('reset-modal').classList.add('open');
+}
+function closeResetModal() { document.getElementById('reset-modal').classList.remove('open'); }
+async function executeReset() {
+  const resetLB   = document.getElementById('reset-leaderboard').checked;
+  const resetStat = document.getElementById('reset-blader-stats').checked;
+  const resetIDs  = document.getElementById('reset-challonge-ids').checked;
+  if (!resetLB && !resetStat && !resetIDs) {
+    document.getElementById('reset-error').textContent = 'Select at least one option.';
+    return;
+  }
+  if (resetLB)   { players = []; eventLabels = []; podiumPhotos = {1:'',2:'',3:''}; applyPodiumPhotos(); }
+  if (resetStat) { bladerStats = {}; }
+  if (resetIDs)  { importedTournamentIds = []; }
+  await cloudSave();
+  renderLeaderboard(); renderWeekly(); renderTeamTotals(); updateHeroStats(); renderAchievements();
+  closeResetModal();
+  const parts = [];
+  if (resetLB)   parts.push('leaderboard');
+  if (resetStat) parts.push('blader stats');
+  if (resetIDs)  parts.push('imported IDs');
+  showToast('✅ Reset: ' + parts.join(', '), 'success');
+}
+
+// ═══════════════════════════════════════════════════════
+//  ADD TEAM MODAL
+// ═══════════════════════════════════════════════════════
+function openAddTeamModal() {
+  if (!isAdmin) return;
+  document.getElementById('add-team-key').value   = '';
+  document.getElementById('add-team-name').value  = '';
+  document.getElementById('add-team-logo').value  = '';
+  document.getElementById('add-team-fb').value    = '';
+  document.getElementById('add-team-color').value = '#4a9fd4';
+  document.getElementById('add-team-colorpicker').value = '#4a9fd4';
+  document.getElementById('add-team-error').textContent = '';
+  document.getElementById('add-team-modal').classList.add('open');
+  setTimeout(() => document.getElementById('add-team-key').focus(), 150);
+}
+function closeAddTeamModal() { document.getElementById('add-team-modal').classList.remove('open'); }
+function applyAddTeam() {
+  const key   = document.getElementById('add-team-key').value.trim().toUpperCase();
+  const name  = document.getElementById('add-team-name').value.trim();
+  const logo  = document.getElementById('add-team-logo').value.trim();
+  const fbUrl = document.getElementById('add-team-fb').value.trim();
+  const color = document.getElementById('add-team-color').value.trim() || '#4a9fd4';
+  const errEl = document.getElementById('add-team-error');
+  if (!key)  { errEl.textContent = 'Team Key is required.'; return; }
+  if (!name) { errEl.textContent = 'Team Name is required.'; return; }
+  if (teamConfig[key]) { errEl.textContent = 'A team with that key already exists.'; return; }
+  teamConfig[key] = { name, color, icon: '⚔️', logo, fbUrl };
+  cloudSave();
+  renderTeamTotals();
+  // Update filter buttons
+  updateTeamFilterButtons();
+  closeAddTeamModal();
+  showToast('Team ' + name + ' added!', 'success');
+}
+
+// ═══════════════════════════════════════════════════════
+//  DELETE TEAM
+// ═══════════════════════════════════════════════════════
+function confirmDeleteTeam(key) {
+  if (!isAdmin) return;
+  const cfg = teamConfig[key];
+  if (!cfg) return;
+  if (!confirm('Delete team "' + cfg.name + '"? Players with this prefix will become Independent.')) return;
+  delete teamConfig[key];
+  cloudSave();
+  renderTeamTotals();
+  updateTeamFilterButtons();
+  showToast('Team ' + cfg.name + ' deleted.', '');
+}
+
+// ── Sync filter buttons with current teamConfig ──
+function updateTeamFilterButtons() {
+  const row = document.querySelector('.search-row');
+  if (!row) return;
+  // Remove all existing team filter buttons (not 'All')
+  row.querySelectorAll('.filter-btn[data-team]').forEach(b => b.remove());
+  // Re-add one per non-Independent team
+  const allBtn = row.querySelector('.filter-btn');
+  Object.keys(teamConfig).filter(k => k !== 'Independent').forEach(key => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-btn';
+    btn.setAttribute('data-team', key);
+    btn.textContent = teamConfig[key].name || key;
+    btn.onclick = function() { filterTag(key, this); };
+    row.insertBefore(btn, null);
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════
+// Load saved data from cloud on startup
+renderLeaderboard();
+renderWeekly();
+renderTeamTotals();
+updateHeroStats();
+renderAchievements();
+updateTeamFilterButtons();
+loadSavedPhotos();
+applyHeroBgToPage();
+
+// ═══════════════════════════════════════════════════════
+//  WEEKLY EDIT MODE
+// ═══════════════════════════════════════════════════════
+let weeklyEditMode = false;
+let weeklyEditSnapshot = null; // snapshot of players before editing
+
+function toggleWeeklyEdit() {
+  if (!isAdmin) return;
+  weeklyEditMode = !weeklyEditMode;
+  const banner = document.getElementById('weekly-edit-banner');
+  const editBtn = document.getElementById('weekly-edit-btn');
+  const saveBtn = document.getElementById('weekly-save-btn');
+  const cancelBtn = document.getElementById('weekly-cancel-btn');
+  if (weeklyEditMode) {
+    // Snapshot current state
+    weeklyEditSnapshot = players.map(p => ({ name: p.name, scores: [...p.scores], total: p.total }));
+    banner.style.display = 'block';
+    editBtn.style.display = 'none';
+    saveBtn.style.display = '';
+    cancelBtn.style.display = '';
+  } else {
+    banner.style.display = 'none';
+    editBtn.style.display = '';
+    saveBtn.style.display = 'none';
+    cancelBtn.style.display = 'none';
+  }
+  renderWeekly();
+}
+
+function cancelWeeklyEdit() {
+  // Restore snapshot
+  if (weeklyEditSnapshot) {
+    weeklyEditSnapshot.forEach(snap => {
+      const p = players.find(pl => pl.name === snap.name);
+      if (p) { p.scores = [...snap.scores]; p.total = snap.total; }
+    });
+  }
+  weeklyEditMode = false;
+  weeklyEditSnapshot = null;
+  document.getElementById('weekly-edit-banner').style.display = 'none';
+  document.getElementById('weekly-edit-btn').style.display = '';
+  document.getElementById('weekly-save-btn').style.display = 'none';
+  document.getElementById('weekly-cancel-btn').style.display = 'none';
+  renderWeekly();
+  showToast('Edit cancelled.', '');
+}
+
+function saveWeeklyEdits() {
+  // Read all editable cells back into players
+  document.querySelectorAll('.weekly-score-input').forEach(inp => {
+    const playerName = decodeURIComponent(inp.dataset.player);
+    const eventIdx = parseInt(inp.dataset.event);
+    const newVal = parseInt(inp.value) || 0;
+    const p = players.find(pl => pl.name === playerName);
+    if (p && !isNaN(eventIdx)) {
+      const old = p.scores[eventIdx] || 0;
+      p.scores[eventIdx] = newVal;
+      p.total = p.total - old + newVal;
+    }
+  });
+  // Re-sort and re-rank
+  players.sort((a,b) => b.total - a.total);
+  let rank = 1;
+  players.forEach((p,i) => { if (i>0 && p.total < players[i-1].total) rank = i+1; p.rank = rank; });
+  weeklyEditMode = false;
+  weeklyEditSnapshot = null;
+  document.getElementById('weekly-edit-banner').style.display = 'none';
+  document.getElementById('weekly-edit-btn').style.display = '';
+  document.getElementById('weekly-save-btn').style.display = 'none';
+  document.getElementById('weekly-cancel-btn').style.display = 'none';
+  cloudSave();
+  renderLeaderboard(); renderWeekly(); renderTeamTotals(); updateHeroStats(); renderAchievements();
+  showToast('Weekly scores saved!', 'success');
+}
+
+// Add Event Column modal
+function openWeeklyAddColModal() {
+  if (!isAdmin) return;
+  document.getElementById('weekly-addcol-label').value = '';
+  document.getElementById('weekly-addcol-error').textContent = '';
+  document.getElementById('weekly-addcol-modal').classList.add('open');
+  setTimeout(() => document.getElementById('weekly-addcol-label').focus(), 150);
+}
+function closeWeeklyAddColModal() { document.getElementById('weekly-addcol-modal').classList.remove('open'); }
+function applyWeeklyAddCol() {
+  const label = document.getElementById('weekly-addcol-label').value.trim();
+  if (!label) { document.getElementById('weekly-addcol-error').textContent = 'Label is required.'; return; }
+  eventLabels.push(label);
+  players.forEach(p => { p.scores.push(0); });
+  cloudSave();
+  renderLeaderboard(); renderWeekly(); renderTeamTotals(); updateHeroStats();
+  closeWeeklyAddColModal();
+  showToast('Event column "' + label + '" added!', 'success');
+}
+
+// ═══════════════════════════════════════════════════════
+//  BULK ADD PLAYERS
+// ═══════════════════════════════════════════════════════
+function openBulkAddModal() {
+  if (!isAdmin) return;
+  document.getElementById('bulk-names-input').value = '';
+  document.getElementById('bulk-preview').style.display = 'none';
+  document.getElementById('bulk-preview-list').innerHTML = '';
+  document.getElementById('bulk-add-error').textContent = '';
+  document.getElementById('bulk-add-modal').classList.add('open');
+  setTimeout(() => document.getElementById('bulk-names-input').focus(), 150);
+}
+function closeBulkAddModal() { document.getElementById('bulk-add-modal').classList.remove('open'); }
+
+// Textarea live preview — script is at bottom of body so DOM is already ready
+(function() {
+  const textarea = document.getElementById('bulk-names-input');
+  if (textarea) textarea.addEventListener('input', previewBulkAdd);
+})();
+
+function previewBulkAdd() {
+  const raw = document.getElementById('bulk-names-input').value;
+  const names = raw.split('\n').map(s => s.trim()).filter(Boolean);
+  const previewEl = document.getElementById('bulk-preview');
+  const listEl = document.getElementById('bulk-preview-list');
+  if (!names.length) { previewEl.style.display = 'none'; return; }
+  previewEl.style.display = 'block';
+  listEl.innerHTML = names.map(name => {
+    const exists = players.find(p => p.name.toLowerCase() === name.toLowerCase());
+    const team = (() => {
+      const keys = Object.keys(teamConfig).filter(k => k !== 'Independent');
+      for (const k of keys) { if (name.startsWith(k)) return k; }
+      return '';
+    })();
+    const cfg = teamConfig[team];
+    const color = cfg ? cfg.color : '#888';
+    const tagHtml = team ? `<span style="font-size:10px;padding:1px 6px;border-radius:3px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${color};background:${color}22;border:0.5px solid ${color}55;margin-left:6px">${team}</span>` : '';
+    const badge = exists
+      ? `<span style="font-size:10px;color:var(--gold);margin-left:6px">⚠ already exists</span>`
+      : `<span style="font-size:10px;color:var(--green);margin-left:6px">✓ new</span>`;
+    return `<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);font-size:13px;font-family:'Share Tech Mono',monospace">
+      <span style="color:var(--text)">${name}</span>${tagHtml}${badge}
+    </div>`;
+  }).join('');
+}
+
+function executeBulkAdd() {
+  const raw = document.getElementById('bulk-names-input').value;
+  const names = raw.split('\n').map(s => s.trim()).filter(Boolean);
+  const errEl = document.getElementById('bulk-add-error');
+  if (!names.length) { errEl.textContent = 'Enter at least one name.'; return; }
+
+  let added = 0, skipped = 0;
+  names.forEach(name => {
+    if (players.find(p => p.name.toLowerCase() === name.toLowerCase())) { skipped++; return; }
+    players.push({
+      no: players.length + 1,
+      name: name,
+      scores: new Array(eventLabels.length).fill(0),
+      total: 0,
+      rank: players.length + 1
+    });
+    added++;
+  });
+
+  // Re-sort and re-rank
+  players.sort((a, b) => b.total - a.total);
+  let rank = 1;
+  players.forEach((p, i) => { if (i > 0 && p.total < players[i-1].total) rank = i+1; p.rank = rank; });
+
+  cloudSave();
+  renderLeaderboard(); renderWeekly(); renderTeamTotals(); updateHeroStats(); renderAchievements();
+  closeBulkAddModal();
+  const msg = added > 0
+    ? `✅ Added ${added} player${added>1?'s':''}${skipped>0?' · '+skipped+' skipped (duplicate)':''}`
+    : `⚠ No new players — ${skipped} already exist${skipped>1?'s':''}`;
+  showToast(msg, added > 0 ? 'success' : '');
+}
+</script>
+
+<!-- ══════════════ TEAM EDIT MODAL ══════════════ -->
+<div class="modal-overlay" id="team-edit-modal">
+  <div class="modal" style="max-width:420px">
+    <button class="modal-close" onclick="closeTeamEditModal()">✕</button>
+    <div class="modal-title">Edit Team</div>
+    <div class="modal-sub" id="team-edit-sub">Customize this team's display</div>
+    <input type="hidden" id="team-edit-key" />
+    <div class="form-group">
+      <label class="form-label">Team Name</label>
+      <input class="form-input" type="text" id="team-edit-name" placeholder="e.g. VG" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Logo Image URL</label>
+      <input class="form-input" type="text" id="team-edit-logo" placeholder="https://i.imgur.com/..." oninput="previewTeamLogo(this.value)" />
+      <div id="team-logo-preview" style="margin-top:8px;width:52px;height:52px;border-radius:50%;overflow:hidden;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:24px">?</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Facebook Page URL</label>
+      <input class="form-input" type="text" id="team-edit-fb" placeholder="https://www.facebook.com/..." />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Accent Color</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input class="form-input" type="text" id="team-edit-color" placeholder="#4a9fd4" style="flex:1" />
+        <input type="color" id="team-edit-colorpicker" style="width:40px;height:40px;border:none;background:none;cursor:pointer;border-radius:6px" oninput="document.getElementById('team-edit-color').value=this.value" />
+      </div>
+    </div>
+    <div class="modal-error" id="team-edit-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" onclick="applyTeamEdit()">✅ Apply</button>
+      <button class="btn" onclick="closeTeamEditModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════ BLADER PROFILE MODAL ══════════════ -->
+<div class="profile-overlay" id="blader-profile-modal" onclick="if(event.target===this)closeBladerProfile()">
+  <div class="profile-modal">
+    <button class="profile-close" onclick="closeBladerProfile()">✕</button>
+
+    <!-- Hero banner -->
+    <div class="profile-hero">
+      <div class="profile-hero-bg"></div>
+      <div class="profile-hero-content">
+        <div class="profile-avatar"></div>
+        <div class="profile-pname">—</div>
+        <div class="profile-tags"></div>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div class="profile-body">
+
+      <!-- Top 3 stat cards -->
+      <div class="profile-stat-cards">
+        <div class="profile-stat-card highlight">
+          <span class="psv" id="pc-winrate">—</span>
+          <span class="psl">Match Win Rate</span>
+        </div>
+        <div class="profile-stat-card">
+          <span class="psv" id="pc-rank">—</span>
+          <span class="psl">Rank</span>
+        </div>
+        <div class="profile-stat-card">
+          <span class="psv" id="pc-ppg">—</span>
+          <span class="psl">PPG</span>
+        </div>
+      </div>
+
+      <!-- Season Statistics -->
+      <div class="profile-section-title">Season Statistics</div>
+      <div class="profile-stat-row"><span class="label">Total Points</span><span class="value" id="ps-total">0</span></div>
+      <div class="profile-stat-row"><span class="label">Points Per Game (PPG)</span><span class="value" id="ps-ppg">0</span></div>
+      <div class="profile-stat-row"><span class="label">Total Matches</span><span class="value" id="ps-games">0</span></div>
+      <div class="profile-stat-row"><span class="label">Events Joined</span><span class="value" id="ps-attend">—</span></div>
+      <div class="profile-stat-row"><span class="label">Spin Finishes</span><span class="value" id="ps-spin">0</span></div>
+      <div class="profile-stat-row"><span class="label">Burst Finishes</span><span class="value" id="ps-burst">0</span></div>
+      <div class="profile-stat-row"><span class="label">Extreme Finishes</span><span class="value" id="ps-extreme">0</span></div>
+
+      <!-- Admin Edit Section -->
+      <div class="profile-edit-section">
+        <div class="profile-edit-title">⚙️ Admin — Edit Stats</div>
+        <input type="hidden" id="pe-name" />
+
+        <!-- Photo + Name -->
+        <div class="profile-edit-grid">
+          <div class="profile-edit-field full">
+            <label>Display Name</label>
+            <input type="text" id="pe-display-name" placeholder="Player name on leaderboard" />
+          </div>
+          <div class="profile-edit-field full">
+            <label>Profile Photo</label>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
+              <div id="pe-photo-preview" style="width:48px;height:48px;border-radius:50%;overflow:hidden;border:2px solid var(--border2);background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px">👤</div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+                <input type="text" id="pe-photo-url" placeholder="Paste image URL..." oninput="applyProfilePhotoFromUrl(this.value)"
+                  style="background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:11px;outline:none;width:100%" />
+                <div style="display:flex;gap:6px;align-items:center">
+                  <label style="display:inline-block;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 12px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">
+                    📂 Upload
+                    <input type="file" id="pe-photo-file" accept="image/*" style="display:none" onchange="handleProfilePhotoUpload(this)" />
+                  </label>
+                  <button type="button" onclick="clearProfilePhoto()" style="background:transparent;border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--muted);cursor:pointer">✕ Clear</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="profile-edit-field full">
+            <label>Background Photo</label>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
+              <div id="pe-bgphoto-preview" style="width:56px;height:36px;border-radius:6px;border:2px solid var(--border2);background:var(--surface2);flex-shrink:0;background-size:cover;background-position:center"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+                <input type="text" id="pe-bgphoto-url" placeholder="Paste image URL..." oninput="applyBgPhotoFromUrl(this.value)"
+                  style="background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:11px;outline:none;width:100%" />
+                <div style="display:flex;gap:6px;align-items:center">
+                  <label style="display:inline-block;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 12px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">
+                    🖼 Upload
+                    <input type="file" id="pe-bgphoto-file" accept="image/*" style="display:none" onchange="handleBgPhotoUpload(this)" />
+                  </label>
+                  <button type="button" onclick="clearBgPhoto()" style="background:transparent;border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--muted);cursor:pointer">✕ Clear</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <input type="hidden" id="pe-photo" />
+          <input type="hidden" id="pe-bgphoto" />
+        </div>
+
+        <!-- Event Scores — direct editable -->
+        <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin:14px 0 6px">📅 Event Points</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Edit any event score directly. Changes update totals automatically.</div>
+        <div id="pe-event-scores-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px"></div>
+
+        <!-- Finishes — direct totals (not additive) -->
+        <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin:14px 0 6px">🌀 Finish Counts</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Set the exact total count for each finish type.</div>
+        <div class="profile-edit-grid">
+          <div class="profile-edit-field">
+            <label>Spin Finishes</label>
+            <input type="number" id="pe-spin" placeholder="0" min="0" />
+          </div>
+          <div class="profile-edit-field">
+            <label>Burst Finishes</label>
+            <input type="number" id="pe-burst" placeholder="0" min="0" />
+          </div>
+          <div class="profile-edit-field full">
+            <label>Extreme Finishes</label>
+            <input type="number" id="pe-extreme" placeholder="0" min="0" />
+          </div>
+        </div>
+
+        <!-- Match Record -->
+        <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin:14px 0 6px">⚔️ Match Record</div>
+        <div class="profile-edit-grid">
+          <div class="profile-edit-field">
+            <label>Wins</label>
+            <input type="number" id="pe-wins-input" placeholder="0" min="0" />
+          </div>
+          <div class="profile-edit-field">
+            <label>Losses</label>
+            <input type="number" id="pe-losses-input" placeholder="0" min="0" />
+          </div>
+          <div class="profile-edit-field full">
+            <label>Total Match Points <span style="color:var(--muted);font-size:10px">— for PPG</span></label>
+            <input type="number" id="pe-matchpts-input" placeholder="0" min="0" />
+          </div>
+        </div>
+
+        <button class="btn primary" style="width:100%;margin-top:16px" onclick="saveBladerProfile()">💾 Save All Changes</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════ RESET MODAL ══════════════ -->
+<div class="modal-overlay" id="reset-modal">
+  <div class="modal" style="max-width:420px">
+    <button class="modal-close" onclick="closeResetModal()">✕</button>
+    <div class="modal-title" style="color:var(--red)">⚠️ Reset Data</div>
+    <div class="modal-sub">Choose what to reset. This cannot be undone.</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--border2);border-radius:8px">
+        <input type="checkbox" id="reset-leaderboard" style="width:16px;height:16px;accent-color:var(--red)" />
+        <div>
+          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px">Leaderboard &amp; Players</div>
+          <div style="font-size:11px;color:var(--muted)">Clears all players, scores, and event columns</div>
+        </div>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--border2);border-radius:8px">
+        <input type="checkbox" id="reset-blader-stats" style="width:16px;height:16px;accent-color:var(--red)" />
+        <div>
+          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px">Blader Stats &amp; Match Records</div>
+          <div style="font-size:11px;color:var(--muted)">Clears photos, finishes, wins, and match data</div>
+        </div>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--border2);border-radius:8px">
+        <input type="checkbox" id="reset-challonge-ids" style="width:16px;height:16px;accent-color:var(--red)" />
+        <div>
+          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px">Imported Tournament IDs</div>
+          <div style="font-size:11px;color:var(--muted)">Allows re-importing already recorded tournaments</div>
+        </div>
+      </label>
+    </div>
+    <div class="modal-error" id="reset-error" style="color:var(--red)"></div>
+    <div class="modal-actions">
+      <button class="btn danger" style="flex:1" onclick="executeReset()">🗑 Reset Selected</button>
+      <button class="btn" onclick="closeResetModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ ADD TEAM MODAL ══════════════ -->
+<div class="modal-overlay" id="add-team-modal">
+  <div class="modal" style="max-width:420px">
+    <button class="modal-close" onclick="closeAddTeamModal()">✕</button>
+    <div class="modal-title">➕ Add New Team</div>
+    <div class="modal-sub">Players whose names start with the Team Key will be assigned to this team.</div>
+    <div class="form-group">
+      <label class="form-label">Team Key <span style="color:var(--muted);font-size:10px">(prefix players' names start with, e.g. "VG", "NEXUS")</span></label>
+      <input class="form-input" type="text" id="add-team-key" placeholder="e.g. NEXUS" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Team Name</label>
+      <input class="form-input" type="text" id="add-team-name" placeholder="e.g. Nexus Bladers" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Logo Image URL <span style="color:var(--muted);font-size:10px">(optional)</span></label>
+      <input class="form-input" type="text" id="add-team-logo" placeholder="https://i.imgur.com/..." />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Facebook Page URL <span style="color:var(--muted);font-size:10px">(optional)</span></label>
+      <input class="form-input" type="text" id="add-team-fb" placeholder="https://www.facebook.com/..." />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Accent Color</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input class="form-input" type="text" id="add-team-color" placeholder="#4a9fd4" style="flex:1" />
+        <input type="color" id="add-team-colorpicker" value="#4a9fd4" style="width:40px;height:40px;border:none;background:none;cursor:pointer;border-radius:6px" oninput="document.getElementById('add-team-color').value=this.value" />
+      </div>
+    </div>
+    <div class="modal-error" id="add-team-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" onclick="applyAddTeam()">✅ Add Team</button>
+      <button class="btn" onclick="closeAddTeamModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════ ACHIEVEMENT MODAL ══════════════ -->
+<div class="modal-overlay" id="ach-modal">
+  <div class="modal" style="max-width:460px">
+    <button class="modal-close" onclick="closeAchModal()">✕</button>
+    <div class="modal-title" id="ach-modal-title">➕ Add Achievement</div>
+    <input type="hidden" id="ach-modal-idx" />
+    <div class="form-group">
+      <label class="form-label">Icon / Emoji</label>
+      <input class="form-input" type="text" id="ach-modal-icon" placeholder="🏆" style="font-size:22px;text-align:center;width:80px" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Achievement Name</label>
+      <input class="form-input" type="text" id="ach-modal-name" placeholder="e.g. First Blood" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description</label>
+      <input class="form-input" type="text" id="ach-modal-desc" placeholder="e.g. First player to burst an opponent" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Holder / Winner</label>
+      <input class="form-input" type="text" id="ach-modal-holder" placeholder="e.g. NONOY X — 3 events" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Photo URL <span style="color:var(--muted);font-size:10px">(optional — replaces emoji icon)</span></label>
+      <input class="form-input" type="text" id="ach-modal-photo" placeholder="https://i.imgur.com/..." />
+    </div>
+    <div class="modal-actions" style="margin-top:12px">
+      <button class="btn primary" style="flex:1" onclick="saveAchModal()">💾 Save</button>
+      <button class="btn danger" id="ach-modal-delete" style="display:none" onclick="deleteAchModal()">🗑 Delete</button>
+      <button class="btn" onclick="closeAchModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ BULK ADD PLAYERS MODAL ══════════════ -->
+<div class="modal-overlay" id="bulk-add-modal">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" onclick="closeBulkAddModal()">✕</button>
+    <div class="modal-title">➕ Add Players</div>
+    <div class="modal-sub">Add one player per line. All start with 0 points and stats.</div>
+
+    <div class="form-group">
+      <label class="form-label">Player Names <span style="color:var(--muted);font-size:10px">(one per line)</span></label>
+      <textarea id="bulk-names-input" placeholder="VG.JOHN&#10;ZPC.MARIA&#10;HYDRA.ALEX&#10;HSTLR.SAM"
+        style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:12px 14px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:13px;outline:none;width:100%;min-height:160px;resize:vertical;line-height:1.6;transition:border-color .15s"
+        onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border2)'"></textarea>
+    </div>
+
+    <div id="bulk-preview" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px;max-height:180px;overflow-y:auto">
+      <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Preview</div>
+      <div id="bulk-preview-list"></div>
+    </div>
+
+    <div id="bulk-add-error" class="modal-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" onclick="executeBulkAdd()">✅ Add Players</button>
+      <button class="btn" onclick="closeBulkAddModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ WEEKLY ADD COLUMN MODAL ══════════════ -->
+<div class="modal-overlay" id="weekly-addcol-modal">
+  <div class="modal" style="max-width:380px">
+    <button class="modal-close" onclick="closeWeeklyAddColModal()">✕</button>
+    <div class="modal-title">➕ Add Event Column</div>
+    <div class="modal-sub">Add a new event column to the Weekly Scores table. All players start with 0 pts for this event.</div>
+    <div class="form-group">
+      <label class="form-label">Event Label</label>
+      <input class="form-input" type="text" id="weekly-addcol-label" placeholder="e.g. W15 or HYDRA OPEN"
+        onkeydown="if(event.key==='Enter')applyWeeklyAddCol()" />
+    </div>
+    <div class="modal-error" id="weekly-addcol-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" onclick="applyWeeklyAddCol()">✅ Add Column</button>
+      <button class="btn" onclick="closeWeeklyAddColModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
