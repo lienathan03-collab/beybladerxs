@@ -2021,9 +2021,7 @@ function getRankBadge(rank, total) {
   if(rank===1) return `<span class="rank-badge rb-1">Season King</span>`;
   if(rank===2) return `<span class="rank-badge rb-2">2nd</span>`;
   if(rank===3) return `<span class="rank-badge rb-3">3rd</span>`;
-  if(rank<=8) return `<span class="rank-badge rb-n">Top 8</span>`;
-  if(rank<=16) return `<span class="rank-badge rb-n">Top 16</span>`;
-  return `<span class="rank-badge rb-n">Rank ${rank}</span>`;
+  return `<span class="rank-badge rb-n">#${rank}</span>`;
 }
 function getRankDisplay(rank,i) {
   if(i===0) return `<span class="rank-num gold">🥇</span>`;
