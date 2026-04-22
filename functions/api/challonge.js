@@ -5,7 +5,13 @@ const CORS_HEADERS = {
 };
 
 async function callChallonge(url) {
-  const res = await fetch(url, { headers: { 'User-Agent': 'BeybladeRXS/1.0' } });
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; BeybladeRXS/1.0)',
+      'Accept': 'application/json',
+      'Accept-Language': 'en-US,en;q=0.9',
+    }
+  });
   const text = await res.text();
   if (!res.ok) {
     let detail = text;
@@ -25,12 +31,9 @@ async function callChallonge(url) {
 
 export async function onRequest(context) {
   const { request, env } = context;
-
-  // CORS preflight
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
-
   const API_KEY = env.CHALLONGE_API_KEY;
   if (!API_KEY) {
     return new Response(
@@ -38,12 +41,10 @@ export async function onRequest(context) {
       { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
     );
   }
-
   const url = new URL(request.url);
   const action = url.searchParams.get('action');
   const tournament_id = url.searchParams.get('tournament_id');
   const key = encodeURIComponent(API_KEY);
-
   try {
     if (action === 'list') {
       const data = await callChallonge(
@@ -54,7 +55,6 @@ export async function onRequest(context) {
         headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
       });
     }
-
     if (action === 'participants' && tournament_id) {
       const tid = encodeURIComponent(tournament_id);
       const data = await callChallonge(
@@ -65,7 +65,6 @@ export async function onRequest(context) {
         headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
       });
     }
-
     if (action === 'matches' && tournament_id) {
       const tid = encodeURIComponent(tournament_id);
       const data = await callChallonge(
@@ -76,7 +75,6 @@ export async function onRequest(context) {
         headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
       });
     }
-
     return new Response(
       JSON.stringify({ error: 'Invalid action. Use: list, participants, matches' }),
       { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
