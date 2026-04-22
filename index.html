@@ -166,7 +166,54 @@
   }
 
 
-  /* ── BLADER PROFILE MODAL ── */
+  /* ── RULERS CUP ── */
+  .rc-card {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 16px;
+    transition: border-color .15s;
+  }
+  .rc-card:hover { border-color: var(--border2); }
+  .rc-rank-num {
+    font-family: 'Share Tech Mono', monospace; font-size: 18px; font-weight: 700;
+    width: 32px; text-align: center; flex-shrink: 0; color: var(--muted);
+  }
+  .rc-rank-num.rc-gold { color: var(--gold2); font-size: 22px; }
+  .rc-rank-num.rc-silver { color: var(--silver); font-size: 20px; }
+  .rc-rank-num.rc-bronze { color: var(--bronze); font-size: 20px; }
+  .rc-logo {
+    width: 44px; height: 44px; border-radius: 50%;
+    object-fit: cover; background: var(--surface2);
+    border: 2px solid var(--border2); flex-shrink: 0;
+  }
+  .rc-logo-placeholder {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--surface2); border: 2px solid var(--border2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+  }
+  .rc-name {
+    flex: 1; font-family: 'Rajdhani', sans-serif; font-size: 15px;
+    font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+  }
+  .rc-pts {
+    font-family: 'Share Tech Mono', monospace; font-size: 22px;
+    font-weight: 700; color: var(--gold2); flex-shrink: 0;
+  }
+  .rc-edit-btn {
+    background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px; padding: 4px 8px; font-size: 12px;
+    cursor: pointer; color: #fff; display: none; flex-shrink: 0;
+  }
+  .admin-active .rc-card:hover .rc-edit-btn { display: block; }
+  .rc-delete-btn {
+    background: rgba(80,0,0,0.4); border: 1px solid rgba(255,80,80,0.2);
+    border-radius: 6px; padding: 4px 8px; font-size: 12px;
+    cursor: pointer; color: #f66; display: none; flex-shrink: 0;
+  }
+  .admin-active .rc-card:hover .rc-delete-btn { display: block; }
+
+
   .profile-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.88);
     display: flex; align-items: center; justify-content: center;
@@ -707,6 +754,7 @@
     <button onclick="showTab('achievements', this)">Achievements</button>
     <button onclick="showTab('challonge', this)">⚡ Challonge</button>
     <button onclick="showTab('points', this)">Points</button>
+    <button onclick="showTab('rulerscup', this)">🏆 Rulers Cup</button>
     <span class="nav-login-hint" id="nav-login-hint" onclick="openLoginModal()" title="Admin Login">🔐</span>
     <button class="nav-admin-btn" id="nav-admin-badge" style="display:none" onclick="adminLogout()">👑 Admin</button>
   </nav>
@@ -737,6 +785,9 @@
     </button>
     <button class="mobile-nav-btn" onclick="showTab('points', this)" data-tab="points">
       <span class="mn-icon">📊</span>Points
+    </button>
+    <button class="mobile-nav-btn" onclick="showTab('rulerscup', this)" data-tab="rulerscup">
+      <span class="mn-icon">🏆</span>Rulers
     </button>
   </div>
 </nav>
@@ -1010,6 +1061,40 @@
   <div class="team-grid" id="team-totals"></div>
 </div>
 
+<div id="tab-rulerscup" class="section">
+  <div class="section-header">
+    <span class="section-title">🏆 Rulers Cup — 3v3 Standings</span>
+    <div class="section-line"></div>
+    <button class="btn admin-only-btn" id="rc-add-btn" style="font-size:11px;padding:5px 12px;display:none" onclick="openRCModal()">➕ Add Team</button>
+  </div>
+  <div id="rc-list" style="display:flex;flex-direction:column;gap:10px;margin-top:8px"></div>
+</div>
+
+<!-- ══════════════ RULERS CUP MODAL ══════════════ -->
+<div class="modal-overlay" id="rc-modal" style="display:none">
+  <div class="modal" style="max-width:420px">
+    <button class="modal-close" onclick="closeRCModal()">✕</button>
+    <div class="modal-title" id="rc-modal-title">Add Team</div>
+    <div class="form-group">
+      <label class="form-label">Team Name</label>
+      <input class="form-input" id="rc-name-input" placeholder="e.g. Underground Legends ZPC" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Points</label>
+      <input class="form-input" id="rc-pts-input" type="number" placeholder="0" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Logo URL</label>
+      <input class="form-input" id="rc-photo-input" placeholder="https://i.imgur.com/..." />
+    </div>
+    <div class="modal-error" id="rc-modal-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" onclick="saveRCTeam()">Save</button>
+      <button class="btn" onclick="closeRCModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <footer>Beyblade RXS · Roxas City Community · Season 1</footer>
 <div class="toast" id="toast"></div>
 
@@ -1207,6 +1292,7 @@ function applyAdminUI() {
   if (addPostBtn) addPostBtn.style.display = '';
   // Re-render carousel to show edit buttons on slides
   renderCarousel();
+  renderRulersCup();
   // If currently on challonge tab, show admin panel
   if (document.getElementById('tab-challonge').classList.contains('active')) {
     document.getElementById('challonge-admin').style.display = 'block';
@@ -1226,7 +1312,7 @@ let cloudSaveTimeout = null;
 // ── localStorage fallback ──
 const LS_KEY = 'beyblade_rxs_data';
 function localSave() {
-  try { localStorage.setItem(LS_KEY, JSON.stringify({ photos: podiumPhotos, heroBgUrl: heroBgUrl||'', players, eventLabels, importedIds: importedTournamentIds, teamConfig, bladerStats, manualAchs: manualAchievements, autoAchOv: autoAchOverrides, homePosts })); } catch(e) {}
+  try { localStorage.setItem(LS_KEY, JSON.stringify({ photos: podiumPhotos, heroBgUrl: heroBgUrl||'', players, eventLabels, importedIds: importedTournamentIds, teamConfig, bladerStats, manualAchs: manualAchievements, autoAchOv: autoAchOverrides, homePosts, rulersCupTeams })); } catch(e) {}
 }
 function localLoad() {
   try {
@@ -1243,8 +1329,9 @@ function localLoad() {
     if (d.manualAchs)                  { manualAchievements = d.manualAchs; }
     if (d.autoAchOv)                   { autoAchOverrides = d.autoAchOv; }
     if (d.homePosts)                   { homePosts = d.homePosts; }
+    if (d.rulersCupTeams)              { rulersCupTeams = d.rulersCupTeams; }
     renderLeaderboard(); renderWeekly(); renderTeamTotals(); updateHeroStats(); renderAchievements();
-    renderCarousel(); renderHomeSnapshot();
+    renderCarousel(); renderHomeSnapshot(); renderRulersCup();
     return true;
   } catch(e) { return false; }
 }
@@ -1270,8 +1357,9 @@ async function cloudLoad() {
     if (data.manualAchs)               { manualAchievements = data.manualAchs; }
     if (data.autoAchOv)                { autoAchOverrides = data.autoAchOv; }
     if (data.homePosts)                { homePosts = data.homePosts; }
+    if (data.rulersCupTeams)           { rulersCupTeams = data.rulersCupTeams; }
     renderLeaderboard(); renderWeekly(); renderTeamTotals(); updateHeroStats(); renderAchievements();
-    renderCarousel(); renderHomeSnapshot();
+    renderCarousel(); renderHomeSnapshot(); renderRulersCup();
     updateTeamFilterButtons();
     localSave();
   } catch(e) { console.error('[Cloud] Load error:', e); }
@@ -1295,7 +1383,8 @@ async function cloudSave() {
           bladerStats: bladerStats,
           manualAchs: manualAchievements,
           autoAchOv: autoAchOverrides,
-          homePosts: homePosts
+          homePosts: homePosts,
+          rulersCupTeams: rulersCupTeams
         })
       });
       if (!res.ok) {
@@ -1964,6 +2053,83 @@ async function confirmImport(labelEnc, resultsEnc, tournamentId, tournamentUrl) 
 // ═══════════════════════════════════════════════════════
 //  TAB SWITCHING
 // ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+//  RULERS CUP
+// ═══════════════════════════════════════════════════════
+let rcEditIndex = -1;
+
+function renderRulersCup() {
+  const list = document.getElementById('rc-list');
+  if (!list) return;
+  const adminBtn = document.getElementById('rc-add-btn');
+  if (adminBtn) adminBtn.style.display = isAdmin ? '' : 'none';
+
+  if (!rulersCupTeams.length) {
+    list.innerHTML = '<div style="color:var(--muted2);text-align:center;padding:40px 0;font-size:13px">No teams yet. Admin can add teams.</div>';
+    return;
+  }
+
+  const sorted = [...rulersCupTeams].map((t,i) => ({...t, origIdx: i}))
+    .sort((a,b) => b.pts - a.pts);
+
+  // dense rank
+  let rank = 1;
+  sorted.forEach((t,i) => { if(i>0 && t.pts < sorted[i-1].pts) rank++; t.rank = rank; });
+
+  list.innerHTML = sorted.map(t => {
+    const rankClass = t.rank===1 ? 'rc-gold' : t.rank===2 ? 'rc-silver' : t.rank===3 ? 'rc-bronze' : '';
+    const rankIcon = t.rank===1 ? '👑' : t.rank===2 ? '🥈' : t.rank===3 ? '🥉' : `#${t.rank}`;
+    const logo = t.photo
+      ? `<img class="rc-logo" src="${t.photo}" onerror="this.style.display='none'" />`
+      : `<div class="rc-logo-placeholder">🛡️</div>`;
+    return `<div class="rc-card">
+      <div class="rc-rank-num ${rankClass}">${rankIcon}</div>
+      ${logo}
+      <div class="rc-name">${t.name}</div>
+      <div class="rc-pts">${t.pts}</div>
+      <button class="rc-edit-btn" onclick="openRCModal(${t.origIdx})">✏️</button>
+      <button class="rc-delete-btn" onclick="deleteRCTeam(${t.origIdx})">🗑️</button>
+    </div>`;
+  }).join('');
+}
+
+function openRCModal(idx) {
+  rcEditIndex = (idx !== undefined) ? idx : -1;
+  const t = rcEditIndex >= 0 ? rulersCupTeams[rcEditIndex] : null;
+  document.getElementById('rc-modal-title').textContent = t ? 'Edit Team' : 'Add Team';
+  document.getElementById('rc-name-input').value = t ? t.name : '';
+  document.getElementById('rc-pts-input').value = t ? t.pts : '';
+  document.getElementById('rc-photo-input').value = t ? (t.photo||'') : '';
+  document.getElementById('rc-modal-error').textContent = '';
+  document.getElementById('rc-modal').style.display = 'flex';
+}
+
+function closeRCModal() {
+  document.getElementById('rc-modal').style.display = 'none';
+}
+
+function saveRCTeam() {
+  const name = document.getElementById('rc-name-input').value.trim();
+  const pts = parseInt(document.getElementById('rc-pts-input').value) || 0;
+  const photo = document.getElementById('rc-photo-input').value.trim();
+  if (!name) { document.getElementById('rc-modal-error').textContent = 'Team name is required.'; return; }
+  if (rcEditIndex >= 0) {
+    rulersCupTeams[rcEditIndex] = { name, pts, photo };
+  } else {
+    rulersCupTeams.push({ name, pts, photo });
+  }
+  closeRCModal();
+  renderRulersCup();
+  cloudSave();
+}
+
+function deleteRCTeam(idx) {
+  if (!confirm('Delete this team?')) return;
+  rulersCupTeams.splice(idx, 1);
+  renderRulersCup();
+  cloudSave();
+}
+
 function showTab(tab, btn) {
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
@@ -2882,6 +3048,7 @@ function updateTeamFilterButtons() {
 //  HOMEPAGE POSTS / CAROUSEL
 // ═══════════════════════════════════════════════════════
 let homePosts = [];
+let rulersCupTeams = []; // { name, pts, photo }
 let carouselIdx = 0;
 let carouselTimer = null;
 const CAROUSEL_INTERVAL = 5000;
