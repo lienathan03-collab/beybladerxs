@@ -1262,7 +1262,7 @@ async function cloudLoad() {
     console.log('[Cloud] Loaded OK');
     if (data.photos)                  { podiumPhotos = data.photos; applyPodiumPhotos(); }
     if (data.heroBgUrl !== undefined) { heroBgUrl = data.heroBgUrl; applyHeroBgToPage(); }
-    if (data.players)                 { players = data.players; }
+    if (data.players) { players = data.players; players.sort((a,b)=>b.total-a.total); let rnk=1; players.forEach((p,i)=>{if(i>0&&p.total<players[i-1].total)rnk++;p.rank=rnk;}); }
     if (data.eventLabels)             { eventLabels = data.eventLabels; }
     if (data.importedIds)             { importedTournamentIds = data.importedIds; }
     if (data.teamConfig)               { teamConfig = Object.assign(teamConfig, data.teamConfig); }
