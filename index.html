@@ -1071,7 +1071,7 @@
 </div>
 
 <!-- ══════════════ RULERS CUP MODAL ══════════════ -->
-<div class="modal-overlay" id="rc-modal" style="display:none">
+<div class="modal-overlay" id="rc-modal">
   <div class="modal" style="max-width:420px">
     <button class="modal-close" onclick="closeRCModal()">✕</button>
     <div class="modal-title" id="rc-modal-title">Add Team</div>
@@ -2101,11 +2101,11 @@ function openRCModal(idx) {
   document.getElementById('rc-pts-input').value = t ? t.pts : '';
   document.getElementById('rc-photo-input').value = t ? (t.photo||'') : '';
   document.getElementById('rc-modal-error').textContent = '';
-  document.getElementById('rc-modal').style.display = 'flex';
+  document.getElementById('rc-modal').classList.add('open');
 }
 
 function closeRCModal() {
-  document.getElementById('rc-modal').style.display = 'none';
+  document.getElementById('rc-modal').classList.remove('open');
 }
 
 function saveRCTeam() {
