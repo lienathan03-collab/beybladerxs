@@ -1882,7 +1882,7 @@ async function confirmImport(labelEnc, resultsEnc, tournamentId, tournamentUrl) 
   });
   players.sort((a,b)=>b.total-a.total);
   let rank=1;
-  players.forEach((p,i)=>{ if(i>0&&p.total<players[i-1].total) rank=i+1; p.rank=rank; });
+  players.forEach((p,i)=>{ if(i>0&&p.total<players[i-1].total) rank++; p.rank=rank; });
 
   // ── Read wins/losses/scores from Challonge match data ──
   if ((tournamentUrl || tournamentId) && !importedTournamentIds.includes(String(tournamentId))) {
