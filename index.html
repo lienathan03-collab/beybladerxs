@@ -1444,10 +1444,7 @@ const API = '/api/challonge';
 let importedTournamentIds = [];
 
 async function fetchChallonge(query) {
-  const key = '6f3a0dd4b60e996f1cd773946733b8000095dd0b433e62a1';
-  const separator = query.includes('?') ? '&' : '?';
-  const targetUrl = `https://api.challonge.com/v1${query}${separator}api_key=${key}`;
-  const resp = await fetch(`https://corsproxy.io/?${encodeURIComponent(targetUrl)}`);
+  const resp = await fetch(`/api/challonge${query}`);
   const text = await resp.text();
   let data;
   try { data = JSON.parse(text); } catch(_) { throw new Error(`HTTP ${resp.status} — ${text.slice(0,120)}`); }
@@ -1526,7 +1523,7 @@ async function loadPublicTournaments() {
   document.getElementById('pub-others').style.display = 'none';
   document.getElementById('pub-error').style.display = 'none';
   try {
-    const data = await fetchChallonge('/tournaments.json?state=all&per_page=50');
+    const data = await fetchChallonge('?action=list');
     if (!data || !data.length) { showPubError('No tournaments found.'); return; }
     const stateOrder = {underway:0, pending:1, complete:2};
     const sorted = [...data].sort((a,b) => {
@@ -1558,7 +1555,7 @@ async function renderFeaturedTournament(tour) {
   heroEl.style.display = 'block';
   let participants = [];
   try {
-    const pData = await fetchChallonge(`/tournaments/${encodeURIComponent(tour.url)}/participants.json`);
+    const pData = await fetchChallonge(`?action=participants&tournament_id=${encodeURIComponent(tour.url)}`);
     participants = pData.map(p=>p.participant).sort((a,b)=>(a.final_rank||999)-(b.final_rank||999));
   } catch(e) {}
   const standingsHtml = participants.length ? `
@@ -1626,7 +1623,7 @@ async function loadTournaments() {
   document.getElementById('tournament-detail-wrap').innerHTML = '<div class="empty-state">Select a tournament to view details</div>';
   document.getElementById('import-section').style.display = 'none';
   try {
-    const data = await fetchChallonge('/tournaments.json?state=all&per_page=50');
+    const data = await fetchChallonge('?action=list');
     document.getElementById('challonge-status').textContent = '● Connected';
     document.getElementById('challonge-status').className = 'challonge-status connected';
     renderTournamentList(data);
@@ -1684,7 +1681,7 @@ async function openPublicBracket(id, url, name, state) {
   // Also load participants
   document.getElementById('pub-participants-wrap').innerHTML = '<div class="loader"><div class="spinner"></div>Loading standings…</div>';
   try {
-    const data = await fetchChallonge(`/tournaments/${encodeURIComponent(url)}/participants.json`);
+    const data = await fetchChallonge(`?action=participants&tournament_id=${encodeURIComponent(url)}`);
     const participants = data.map(p=>p.participant).sort((a,b)=>(a.final_rank||999)-(b.final_rank||999));
     if (!participants.length) { document.getElementById('pub-participants-wrap').innerHTML = ''; return; }
     const rows = participants.map((p,i) => {
@@ -1734,7 +1731,7 @@ async function selectTournament(id, url, el) {
   selectedTournament = {id, url};
   document.getElementById('tournament-detail-wrap').innerHTML = '<div class="loader"><div class="spinner"></div>Loading participants…</div>';
   try {
-    const data = await fetchChallonge(`/tournaments/${encodeURIComponent(url)}/participants.json`);
+    const data = await fetchChallonge(`?action=participants&tournament_id=${encodeURIComponent(url)}`);
     currentParticipants = data.map(p=>p.participant).sort((a,b)=>(a.final_rank||999)-(b.final_rank||999));
     renderTournamentDetail();
     const alreadyImported = importedTournamentIds.includes(String(id));
@@ -1890,7 +1887,7 @@ async function confirmImport(labelEnc, resultsEnc, tournamentId, tournamentUrl) 
   if ((tournamentUrl || tournamentId) && !importedTournamentIds.includes(String(tournamentId))) {
     try {
       const tid = tournamentUrl || tournamentId;
-      const matchData = await fetchChallonge(`/tournaments/${encodeURIComponent(tid)}/matches.json`);
+      const matchData = await fetchChallonge(`?action=matches&tournament_id=${encodeURIComponent(tid)}`);
       // Build participant id → player name map
       const pidMap = {};
       results.forEach(r => {
