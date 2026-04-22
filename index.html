@@ -883,7 +883,7 @@
 <!-- ══════════════ WEEKLY TAB ══════════════ -->
 <div id="tab-weekly" class="section">
   <div class="section-header">
-    <span class="section-title">Weekly Scores — Top 20 Bladers</span>
+    <span class="section-title">Weekly Scores — All Bladers</span>
     <div class="section-line"></div>
     <button class="btn admin-only-btn" id="weekly-add-col-btn" style="display:none;font-size:11px;padding:5px 12px;" onclick="openWeeklyAddColModal()">➕ Add Event</button>
     <button class="btn admin-only-btn" id="weekly-edit-btn" style="display:none;font-size:11px;padding:5px 12px;" onclick="toggleWeeklyEdit()">✏️ Edit Scores</button>
@@ -894,10 +894,14 @@
     ✏️ EDIT MODE — Click any score cell to change it. Press Save when done.
   </div>
   <div style="overflow-x:auto">
-    <table class="lb-table">
-      <thead><tr id="weekly-header-row"><th>Blader</th></tr></thead>
-      <tbody id="weekly-body"></tbody>
-    </table>
+    <div style="max-height:520px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;">
+      <table class="lb-table" style="width:100%">
+        <thead style="position:sticky;top:0;z-index:10;background:var(--surface)">
+          <tr id="weekly-header-row"><th>Blader</th></tr>
+        </thead>
+        <tbody id="weekly-body"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -1440,7 +1444,9 @@ const API = '/api/challonge';
 let importedTournamentIds = [];
 
 async function fetchChallonge(query) {
-  const resp = await fetch(`${API}${query}`);
+  const key = '6f3a0dd4b60e996f1cd773946733b8000095dd0b433e62a1';
+  const separator = query.includes('?') ? '&' : '?';
+  const resp = await fetch(`https://api.challonge.com/v1${query}${separator}api_key=${key}`);
   const text = await resp.text();
   let data;
   try { data = JSON.parse(text); } catch(_) { throw new Error(`HTTP ${resp.status} — ${text.slice(0,120)}`); }
@@ -1519,7 +1525,7 @@ async function loadPublicTournaments() {
   document.getElementById('pub-others').style.display = 'none';
   document.getElementById('pub-error').style.display = 'none';
   try {
-    const data = await fetchChallonge('?action=list');
+    const data = await fetchChallonge('/tournaments.json?state=all&per_page=50');
     if (!data || !data.length) { showPubError('No tournaments found.'); return; }
     const stateOrder = {underway:0, pending:1, complete:2};
     const sorted = [...data].sort((a,b) => {
@@ -1551,7 +1557,7 @@ async function renderFeaturedTournament(tour) {
   heroEl.style.display = 'block';
   let participants = [];
   try {
-    const pData = await fetchChallonge(`?action=participants&tournament_id=${encodeURIComponent(tour.url)}`);
+    const pData = await fetchChallonge(`/tournaments/${encodeURIComponent(tour.url)}/participants.json`);
     participants = pData.map(p=>p.participant).sort((a,b)=>(a.final_rank||999)-(b.final_rank||999));
   } catch(e) {}
   const standingsHtml = participants.length ? `
@@ -1619,7 +1625,7 @@ async function loadTournaments() {
   document.getElementById('tournament-detail-wrap').innerHTML = '<div class="empty-state">Select a tournament to view details</div>';
   document.getElementById('import-section').style.display = 'none';
   try {
-    const data = await fetchChallonge('?action=list');
+    const data = await fetchChallonge('/tournaments.json?state=all&per_page=50');
     document.getElementById('challonge-status').textContent = '● Connected';
     document.getElementById('challonge-status').className = 'challonge-status connected';
     renderTournamentList(data);
@@ -1677,7 +1683,7 @@ async function openPublicBracket(id, url, name, state) {
   // Also load participants
   document.getElementById('pub-participants-wrap').innerHTML = '<div class="loader"><div class="spinner"></div>Loading standings…</div>';
   try {
-    const data = await fetchChallonge(`?action=participants&tournament_id=${encodeURIComponent(url)}`);
+    const data = await fetchChallonge(`/tournaments/${encodeURIComponent(url)}/participants.json`);
     const participants = data.map(p=>p.participant).sort((a,b)=>(a.final_rank||999)-(b.final_rank||999));
     if (!participants.length) { document.getElementById('pub-participants-wrap').innerHTML = ''; return; }
     const rows = participants.map((p,i) => {
@@ -1727,7 +1733,7 @@ async function selectTournament(id, url, el) {
   selectedTournament = {id, url};
   document.getElementById('tournament-detail-wrap').innerHTML = '<div class="loader"><div class="spinner"></div>Loading participants…</div>';
   try {
-    const data = await fetchChallonge(`?action=participants&tournament_id=${encodeURIComponent(url)}`);
+    const data = await fetchChallonge(`/tournaments/${encodeURIComponent(url)}/participants.json`);
     currentParticipants = data.map(p=>p.participant).sort((a,b)=>(a.final_rank||999)-(b.final_rank||999));
     renderTournamentDetail();
     const alreadyImported = importedTournamentIds.includes(String(id));
@@ -1883,7 +1889,7 @@ async function confirmImport(labelEnc, resultsEnc, tournamentId, tournamentUrl) 
   if ((tournamentUrl || tournamentId) && !importedTournamentIds.includes(String(tournamentId))) {
     try {
       const tid = tournamentUrl || tournamentId;
-      const matchData = await fetchChallonge(`?action=matches&tournament_id=${encodeURIComponent(tid)}`);
+      const matchData = await fetchChallonge(`/tournaments/${encodeURIComponent(tid)}/matches.json`);
       // Build participant id → player name map
       const pidMap = {};
       results.forEach(r => {
@@ -2060,7 +2066,7 @@ function renderWeekly() {
     return `<th style="text-align:center">${labelHtml}</th>`;
   }).join('')+'<th class="right">Total</th>';
   const body=document.getElementById('weekly-body');
-  const top20=players.slice(0,20);
+  const top20=players.slice(0,players.length);
   body.innerHTML=top20.map((p,i)=>{
     const maxScore=Math.max(...p.scores);
     const safeName = encodeURIComponent(p.name);
