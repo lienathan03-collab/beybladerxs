@@ -757,7 +757,7 @@
     <button onclick="showTab('achievements', this)">Achievements</button>
     <button onclick="showTab('challonge', this)">⚡ Challonge</button>
     <button onclick="showTab('points', this)">Points</button>
-    <span class="nav-login-hint" id="nav-login-hint" onclick="openLoginModal()" title="Admin Login">🔐</span>
+    <span class="nav-login-hint" id="nav-login-hint" style="display:none" onclick="openLoginModal()" title="Admin Login"></span>
     <button class="nav-admin-btn" id="nav-admin-badge" style="display:none" onclick="adminLogout()">👑 Admin</button>
   </nav>
   <a href="https://www.facebook.com/profile.php?id=61574598407458" target="_blank" rel="noopener" class="fb-link" title="Find us on Facebook">
@@ -3278,6 +3278,16 @@ renderHomeSnapshot();
     if (mobileBtn)  mobileBtn.classList.add('active');
     if (tab === 'home') { renderHomeSnapshot(); startCarouselTimer(); }
     if (tab === 'challonge') { loadPublicTournaments(); }
+  }
+})();
+
+// ═══════════════════════════════════════════════════════
+//  AUTO-OPEN LOGIN IF URL PATH IS /admin
+// ═══════════════════════════════════════════════════════
+(function checkAdminRoute() {
+  if (window.location.pathname === '/admin' || window.location.pathname === '/admin/') {
+    window.history.replaceState(null, '', '/');
+    setTimeout(() => openLoginModal(), 300);
   }
 })();
 
