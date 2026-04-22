@@ -4,14 +4,12 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-async function callChallonge(url) {
+async function callChallonge(url, apiKey) {
+  // Use Basic Auth instead of API key in URL
+  const credentials = btoa(`lienathan:${apiKey}`);
   const res = await fetch(url, {
-    cf: {
-      cacheTtl: 0,
-      cacheEverything: false,
-      scrapeShield: false,
-    },
     headers: {
+      'Authorization': `Basic ${credentials}`,
       'User-Agent': 'curl/7.68.0',
       'Accept': 'application/json',
     }
@@ -41,18 +39,19 @@ export async function onRequest(context) {
   const API_KEY = env.CHALLONGE_API_KEY;
   if (!API_KEY) {
     return new Response(
-      JSON.stringify({ error: 'CHALLONGE_API_KEY is not set in Cloudflare Environment Variables.' }),
+      JSON.stringify({ error: 'CHALLONGE_API_KEY is not set.' }),
       { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
     );
   }
   const url = new URL(request.url);
   const action = url.searchParams.get('action');
   const tournament_id = url.searchParams.get('tournament_id');
-  const key = encodeURIComponent(API_KEY);
+
   try {
     if (action === 'list') {
       const data = await callChallonge(
-        `https://api.challonge.com/v1/tournaments.json?api_key=${key}&state=all&per_page=50`
+        `https://api.challonge.com/v1/tournaments.json?state=all&per_page=50`,
+        API_KEY
       );
       return new Response(JSON.stringify(data), {
         status: 200,
@@ -62,7 +61,8 @@ export async function onRequest(context) {
     if (action === 'participants' && tournament_id) {
       const tid = encodeURIComponent(tournament_id);
       const data = await callChallonge(
-        `https://api.challonge.com/v1/tournaments/${tid}/participants.json?api_key=${key}`
+        `https://api.challonge.com/v1/tournaments/${tid}/participants.json`,
+        API_KEY
       );
       return new Response(JSON.stringify(data), {
         status: 200,
@@ -72,7 +72,8 @@ export async function onRequest(context) {
     if (action === 'matches' && tournament_id) {
       const tid = encodeURIComponent(tournament_id);
       const data = await callChallonge(
-        `https://api.challonge.com/v1/tournaments/${tid}/matches.json?api_key=${key}`
+        `https://api.challonge.com/v1/tournaments/${tid}/matches.json`,
+        API_KEY
       );
       return new Response(JSON.stringify(data), {
         status: 200,
@@ -80,7 +81,7 @@ export async function onRequest(context) {
       });
     }
     return new Response(
-      JSON.stringify({ error: 'Invalid action. Use: list, participants, matches' }),
+      JSON.stringify({ error: 'Invalid action.' }),
       { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
     );
   } catch (err) {
