@@ -1446,7 +1446,8 @@ let importedTournamentIds = [];
 async function fetchChallonge(query) {
   const key = '6f3a0dd4b60e996f1cd773946733b8000095dd0b433e62a1';
   const separator = query.includes('?') ? '&' : '?';
-  const resp = await fetch(`https://api.challonge.com/v1${query}${separator}api_key=${key}`);
+  const targetUrl = `https://api.challonge.com/v1${query}${separator}api_key=${key}`;
+  const resp = await fetch(`https://corsproxy.io/?${encodeURIComponent(targetUrl)}`);
   const text = await resp.text();
   let data;
   try { data = JSON.parse(text); } catch(_) { throw new Error(`HTTP ${resp.status} — ${text.slice(0,120)}`); }
