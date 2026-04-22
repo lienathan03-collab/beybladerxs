@@ -1086,8 +1086,17 @@
       <input class="form-input" id="rc-pts-input" type="number" placeholder="0" />
     </div>
     <div class="form-group">
-      <label class="form-label">Logo URL</label>
-      <input class="form-input" id="rc-photo-input" placeholder="https://i.imgur.com/..." />
+      <label class="form-label">Logo — Upload or paste URL</label>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <label style="flex:0 0 auto;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:8px 14px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">
+          📁 Upload
+          <input type="file" id="rc-photo-file" accept="image/*" style="display:none" onchange="handleRCPhotoUpload(this)" />
+        </label>
+        <input class="form-input" id="rc-photo-input" placeholder="or paste image URL..." style="flex:1" oninput="if(this.value){window._rcPhotoBase64=null;document.getElementById('rc-photo-preview-img').src=this.value;document.getElementById('rc-photo-preview').style.display='block'}else{document.getElementById('rc-photo-preview').style.display='none'}" />
+      </div>
+      <div id="rc-photo-preview" style="display:none;margin-top:6px;text-align:center">
+        <img id="rc-photo-preview-img" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid var(--border2)" />
+      </div>
     </div>
     <div class="modal-error" id="rc-modal-error"></div>
     <div class="modal-actions">
@@ -2095,14 +2104,37 @@ function renderRulersCup() {
   }).join('');
 }
 
+function handleRCPhotoUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    document.getElementById('rc-photo-input').value = '';
+    document.getElementById('rc-photo-preview-img').src = e.target.result;
+    document.getElementById('rc-photo-preview').style.display = 'block';
+    // store base64 in a temp variable
+    window._rcPhotoBase64 = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 function openRCModal(idx) {
   rcEditIndex = (idx !== undefined) ? idx : -1;
   const t = rcEditIndex >= 0 ? rulersCupTeams[rcEditIndex] : null;
   document.getElementById('rc-modal-title').textContent = t ? 'Edit Team' : 'Add Team';
   document.getElementById('rc-name-input').value = t ? t.name : '';
   document.getElementById('rc-pts-input').value = t ? t.pts : '';
-  document.getElementById('rc-photo-input').value = t ? (t.photo||'') : '';
+  document.getElementById('rc-photo-input').value = (t && t.photo && !t.photo.startsWith('data:')) ? t.photo : '';
   document.getElementById('rc-modal-error').textContent = '';
+  document.getElementById('rc-photo-file').value = '';
+  window._rcPhotoBase64 = null;
+  // show preview if existing photo
+  if (t && t.photo) {
+    document.getElementById('rc-photo-preview-img').src = t.photo;
+    document.getElementById('rc-photo-preview').style.display = 'block';
+  } else {
+    document.getElementById('rc-photo-preview').style.display = 'none';
+  }
   document.getElementById('rc-modal').classList.add('open');
 }
 
@@ -2113,13 +2145,15 @@ function closeRCModal() {
 function saveRCTeam() {
   const name = document.getElementById('rc-name-input').value.trim();
   const pts = parseInt(document.getElementById('rc-pts-input').value) || 0;
-  const photo = document.getElementById('rc-photo-input').value.trim();
+  const urlInput = document.getElementById('rc-photo-input').value.trim();
+  const photo = window._rcPhotoBase64 || urlInput;
   if (!name) { document.getElementById('rc-modal-error').textContent = 'Team name is required.'; return; }
   if (rcEditIndex >= 0) {
     rulersCupTeams[rcEditIndex] = { name, pts, photo };
   } else {
     rulersCupTeams.push({ name, pts, photo });
   }
+  window._rcPhotoBase64 = null;
   closeRCModal();
   renderRulersCup();
   cloudSave();
