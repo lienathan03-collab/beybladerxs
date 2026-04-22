@@ -2672,7 +2672,7 @@ function saveBladerProfile() {
   // re-sort and re-rank after score changes
   players.sort((a,b) => b.total - a.total);
   let rank = 1;
-  players.forEach((pl, i) => { if (i > 0 && pl.total < players[i-1].total) rank = i+1; pl.rank = rank; });
+  players.forEach((pl, i) => { if (i > 0 && pl.total < players[i-1].total) rank++; pl.rank = rank; });
 
   // wins/matches OVERRIDE (only if a value was entered)
   const winsOverride    = document.getElementById('pe-wins-input').value.trim();
@@ -3141,7 +3141,7 @@ function saveWeeklyEdits() {
   // Re-sort and re-rank
   players.sort((a,b) => b.total - a.total);
   let rank = 1;
-  players.forEach((p,i) => { if (i>0 && p.total < players[i-1].total) rank = i+1; p.rank = rank; });
+  players.forEach((p,i) => { if (i>0 && p.total < players[i-1].total) rank++; p.rank = rank; });
   weeklyEditMode = false;
   weeklyEditSnapshot = null;
   document.getElementById('weekly-edit-banner').style.display = 'none';
@@ -3241,7 +3241,7 @@ function executeBulkAdd() {
   // Re-sort and re-rank
   players.sort((a, b) => b.total - a.total);
   let rank = 1;
-  players.forEach((p, i) => { if (i > 0 && p.total < players[i-1].total) rank = i+1; p.rank = rank; });
+  players.forEach((p, i) => { if (i > 0 && p.total < players[i-1].total) rank++; p.rank = rank; });
 
   cloudSave();
   renderLeaderboard(); renderWeekly(); renderTeamTotals(); updateHeroStats(); renderAchievements();
