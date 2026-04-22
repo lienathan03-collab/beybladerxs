@@ -752,11 +752,11 @@
   <nav>
     <button class="active" onclick="showTab('home', this)">Home</button>
     <button onclick="showTab('leaderboard', this)">Leaderboard</button>
+    <button onclick="showTab('rulerscup', this)">🏆 Rulers Cup</button>
     <button onclick="showTab('weekly', this)">Weekly</button>
     <button onclick="showTab('achievements', this)">Achievements</button>
     <button onclick="showTab('challonge', this)">⚡ Challonge</button>
     <button onclick="showTab('points', this)">Points</button>
-    <button onclick="showTab('rulerscup', this)">🏆 Rulers Cup</button>
     <span class="nav-login-hint" id="nav-login-hint" onclick="openLoginModal()" title="Admin Login">🔐</span>
     <button class="nav-admin-btn" id="nav-admin-badge" style="display:none" onclick="adminLogout()">👑 Admin</button>
   </nav>
@@ -776,6 +776,9 @@
     <button class="mobile-nav-btn" onclick="showTab('leaderboard', this)" data-tab="leaderboard">
       <span class="mn-icon">🏆</span>Ranks
     </button>
+    <button class="mobile-nav-btn" onclick="showTab('rulerscup', this)" data-tab="rulerscup">
+      <span class="mn-icon">👑</span>Rulers
+    </button>
     <button class="mobile-nav-btn" onclick="showTab('weekly', this)" data-tab="weekly">
       <span class="mn-icon">📅</span>Weekly
     </button>
@@ -787,9 +790,6 @@
     </button>
     <button class="mobile-nav-btn" onclick="showTab('points', this)" data-tab="points">
       <span class="mn-icon">📊</span>Points
-    </button>
-    <button class="mobile-nav-btn" onclick="showTab('rulerscup', this)" data-tab="rulerscup">
-      <span class="mn-icon">🏆</span>Rulers
     </button>
   </div>
 </nav>
