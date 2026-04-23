@@ -3244,106 +3244,10 @@ function openAddPostModal() {
   document.getElementById('post-fb-url').value = '';
   document.getElementById('post-date').value = '';
   document.getElementById('post-modal-error').textContent = '';
-  document.getElementById('post-autofill-url').value = '';
-  document.getElementById('post-autofill-status').textContent = '';
   document.getElementById('post-delete-btn').style.display = 'none';
   previewPostImage('');
   document.getElementById('add-post-modal').classList.add('open');
-  setTimeout(() => document.getElementById('post-autofill-url').focus(), 150);
-}
-
-async function fetchPostAutofill() {
-  const url = document.getElementById('post-autofill-url').value.trim();
-  const statusEl = document.getElementById('post-autofill-status');
-  const btn = document.getElementById('post-autofill-btn');
-
-  if (!url || !url.includes('facebook.com')) {
-    statusEl.style.color = 'var(--red)';
-    statusEl.textContent = '⚠ Paste a valid Facebook URL first.';
-    return;
-  }
-
-  btn.disabled = true;
-  btn.textContent = '⏳ Fetching…';
-  statusEl.style.color = 'var(--muted)';
-  statusEl.textContent = 'Analyzing Facebook URL with AI…';
-
-  try {
-    // Try Facebook oEmbed first (works for public posts)
-    let oembedData = null;
-    try {
-      const oembedUrl = `https://www.facebook.com/plugins/post/oembed.json/?url=${encodeURIComponent(url)}&omitscript=true`;
-      const oResp = await fetch(oembedUrl);
-      if (oResp.ok) oembedData = await oResp.json();
-    } catch (_) {}
-
-    // Build a prompt for Claude to extract/infer post details
-    const prompt = `You are a helper for a Beyblade community site. The admin just pasted this Facebook post URL:
-${url}
-
-${oembedData ? `Facebook oEmbed data returned: ${JSON.stringify(oembedData)}` : 'The oEmbed fetch returned no data (private/restricted post).'}
-
-Your job is to extract or infer the following fields to pre-fill a post form. Return ONLY valid JSON, no markdown, no explanation:
-
-{
-  "img": "<direct image URL if extractable from oEmbed thumbnail_url, else empty string>",
-  "caption": "<short caption inferred from oEmbed author_name or title, like 'Posted by [author]', else empty string>",
-  "fbUrl": "${url}",
-  "date": "<today's date in format 'Month D, YYYY' if no date available from oEmbed>",
-  "note": "<one short sentence explaining what was found and what the admin still needs to fill manually>"
-}
-
-Rules:
-- img: use oembedData.thumbnail_url if present, otherwise empty string
-- caption: use oembedData.author_name if present (e.g. "Posted by BeybladePH"), otherwise empty
-- date: if no date in oEmbed, use today's date
-- fbUrl: always the URL passed in
-- note: be concise, helpful`;
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 400,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-
-    const data = await response.json();
-    const raw = data.content?.map(b => b.text || '').join('') || '';
-
-    let parsed;
-    try {
-      const clean = raw.replace(/```json|```/g, '').trim();
-      parsed = JSON.parse(clean);
-    } catch (_) {
-      throw new Error('Could not parse AI response.');
-    }
-
-    // Fill in the form fields
-    if (parsed.img)      { document.getElementById('post-img-url').value  = parsed.img;     previewPostImage(parsed.img); }
-    if (parsed.caption)  { document.getElementById('post-caption').value  = parsed.caption; }
-    if (parsed.fbUrl)    { document.getElementById('post-fb-url').value   = parsed.fbUrl;   }
-    if (parsed.date)     { document.getElementById('post-date').value     = parsed.date;     }
-
-    statusEl.style.color = '#5aaa7a';
-    statusEl.textContent = '✅ ' + (parsed.note || 'Fields filled! Review and save.');
-
-    // If no image was found, focus image field so admin can paste one
-    if (!parsed.img) {
-      setTimeout(() => document.getElementById('post-img-url').focus(), 100);
-    }
-
-  } catch (err) {
-    statusEl.style.color = 'var(--red)';
-    statusEl.textContent = '⚠ ' + (err.message || 'Fetch failed. Fill fields manually.');
-    // Still fill the FB URL so admin doesn't have to re-paste
-    document.getElementById('post-fb-url').value = url;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '🔍 Fetch';
-  }
+  setTimeout(() => document.getElementById('post-img-url').focus(), 150);
 }
 function openEditPostModal(idx) {
   if (!isAdmin) return;
@@ -3355,8 +3259,6 @@ function openEditPostModal(idx) {
   document.getElementById('post-fb-url').value = p.fbUrl || '';
   document.getElementById('post-date').value = p.date || '';
   document.getElementById('post-modal-error').textContent = '';
-  document.getElementById('post-autofill-url').value = p.fbUrl || '';
-  document.getElementById('post-autofill-status').textContent = '';
   document.getElementById('post-delete-btn').style.display = 'block';
   previewPostImage(p.img || '');
   document.getElementById('add-post-modal').classList.add('open');
@@ -3960,32 +3862,27 @@ function executeBulkAdd() {
 
 <!-- ══════════════ ADD / EDIT POST MODAL ══════════════ -->
 <div class="modal-overlay" id="add-post-modal">
-  <div class="modal" style="max-width:480px">
+  <div class="modal" style="max-width:460px">
     <button class="modal-close" onclick="closeAddPostModal()">✕</button>
     <div class="modal-title" id="post-modal-title">➕ Add Post</div>
-    <div class="modal-sub">Paste a Facebook post URL to auto-fill, or fill in the fields manually.</div>
+    <div class="modal-sub">Paste the post image and Facebook link. Caption is optional.</div>
     <input type="hidden" id="post-modal-idx" value="" />
 
-    <!-- ── AUTOFILL SECTION ── -->
-    <div style="background:#0d1a10;border:1px solid #1a4a2a;border-radius:10px;padding:14px 16px;margin-bottom:18px;">
-      <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#5aaa7a;margin-bottom:10px;">⚡ Auto-fill from Facebook</div>
-      <div style="display:flex;gap:8px;align-items:stretch;">
-        <input class="form-input" type="text" id="post-autofill-url"
-          placeholder="https://www.facebook.com/photo/..."
-          style="flex:1;font-size:12px;"
-          onkeydown="if(event.key==='Enter')fetchPostAutofill()" />
-        <button class="btn primary" id="post-autofill-btn" onclick="fetchPostAutofill()"
-          style="font-size:11px;padding:0 14px;white-space:nowrap;flex-shrink:0;">
-          🔍 Fetch
-        </button>
-      </div>
-      <div id="post-autofill-status" style="margin-top:8px;font-size:11px;color:var(--muted);font-family:'Share Tech Mono',monospace;min-height:16px;letter-spacing:.5px;"></div>
-    </div>
-
-    <!-- ── MANUAL FIELDS ── -->
     <div class="form-group">
       <label class="form-label">Image URL <span style="color:var(--muted);font-size:10px">(direct image link)</span></label>
-      <input class="form-input" type="text" id="post-img-url" placeholder="https://i.imgur.com/..." oninput="previewPostImage(this.value)" />
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input class="form-input" type="text" id="post-img-url" placeholder="https://i.imgur.com/..." oninput="previewPostImage(this.value);postImgUrlHelper(this.value)" style="flex:1" />
+        <button class="btn" id="post-img-helper-btn" style="display:none;font-size:11px;padding:6px 12px;white-space:nowrap;flex-shrink:0;" onclick="postImgOpenFb()">🔗 Open Photo</button>
+      </div>
+      <!-- Facebook helper tip -->
+      <div id="post-fb-helper" style="display:none;margin-top:8px;background:#0d1a10;border:1px solid #1a3a1f;border-radius:8px;padding:10px 14px;font-size:12px;color:#5aaa7a;line-height:1.7;">
+        <strong style="color:var(--green);font-size:11px;letter-spacing:1px;">⚠️ FACEBOOK IMAGES CANNOT BE AUTO-FETCHED</strong><br>
+        Facebook blocks all external requests. Here's the quick workaround:<br>
+        <span style="color:#aaa;">1.</span> Click <strong style="color:#fff;">🔗 Open Photo</strong> to open the Facebook photo in a new tab<br>
+        <span style="color:#aaa;">2.</span> Right-click the photo → <strong style="color:#fff;">Open image in new tab</strong><br>
+        <span style="color:#aaa;">3.</span> Copy the URL from the address bar and paste it here<br>
+        <span style="color:var(--muted);font-size:11px;">💡 Or upload the image to <a href="https://imgur.com/upload" target="_blank" style="color:var(--gold)">imgur.com</a> and paste that link instead.</span>
+      </div>
       <div id="post-img-preview" style="margin-top:8px;width:100%;height:160px;border-radius:8px;overflow:hidden;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--muted2)">🖼</div>
     </div>
     <div class="form-group">
@@ -4035,6 +3932,29 @@ function closeLightbox() {
   document.body.style.overflow = '';
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+// ── POST IMAGE URL HELPER ──
+// Detects Facebook URLs in the Image URL field and shows guidance
+function postImgUrlHelper(val) {
+  const helperDiv = document.getElementById('post-fb-helper');
+  const helperBtn = document.getElementById('post-img-helper-btn');
+  if (!helperDiv || !helperBtn) return;
+  // fbcdn.net URLs ARE valid direct image CDN links — don't warn for those
+  const isFbCdn = val && val.includes('fbcdn.net');
+  const isFb = val && (val.includes('facebook.com') || val.includes('fb.com')) && !isFbCdn;
+  if (isFb) {
+    helperDiv.style.display = 'block';
+    helperBtn.style.display = '';
+    window._postFbOpenUrl = val;
+  } else {
+    helperDiv.style.display = 'none';
+    helperBtn.style.display = 'none';
+    window._postFbOpenUrl = null;
+  }
+}
+function postImgOpenFb() {
+  if (window._postFbOpenUrl) window.open(window._postFbOpenUrl, '_blank', 'noopener');
+}
 </script>
 
 </html>
