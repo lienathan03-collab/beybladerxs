@@ -3247,10 +3247,7 @@ function openAddPostModal() {
   document.getElementById('post-delete-btn').style.display = 'none';
   previewPostImage('');
   document.getElementById('add-post-modal').classList.add('open');
-  document.getElementById('post-autofill-status').textContent = '';
-  document.getElementById('post-autofill-btn').disabled = false;
-  document.getElementById('post-autofill-btn').textContent = '⚡ Auto-Fill';
-  setTimeout(() => document.getElementById('post-fb-url').focus(), 150);
+  setTimeout(() => document.getElementById('post-img-url').focus(), 150);
 }
 function openEditPostModal(idx) {
   if (!isAdmin) return;
@@ -3262,9 +3259,6 @@ function openEditPostModal(idx) {
   document.getElementById('post-fb-url').value = p.fbUrl || '';
   document.getElementById('post-date').value = p.date || '';
   document.getElementById('post-modal-error').textContent = '';
-  document.getElementById('post-autofill-status').textContent = '';
-  document.getElementById('post-autofill-btn').disabled = false;
-  document.getElementById('post-autofill-btn').textContent = '⚡ Auto-Fill';
   document.getElementById('post-delete-btn').style.display = 'block';
   previewPostImage(p.img || '');
   document.getElementById('add-post-modal').classList.add('open');
@@ -3275,104 +3269,6 @@ function previewPostImage(url) {
   if (url && url.startsWith('http')) {
     el.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='🖼'" />`;
   } else { el.innerHTML = '🖼'; }
-}
-
-async function autoFillFromFB() {
-  const fbUrl = document.getElementById('post-fb-url').value.trim();
-  const statusEl = document.getElementById('post-autofill-status');
-  const btn = document.getElementById('post-autofill-btn');
-  if (!fbUrl || !fbUrl.startsWith('http')) {
-    statusEl.style.color = 'var(--red)';
-    statusEl.textContent = '⚠ Paste a valid Facebook post URL first.';
-    return;
-  }
-
-  btn.disabled = true;
-  btn.textContent = '⏳ Fetching...';
-  statusEl.style.color = 'var(--muted)';
-  statusEl.textContent = 'Contacting fetch proxy…';
-
-  // We try two free CORS proxies in sequence; first success wins
-  const proxies = [
-    url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-    url => `https://corsproxy.io/?${encodeURIComponent(url)}`
-  ];
-
-  let html = null;
-  for (const makeUrl of proxies) {
-    try {
-      const res = await fetch(makeUrl(fbUrl), { signal: AbortSignal.timeout(10000) });
-      if (!res.ok) continue;
-      const data = await res.json().catch(() => null);
-      // allorigins wraps in { contents: '...' }, corsproxy returns text
-      html = data?.contents ?? (typeof data === 'string' ? data : null);
-      if (!html) {
-        // corsproxy.io returns raw text, not JSON
-        const res2 = await fetch(`https://corsproxy.io/?${encodeURIComponent(fbUrl)}`, { signal: AbortSignal.timeout(10000) });
-        html = await res2.text();
-      }
-      if (html && html.length > 200) break;
-    } catch(e) { /* try next */ }
-  }
-
-  btn.disabled = false;
-  btn.textContent = '⚡ Auto-Fill';
-
-  if (!html) {
-    statusEl.style.color = 'var(--red)';
-    statusEl.textContent = '✗ Could not reach Facebook. Paste the image URL manually below.';
-    return;
-  }
-
-  // Extract og:image
-  const imgMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
-                || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-  // Extract og:description or og:title for caption
-  const descMatch = html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)
-                  || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:description["']/i);
-  const titleMatch = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)
-                  || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i);
-
-  function decodeHtmlEntities(str) {
-    return str.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#039;/g,"'").replace(/\\u0026/g,'&').replace(/\\n/g,' ').replace(/\s+/g,' ').trim();
-  }
-
-  let filled = 0;
-  if (imgMatch && imgMatch[1]) {
-    const imgUrl = decodeHtmlEntities(imgMatch[1]);
-    document.getElementById('post-img-url').value = imgUrl;
-    previewPostImage(imgUrl);
-    filled++;
-  }
-
-  const rawCaption = descMatch?.[1] || titleMatch?.[1] || '';
-  if (rawCaption) {
-    const caption = decodeHtmlEntities(rawCaption).substring(0, 160);
-    // Only fill caption if it's empty
-    if (!document.getElementById('post-caption').value.trim()) {
-      document.getElementById('post-caption').value = caption;
-    }
-    filled++;
-  }
-
-  // Try to extract date from URL or og:updated_time
-  const dateMatch = html.match(/<meta[^>]+property=["']og:updated_time["'][^>]+content=["']([^"']+)["']/i);
-  if (dateMatch && !document.getElementById('post-date').value.trim()) {
-    try {
-      const d = new Date(dateMatch[1]);
-      if (!isNaN(d)) {
-        document.getElementById('post-date').value = d.toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' });
-      }
-    } catch(e) {}
-  }
-
-  if (filled > 0) {
-    statusEl.style.color = 'var(--green)';
-    statusEl.textContent = '✓ Auto-filled! Review below and adjust if needed.';
-  } else {
-    statusEl.style.color = '#c8900a';
-    statusEl.textContent = '⚠ Fetched page but no image found. Facebook may have blocked it — paste the image URL manually.';
-  }
 }
 function savePost() {
   const img = document.getElementById('post-img-url').value.trim();
@@ -3966,36 +3862,24 @@ function executeBulkAdd() {
 
 <!-- ══════════════ ADD / EDIT POST MODAL ══════════════ -->
 <div class="modal-overlay" id="add-post-modal">
-  <div class="modal" style="max-width:480px">
+  <div class="modal" style="max-width:460px">
     <button class="modal-close" onclick="closeAddPostModal()">✕</button>
     <div class="modal-title" id="post-modal-title">➕ Add Post</div>
-    <div class="modal-sub">Paste a Facebook post URL and hit <strong style="color:var(--gold)">Auto-Fill</strong> — it'll grab the image and caption for you.</div>
+    <div class="modal-sub">Paste the post image and Facebook link. Caption is optional.</div>
     <input type="hidden" id="post-modal-idx" value="" />
 
-    <!-- FB URL + Auto-Fill -->
     <div class="form-group">
-      <label class="form-label">Facebook Post URL</label>
-      <div style="display:flex;gap:8px;align-items:center">
-        <input class="form-input" type="text" id="post-fb-url" placeholder="https://www.facebook.com/..." style="flex:1"
-          oninput="document.getElementById('post-autofill-status').textContent=''"
-          onkeydown="if(event.key==='Enter'){event.preventDefault();autoFillFromFB();}" />
-        <button class="btn primary" id="post-autofill-btn" onclick="autoFillFromFB()" style="white-space:nowrap;padding:0 14px;height:38px;flex-shrink:0">
-          ⚡ Auto-Fill
-        </button>
-      </div>
-      <div id="post-autofill-status" style="font-size:11px;margin-top:6px;color:var(--muted);letter-spacing:.5px;min-height:16px"></div>
-    </div>
-
-    <!-- Image preview + manual override -->
-    <div class="form-group">
-      <label class="form-label">Image URL <span style="color:var(--muted);font-size:10px">(auto-filled or paste manually)</span></label>
+      <label class="form-label">Image URL <span style="color:var(--muted);font-size:10px">(direct image link)</span></label>
       <input class="form-input" type="text" id="post-img-url" placeholder="https://i.imgur.com/..." oninput="previewPostImage(this.value)" />
       <div id="post-img-preview" style="margin-top:8px;width:100%;height:160px;border-radius:8px;overflow:hidden;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--muted2)">🖼</div>
     </div>
-
     <div class="form-group">
-      <label class="form-label">Caption <span style="color:var(--muted);font-size:10px">(auto-filled or type your own)</span></label>
+      <label class="form-label">Caption <span style="color:var(--muted);font-size:10px">(optional)</span></label>
       <input class="form-input" type="text" id="post-caption" placeholder="e.g. Week 14 Results are in! 🔥" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Facebook Post URL</label>
+      <input class="form-input" type="text" id="post-fb-url" placeholder="https://www.facebook.com/..." />
     </div>
     <div class="form-group">
       <label class="form-label">Date <span style="color:var(--muted);font-size:10px">(optional)</span></label>
