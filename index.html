@@ -867,6 +867,35 @@
     </div>
   </div>
 
+  <!-- CAROUSEL 2 (hidden until posts exist) -->
+  <div id="carousel2-section" style="display:none;">
+  <div class="section-header" style="margin-top:28px;">
+    <span class="section-title">2nd Latest Posts</span>
+    <div class="section-line"></div>
+    <button class="btn admin-only-btn" id="home-add-post2-btn" style="display:none;font-size:11px;padding:5px 12px;" onclick="openAddPostModal2()">➕ Add Post</button>
+  </div>
+  <div id="carousel2-wrap" style="position:relative;margin-bottom:32px;">
+    <div id="carousel2-empty" style="display:none;"></div>
+    <div id="carousel2-slider" style="display:none;position:relative;overflow:hidden;border-radius:16px;background:var(--surface);border:1px solid var(--border);">
+      <div id="carousel2-track" style="display:flex;transition:transform 0.45s cubic-bezier(.4,0,.2,1);"></div>
+      <button id="carousel2-prev" onclick="carousel2Move(-1)"
+        style="position:absolute;left:12px;top:50%;transform:translateY(-50%);z-index:10;
+        background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:50%;
+        width:38px;height:38px;font-size:18px;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;
+        transition:background .15s;">‹</button>
+      <button id="carousel2-next" onclick="carousel2Move(1)"
+        style="position:absolute;right:12px;top:50%;transform:translateY(-50%);z-index:10;
+        background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:50%;
+        width:38px;height:38px;font-size:18px;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;
+        transition:background .15s;">›</button>
+      <div id="carousel2-dots" style="position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:7px;z-index:10;"></div>
+      <div id="carousel2-counter" style="position:absolute;bottom:14px;right:14px;z-index:10;
+        background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.15);border-radius:20px;
+        font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(255,255,255,0.7);padding:3px 10px;"></div>
+    </div>
+  </div>
+  </div><!-- end carousel2-section -->
+
   <!-- Quick stats row below carousel -->
   <div class="section-header" style="margin-top:8px;">
     <span class="section-title">Season Snapshot</span>
@@ -1322,6 +1351,11 @@ function applyAdminUI() {
   // Show add-post btn if on home tab
   const addPostBtn = document.getElementById('home-add-post-btn');
   if (addPostBtn) addPostBtn.style.display = '';
+  const addPost2Btn = document.getElementById('home-add-post2-btn');
+  if (addPost2Btn) addPost2Btn.style.display = '';
+  // Always show carousel2 section for admin so they can add posts
+  const c2section = document.getElementById('carousel2-section');
+  if (c2section) c2section.style.display = '';
   // Re-render carousel to show edit buttons on slides
   renderCarousel();
   renderRulersCup();
@@ -1344,7 +1378,7 @@ let cloudSaveTimeout = null;
 // ── localStorage fallback ──
 const LS_KEY = 'beyblade_rxs_data';
 function localSave() {
-  try { localStorage.setItem(LS_KEY, JSON.stringify({ photos: podiumPhotos, heroBgUrl: heroBgUrl||'', players, eventLabels, importedIds: importedTournamentIds, teamConfig, bladerStats, manualAchs: manualAchievements, autoAchOv: autoAchOverrides, homePosts, rulersCupTeams })); } catch(e) {}
+  try { localStorage.setItem(LS_KEY, JSON.stringify({ photos: podiumPhotos, heroBgUrl: heroBgUrl||'', players, eventLabels, importedIds: importedTournamentIds, teamConfig, bladerStats, manualAchs: manualAchievements, autoAchOv: autoAchOverrides, homePosts, homePosts2, rulersCupTeams })); } catch(e) {}
 }
 function localLoad() {
   try {
@@ -1361,9 +1395,10 @@ function localLoad() {
     if (d.manualAchs)                  { manualAchievements = d.manualAchs; }
     if (d.autoAchOv)                   { autoAchOverrides = d.autoAchOv; }
     if (d.homePosts)                   { homePosts = d.homePosts; }
+    if (d.homePosts2)                  { homePosts2 = d.homePosts2; }
     if (d.rulersCupTeams)              { rulersCupTeams = d.rulersCupTeams; }
     renderLeaderboard(); renderWeekly(); renderTeamTotals(); updateHeroStats(); renderAchievements();
-    renderCarousel(); renderHomeSnapshot(); renderRulersCup();
+    renderCarousel(); renderCarousel2(); renderHomeSnapshot(); renderRulersCup();
     return true;
   } catch(e) { return false; }
 }
@@ -1389,9 +1424,10 @@ async function cloudLoad() {
     if (data.manualAchs)               { manualAchievements = data.manualAchs; }
     if (data.autoAchOv)                { autoAchOverrides = data.autoAchOv; }
     if (data.homePosts)                { homePosts = data.homePosts; }
+    if (data.homePosts2)               { homePosts2 = data.homePosts2; }
     if (data.rulersCupTeams)           { rulersCupTeams = data.rulersCupTeams; }
     renderLeaderboard(); renderWeekly(); renderTeamTotals(); updateHeroStats(); renderAchievements();
-    renderCarousel(); renderHomeSnapshot(); renderRulersCup();
+    renderCarousel(); renderCarousel2(); renderHomeSnapshot(); renderRulersCup();
     updateTeamFilterButtons();
     localSave();
   } catch(e) { console.error('[Cloud] Load error:', e); }
@@ -1416,6 +1452,7 @@ async function cloudSave() {
           manualAchs: manualAchievements,
           autoAchOv: autoAchOverrides,
           homePosts: homePosts,
+          homePosts2: homePosts2,
           rulersCupTeams: rulersCupTeams
         })
       });
@@ -3132,9 +3169,12 @@ function updateTeamFilterButtons() {
 //  HOMEPAGE POSTS / CAROUSEL
 // ═══════════════════════════════════════════════════════
 let homePosts = [];
+let homePosts2 = [];
 let rulersCupTeams = []; // { name, pts, photo }
 let carouselIdx = 0;
 let carouselTimer = null;
+let carousel2Idx = 0;
+let carousel2Timer = null;
 const CAROUSEL_INTERVAL = 5000;
 
 function renderHomeSnapshot() {
@@ -3235,6 +3275,139 @@ function startCarouselTimer() { stopCarouselTimer(); if (homePosts.length > 1) c
 function stopCarouselTimer() { if (carouselTimer) { clearInterval(carouselTimer); carouselTimer = null; } }
 function resetCarouselTimer() { stopCarouselTimer(); startCarouselTimer(); }
 
+// ── CAROUSEL 2 ──
+function renderCarousel2() {
+  const empty  = document.getElementById('carousel2-empty');
+  const slider = document.getElementById('carousel2-slider');
+  const track  = document.getElementById('carousel2-track');
+  const dots   = document.getElementById('carousel2-dots');
+  const counter= document.getElementById('carousel2-counter');
+  if (!track) return;
+  const section = document.getElementById('carousel2-section');
+  if (!homePosts2.length) {
+    if (section) section.style.display = 'none';
+    slider.style.display = 'none';
+    stopCarousel2Timer();
+    return;
+  }
+  if (section) section.style.display = '';
+  slider.style.display = 'block';
+  track.innerHTML = homePosts2.map((p, i) => {
+    const editBtn = `<button onclick="openEditPostModal2(${i})" style="position:absolute;top:10px;left:10px;z-index:5;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:4px 10px;font-size:11px;color:#fff;cursor:pointer;display:none" class="carousel2-edit-btn admin-only-btn">✏️ Edit</button>`;
+    const noImg = `<div style="width:100%;height:260px;display:flex;align-items:center;justify-content:center;font-size:48px;background:var(--surface2)">📢</div>`;
+    const overlay = (p.caption || p.date) ? `
+      <div style="position:absolute;bottom:0;left:0;right:0;
+        background:linear-gradient(to top,rgba(0,0,0,0.85) 0%,rgba(0,0,0,0) 100%);
+        padding:32px 20px 44px;pointer-events:none;">
+        ${p.date ? `<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.5);margin-bottom:4px">${p.date}</div>` : ''}
+        ${p.caption ? `<div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:#fff;letter-spacing:1px">${p.caption}</div>` : ''}
+      </div>` : '';
+    const fbBtn = p.fbUrl ? `
+      <a href="${p.fbUrl}" target="_blank" rel="noopener"
+        style="position:absolute;top:10px;right:10px;z-index:6;
+          background:#1877f2;border-radius:8px;width:32px;height:32px;
+          display:flex;align-items:center;justify-content:center;
+          box-shadow:0 2px 8px rgba(0,0,0,0.5);text-decoration:none;
+          transition:opacity .15s;" title="View on Facebook"
+        onclick="event.stopPropagation()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff" xmlns="http://www.w3.org/2000/svg">
+          <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.514c-1.491 0-1.956.93-1.956 1.886v2.267h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
+        </svg>
+      </a>` : '';
+    const imgEl = p.img
+      ? `<img src="${p.img}" alt="${p.caption||''}"
+            style="width:100%;height:auto;display:block;max-height:600px;object-fit:contain;cursor:zoom-in;"
+            onclick="openLightbox('${p.img.replace(/'/g,"\\'")}')"
+            onerror="this.style.display='none'" />`
+      : noImg;
+    return `<div style="min-width:100%;position:relative;flex-shrink:0;background:#000;">
+      ${editBtn}
+      ${fbBtn}
+      <div style="display:block;width:100%;">${imgEl}</div>
+      ${overlay}
+    </div>`;
+  }).join('');
+  dots.innerHTML = homePosts2.map((_,i) =>
+    `<div onclick="goToSlide2(${i})" style="width:8px;height:8px;border-radius:50%;cursor:pointer;transition:all .2s;
+      background:${i===carousel2Idx?'var(--gold)':'rgba(255,255,255,0.35)'};
+      transform:${i===carousel2Idx?'scale(1.3)':'scale(1)'}"></div>`
+  ).join('');
+  counter.textContent = `${carousel2Idx+1} / ${homePosts2.length}`;
+  track.style.transform = `translateX(-${carousel2Idx * slider.offsetWidth}px)`;
+  track.querySelectorAll(':scope > div').forEach(slide => {
+    slide.style.minWidth = slider.offsetWidth + 'px';
+    slide.style.width    = slider.offsetWidth + 'px';
+  });
+  document.getElementById('carousel2-prev').style.opacity = homePosts2.length > 1 ? '1' : '0';
+  document.getElementById('carousel2-next').style.opacity = homePosts2.length > 1 ? '1' : '0';
+  if (isAdmin) document.querySelectorAll('.carousel2-edit-btn').forEach(b => b.style.display = 'block');
+  startCarousel2Timer();
+}
+function goToSlide2(idx) { carousel2Idx = (idx + homePosts2.length) % homePosts2.length; renderCarousel2(); }
+function carousel2Move(dir) { goToSlide2(carousel2Idx + dir); resetCarousel2Timer(); }
+window.addEventListener('resize', () => { if (homePosts2.length) renderCarousel2(); });
+function startCarousel2Timer() { stopCarousel2Timer(); if (homePosts2.length > 1) carousel2Timer = setInterval(() => carousel2Move(1), CAROUSEL_INTERVAL); }
+function stopCarousel2Timer() { if (carousel2Timer) { clearInterval(carousel2Timer); carousel2Timer = null; } }
+function resetCarousel2Timer() { stopCarousel2Timer(); startCarousel2Timer(); }
+
+function openAddPostModal2() {
+  if (!isAdmin) return;
+  document.getElementById('post-modal2-title').textContent = '➕ Add Post';
+  document.getElementById('post-modal2-idx').value = '';
+  document.getElementById('post2-img-url').value = '';
+  document.getElementById('post2-caption').value = '';
+  document.getElementById('post2-fb-url').value = '';
+  document.getElementById('post2-date').value = '';
+  document.getElementById('post2-modal-error').textContent = '';
+  document.getElementById('post2-delete-btn').style.display = 'none';
+  previewPostImage2('');
+  document.getElementById('add-post-modal2').classList.add('open');
+  setTimeout(() => document.getElementById('post2-img-url').focus(), 150);
+}
+function openEditPostModal2(idx) {
+  if (!isAdmin) return;
+  const p = homePosts2[idx]; if (!p) return;
+  document.getElementById('post-modal2-title').textContent = '✏️ Edit Post';
+  document.getElementById('post-modal2-idx').value = idx;
+  document.getElementById('post2-img-url').value = p.img || '';
+  document.getElementById('post2-caption').value = p.caption || '';
+  document.getElementById('post2-fb-url').value = p.fbUrl || '';
+  document.getElementById('post2-date').value = p.date || '';
+  document.getElementById('post2-modal-error').textContent = '';
+  document.getElementById('post2-delete-btn').style.display = 'block';
+  previewPostImage2(p.img || '');
+  document.getElementById('add-post-modal2').classList.add('open');
+}
+function closeAddPostModal2() { document.getElementById('add-post-modal2').classList.remove('open'); }
+function previewPostImage2(url) {
+  const el = document.getElementById('post2-img-preview');
+  if (url && url.startsWith('http')) {
+    el.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='🖼'" />`;
+  } else { el.innerHTML = '🖼'; }
+}
+function savePost2() {
+  const img = document.getElementById('post2-img-url').value.trim();
+  const caption = document.getElementById('post2-caption').value.trim();
+  const fbUrl = document.getElementById('post2-fb-url').value.trim();
+  const date = document.getElementById('post2-date').value.trim();
+  const errEl = document.getElementById('post2-modal-error');
+  if (!img && !caption) { errEl.textContent = 'Add at least an image or caption.'; return; }
+  const post = { img, caption, fbUrl, date };
+  const idxRaw = document.getElementById('post-modal2-idx').value;
+  if (idxRaw === '') { homePosts2.unshift(post); } else { homePosts2[parseInt(idxRaw)] = post; }
+  carousel2Idx = 0;
+  cloudSave(); renderCarousel2(); closeAddPostModal2();
+  showToast(idxRaw === '' ? 'Post added!' : 'Post updated!', 'success');
+}
+function deletePost2() {
+  const idx = parseInt(document.getElementById('post-modal2-idx').value);
+  if (isNaN(idx)) return;
+  homePosts2.splice(idx, 1);
+  carousel2Idx = 0;
+  cloudSave(); renderCarousel2(); closeAddPostModal2();
+  showToast('Post deleted.', '');
+}
+
 function openAddPostModal() {
   if (!isAdmin) return;
   document.getElementById('post-modal-title').textContent = '➕ Add Post';
@@ -3305,6 +3478,7 @@ updateTeamFilterButtons();
 loadSavedPhotos();
 applyHeroBgToPage();
 renderCarousel();
+renderCarousel2();
 renderHomeSnapshot();
 
 // Restore tab from URL hash on load (so refresh stays on same tab)
@@ -3890,6 +4064,40 @@ function executeBulkAdd() {
       <button class="btn primary" style="flex:1" onclick="savePost()">💾 Save Post</button>
       <button class="btn danger" id="post-delete-btn" style="display:none" onclick="deletePost()">🗑 Delete</button>
       <button class="btn" onclick="closeAddPostModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ ADD POST MODAL 2 ══════════════ -->
+<div class="modal-overlay" id="add-post-modal2">
+  <div class="modal" style="max-width:460px">
+    <button class="modal-close" onclick="closeAddPostModal2()">✕</button>
+    <div class="modal-title" id="post-modal2-title">➕ Add Post</div>
+    <div class="modal-sub">Paste the post image and Facebook link. Caption is optional.</div>
+    <input type="hidden" id="post-modal2-idx" value="" />
+
+    <div class="form-group">
+      <label class="form-label">Image URL <span style="color:var(--muted);font-size:10px">(direct image link)</span></label>
+      <input class="form-input" type="text" id="post2-img-url" placeholder="https://i.imgur.com/..." oninput="previewPostImage2(this.value)" />
+      <div id="post2-img-preview" style="margin-top:8px;width:100%;height:160px;border-radius:8px;overflow:hidden;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--muted2)">🖼</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Caption <span style="color:var(--muted);font-size:10px">(optional)</span></label>
+      <input class="form-input" type="text" id="post2-caption" placeholder="e.g. Week 14 Results are in! 🔥" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Facebook Post URL</label>
+      <input class="form-input" type="text" id="post2-fb-url" placeholder="https://www.facebook.com/..." />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Date <span style="color:var(--muted);font-size:10px">(optional)</span></label>
+      <input class="form-input" type="text" id="post2-date" placeholder="e.g. April 20, 2025" />
+    </div>
+    <div class="modal-error" id="post2-modal-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" onclick="savePost2()">💾 Save Post</button>
+      <button class="btn danger" id="post2-delete-btn" style="display:none" onclick="deletePost2()">🗑 Delete</button>
+      <button class="btn" onclick="closeAddPostModal2()">Cancel</button>
     </div>
   </div>
 </div>
