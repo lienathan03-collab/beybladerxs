@@ -1344,8 +1344,10 @@ function switchSeason(s) {
   const pubOthers = document.getElementById('pub-others');
   if (pubHero) { pubHero.style.display = 'none'; pubHero.innerHTML = ''; }
   if (pubOthers) { pubOthers.style.display = 'none'; pubOthers.innerHTML = ''; }
-  document.getElementById('pub-loading').style.display = 'none';
-  document.getElementById('pub-error').style.display = 'none';
+  const pubLoading = document.getElementById('pub-loading');
+  const pubError = document.getElementById('pub-error');
+  if (pubLoading) pubLoading.style.display = 'none';
+  if (pubError) pubError.style.display = 'none';
   // Wipe the localStorage cache for the target season so localLoad() won't restore stale data
   try { localStorage.removeItem('beyblade_rxs_data_s' + s); } catch(e) {}
   // Update dropdown UI
@@ -2712,7 +2714,12 @@ let manualAchievements = []; // { icon, name, desc, holder, photo }
 
 function renderAchievements() {
   const grid = document.getElementById('ach-grid');
-  if (!grid || players.length === 0) return;
+  if (!grid) return;
+  // If no players yet (e.g. mid season-switch), clear the grid immediately so stale cards don't linger
+  if (players.length === 0) {
+    grid.innerHTML = '';
+    return;
+  }
 
   const achs = [];
 
