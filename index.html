@@ -1763,7 +1763,8 @@ async function fetchChallonge(query) {
   if (challongeCache[query] && (now - challongeCache[query].ts) < CACHE_TTL) {
     return challongeCache[query].data;
   }
-  const resp = await fetch(`/api/challonge${query}`);
+  const seasonParam = query.includes('?') ? '&season=' + currentSeason : '?season=' + currentSeason;
+  const resp = await fetch(`/api/challonge${query}${seasonParam}`);
   const text = await resp.text();
   let data;
   try { data = JSON.parse(text); } catch(_) { throw new Error(`HTTP ${resp.status} — ${text.slice(0,120)}`); }
