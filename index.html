@@ -1338,8 +1338,16 @@ function switchSeason(s) {
   teamConfig = {}; bladerStats = {}; manualAchievements = [];
   autoAchOverrides = {};
   rulersCupTeams = []; importedTournamentIds = []; publishedTournaments = [];
-  // Clear Challonge cache so the new season loads its own tournaments fresh
+  // Clear Challonge cache AND wipe the Challonge DOM so stale season data doesn't linger
   Object.keys(challongeCache).forEach(k => delete challongeCache[k]);
+  const pubHero = document.getElementById('pub-hero');
+  const pubOthers = document.getElementById('pub-others');
+  if (pubHero) { pubHero.style.display = 'none'; pubHero.innerHTML = ''; }
+  if (pubOthers) { pubOthers.style.display = 'none'; pubOthers.innerHTML = ''; }
+  document.getElementById('pub-loading').style.display = 'none';
+  document.getElementById('pub-error').style.display = 'none';
+  // Wipe the localStorage cache for the target season so localLoad() won't restore stale data
+  try { localStorage.removeItem('beyblade_rxs_data_s' + s); } catch(e) {}
   // Update dropdown UI
   updateSeasonDropdownUI();
   // Toggle archive banner
@@ -1524,8 +1532,9 @@ function localSave() {
       importedIds: importedTournamentIds, teamConfig, bladerStats,
       manualAchs: manualAchievements, autoAchOv: autoAchOverrides, rulersCupTeams
     }));
-    // Home posts are global — stored independently
-    localStorage.setItem('beyblade_rxs_homeposts', JSON.stringify({ homePosts, homePosts2 }));
+    // NOTE: homePosts are intentionally NOT saved here.
+    // They are managed exclusively by cloudSaveHomePosts/cloudLoadHomePosts
+    // to avoid race conditions where an early localSave() overwrites cached posts with [].
   } catch(e) {}
 }
 
@@ -1546,13 +1555,16 @@ function localLoad() {
     const raw = localStorage.getItem(getLsKey());
     if (!raw) return false;
     const d = JSON.parse(raw);
+    // Always reset first so we never merge stale values from a previous season's cache
+    players = []; eventLabels = []; manualAchievements = []; autoAchOverrides = {};
+    bladerStats = {}; rulersCupTeams = []; importedTournamentIds = [];
     if (d.photos)        { podiumPhotos = d.photos; applyPodiumPhotos(); }
     if (d.heroBgUrl !== undefined) { heroBgUrl = d.heroBgUrl; applyHeroBgToPage(); }
     if (d.players)       { players = d.players; }
     if (d.eventLabels)   { eventLabels = d.eventLabels; }
     if (d.importedIds)   { importedTournamentIds = d.importedIds; }
-    if (d.teamConfig)    { teamConfig = Object.assign(teamConfig, d.teamConfig); }
-    if (d.bladerStats)   { bladerStats = Object.assign(bladerStats, d.bladerStats); }
+    if (d.teamConfig)    { teamConfig = Object.assign({}, d.teamConfig); }
+    if (d.bladerStats)   { bladerStats = Object.assign({}, d.bladerStats); }
     if (d.manualAchs)    { manualAchievements = d.manualAchs; }
     if (d.autoAchOv)     { autoAchOverrides = d.autoAchOv; }
     if (d.rulersCupTeams){ rulersCupTeams = d.rulersCupTeams; }
