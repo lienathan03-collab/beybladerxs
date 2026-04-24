@@ -1842,7 +1842,8 @@ async function doLogin() {
       document.getElementById('login-pass').value = '';
     }
   } catch(e) {
-    document.getElementById('login-error').textContent = 'Login failed. Please try again.';
+    console.error('Admin login error:', e);
+    document.getElementById('login-error').textContent = 'Login failed: ' + e.message;
   } finally {
     btn.disabled = false; btn.textContent = 'Login';
   }
