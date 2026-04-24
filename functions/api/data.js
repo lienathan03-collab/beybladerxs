@@ -4,7 +4,7 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-const ALLOWED_KEYS = ['gamedata', 'gamedata_s2', 'gamedata_s3'];
+const ALLOWED_KEYS = ['gamedata', 'gamedata_s1', 'gamedata_s2', 'gamedata_s3'];
 
 function getKey(url) {
   const k = new URL(url).searchParams.get('key') || 'gamedata';
