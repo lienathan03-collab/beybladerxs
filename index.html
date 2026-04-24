@@ -1304,11 +1304,11 @@ function getSeasonKey(s) { return 'gamedata_s' + (s || currentSeason); }
 function switchSeason(s) {
   if (currentSeason === s) return;
   currentSeason = s;
-  // Reset in-memory data so stale data doesn't flash
+  // Reset season-specific data only — homePosts/homePosts2 are global, don't wipe them
   players = []; eventLabels = [];
   podiumPhotos = {1:'',2:'',3:''}; heroBgUrl = '';
   teamConfig = {}; bladerStats = {}; manualAchievements = {};
-  autoAchOverrides = {}; homePosts = []; homePosts2 = [];
+  autoAchOverrides = {};
   rulersCupTeams = []; importedTournamentIds = []; publishedTournaments = [];
   // Update switcher buttons
   ['s2','s3'].forEach(k => {
@@ -1320,10 +1320,9 @@ function switchSeason(s) {
   if (banner) banner.classList.toggle('visible', isViewOnly());
   // Toggle body class so admin-active CSS buttons hide in archive view
   document.body.classList.toggle('season-readonly', isViewOnly());
-  // Re-render empty state immediately, then load real data
+  // Re-render season-specific tabs only; home page stays as-is
   renderLeaderboard(); renderWeekly(); renderTeamTotals();
-  updateHeroStats(); renderAchievements(); renderCarousel();
-  renderCarousel2(); renderHomeSnapshot(); renderRulersCup();
+  updateHeroStats(); renderAchievements(); renderHomeSnapshot(); renderRulersCup();
   cloudLoad();
 }
 
@@ -1440,43 +1439,123 @@ function applyAdminUI() {
 //  Environment Variables — never exposed to the browser.
 // ═══════════════════════════════════════════════════════
 const DATA_API = '/api/data';
+// Season data key — gamedata_s2, gamedata_s3, etc.
 function dataApiUrl(season) { return DATA_API + '?key=gamedata_s' + (season || currentSeason); }
+// Home posts are global — same key regardless of season
+const HOME_DATA_API = DATA_API + '?key=homedata';
 
 let cloudSaveTimeout = null;
+let homeCloudSaveTimeout = null;
 
 // ── localStorage fallback ──
 const LS_KEY_BASE = 'beyblade_rxs_data';
 function getLsKey() { return LS_KEY_BASE + '_s' + currentSeason; }
+
 function localSave() {
   if (isViewOnly()) return; // never write over archive data
-  try { localStorage.setItem(getLsKey(), JSON.stringify({ photos: podiumPhotos, heroBgUrl: heroBgUrl||'', players, eventLabels, importedIds: importedTournamentIds, teamConfig, bladerStats, manualAchs: manualAchievements, autoAchOv: autoAchOverrides, homePosts, homePosts2, rulersCupTeams })); } catch(e) {}
+  try {
+    // Season-specific data (no home posts here)
+    localStorage.setItem(getLsKey(), JSON.stringify({
+      photos: podiumPhotos, heroBgUrl: heroBgUrl||'', players, eventLabels,
+      importedIds: importedTournamentIds, teamConfig, bladerStats,
+      manualAchs: manualAchievements, autoAchOv: autoAchOverrides, rulersCupTeams
+    }));
+    // Home posts are global — stored independently
+    localStorage.setItem('beyblade_rxs_homeposts', JSON.stringify({ homePosts, homePosts2 }));
+  } catch(e) {}
 }
+
+function localLoadHomePosts() {
+  try {
+    const raw = localStorage.getItem('beyblade_rxs_homeposts');
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    if (d.homePosts)  { homePosts  = d.homePosts; }
+    if (d.homePosts2) { homePosts2 = d.homePosts2; }
+    renderCarousel(); renderCarousel2();
+    return true;
+  } catch(e) { return false; }
+}
+
 function localLoad() {
   try {
     const raw = localStorage.getItem(getLsKey());
     if (!raw) return false;
     const d = JSON.parse(raw);
-    if (d.photos)                    { podiumPhotos = d.photos; applyPodiumPhotos(); }
-    if (d.heroBgUrl !== undefined)   { heroBgUrl = d.heroBgUrl; applyHeroBgToPage(); }
-    if (d.players)                   { players = d.players; }
-    if (d.eventLabels)               { eventLabels = d.eventLabels; }
-    if (d.importedIds)               { importedTournamentIds = d.importedIds; }
-    if (d.teamConfig)                  { teamConfig = Object.assign(teamConfig, d.teamConfig); }
-    if (d.bladerStats)                 { bladerStats = Object.assign(bladerStats, d.bladerStats); }
-    if (d.manualAchs)                  { manualAchievements = d.manualAchs; }
-    if (d.autoAchOv)                   { autoAchOverrides = d.autoAchOv; }
-    if (d.homePosts)                   { homePosts = d.homePosts; }
-    if (d.homePosts2)                  { homePosts2 = d.homePosts2; }
-    if (d.rulersCupTeams)              { rulersCupTeams = d.rulersCupTeams; }
+    if (d.photos)        { podiumPhotos = d.photos; applyPodiumPhotos(); }
+    if (d.heroBgUrl !== undefined) { heroBgUrl = d.heroBgUrl; applyHeroBgToPage(); }
+    if (d.players)       { players = d.players; }
+    if (d.eventLabels)   { eventLabels = d.eventLabels; }
+    if (d.importedIds)   { importedTournamentIds = d.importedIds; }
+    if (d.teamConfig)    { teamConfig = Object.assign(teamConfig, d.teamConfig); }
+    if (d.bladerStats)   { bladerStats = Object.assign(bladerStats, d.bladerStats); }
+    if (d.manualAchs)    { manualAchievements = d.manualAchs; }
+    if (d.autoAchOv)     { autoAchOverrides = d.autoAchOv; }
+    if (d.rulersCupTeams){ rulersCupTeams = d.rulersCupTeams; }
     renderLeaderboard(); renderWeekly(); renderTeamTotals(); updateHeroStats(); renderAchievements();
-    renderCarousel(); renderCarousel2(); renderHomeSnapshot(); renderRulersCup();
+    renderHomeSnapshot(); renderRulersCup();
     return true;
   } catch(e) { return false; }
+}
+
+async function cloudLoadHomePosts() {
+  localLoadHomePosts(); // show cached posts instantly
+  try {
+    const res = await fetch(HOME_DATA_API);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.homePosts)  { homePosts  = data.homePosts; }
+    if (data.homePosts2) { homePosts2 = data.homePosts2; }
+    renderCarousel(); renderCarousel2();
+    // Cache locally
+    try { localStorage.setItem('beyblade_rxs_homeposts', JSON.stringify({ homePosts, homePosts2 })); } catch(e) {}
+  } catch(e) { console.error('[Cloud] Home posts load error:', e); }
+}
+
+async function cloudSaveHomePosts() {
+  // Save homePosts to local cache immediately
+  try { localStorage.setItem('beyblade_rxs_homeposts', JSON.stringify({ homePosts, homePosts2 })); } catch(e) {}
+  clearTimeout(homeCloudSaveTimeout);
+  homeCloudSaveTimeout = setTimeout(async () => {
+    try {
+      const res = await fetch(HOME_DATA_API, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ homePosts, homePosts2 })
+      });
+      if (!res.ok) { console.error('[Cloud] Home save failed:', res.status); }
+      else { console.log('[Cloud] Home posts saved OK'); }
+    } catch(e) { console.error('[Cloud] Home save error:', e); }
+  }, 800);
 }
 
 async function cloudLoad() {
   localLoad(); // show local data instantly while cloud fetches
   try {
+    // ── One-time migration: if gamedata_s2 is empty, copy from legacy gamedata ──
+    if (currentSeason === 2) {
+      const s2Res = await fetch(dataApiUrl(2));
+      const s2Data = s2Res.ok ? await s2Res.json() : {};
+      if (!s2Data.players || s2Data.players.length === 0) {
+        console.log('[Cloud] S2 empty — attempting migration from legacy gamedata key...');
+        const legacyRes = await fetch(DATA_API + '?key=gamedata');
+        if (legacyRes.ok) {
+          const legacyData = await legacyRes.json();
+          if (legacyData.players && legacyData.players.length > 0) {
+            console.log('[Cloud] Migrating legacy gamedata → gamedata_s2');
+            await fetch(dataApiUrl(2), {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(legacyData)
+            });
+            applyCloudData(legacyData);
+            updateTeamFilterButtons();
+            localSave();
+            return;
+          }
+        }
+      }
+    }
     const res = await fetch(dataApiUrl());
     if (!res.ok) {
       console.error('[Cloud] Load failed:', res.status, await res.text());
@@ -1485,23 +1564,25 @@ async function cloudLoad() {
     }
     const data = await res.json();
     console.log('[Cloud] Loaded OK');
-    if (data.photos)                  { podiumPhotos = data.photos; applyPodiumPhotos(); }
-    if (data.heroBgUrl !== undefined) { heroBgUrl = data.heroBgUrl; applyHeroBgToPage(); }
-    if (data.players) { players = data.players; players.sort((a,b)=>b.total-a.total); let rnk=1; players.forEach((p,i)=>{if(i>0&&p.total<players[i-1].total)rnk++;p.rank=rnk;}); }
-    if (data.eventLabels)             { eventLabels = data.eventLabels; }
-    if (data.importedIds)             { importedTournamentIds = data.importedIds; }
-    if (data.teamConfig)               { teamConfig = Object.assign(teamConfig, data.teamConfig); }
-    if (data.bladerStats)              { bladerStats = Object.assign(bladerStats, data.bladerStats); }
-    if (data.manualAchs)               { manualAchievements = data.manualAchs; }
-    if (data.autoAchOv)                { autoAchOverrides = data.autoAchOv; }
-    if (data.homePosts)                { homePosts = data.homePosts; }
-    if (data.homePosts2)               { homePosts2 = data.homePosts2; }
-    if (data.rulersCupTeams)           { rulersCupTeams = data.rulersCupTeams; }
-    renderLeaderboard(); renderWeekly(); renderTeamTotals(); updateHeroStats(); renderAchievements();
-    renderCarousel(); renderCarousel2(); renderHomeSnapshot(); renderRulersCup();
+    applyCloudData(data);
     updateTeamFilterButtons();
     localSave();
   } catch(e) { console.error('[Cloud] Load error:', e); }
+}
+
+function applyCloudData(data) {
+  if (data.photos)        { podiumPhotos = data.photos; applyPodiumPhotos(); }
+  if (data.heroBgUrl !== undefined) { heroBgUrl = data.heroBgUrl; applyHeroBgToPage(); }
+  if (data.players) { players = data.players; players.sort((a,b)=>b.total-a.total); let rnk=1; players.forEach((p,i)=>{if(i>0&&p.total<players[i-1].total)rnk++;p.rank=rnk;}); }
+  if (data.eventLabels)   { eventLabels = data.eventLabels; }
+  if (data.importedIds)   { importedTournamentIds = data.importedIds; }
+  if (data.teamConfig)    { teamConfig = Object.assign(teamConfig, data.teamConfig); }
+  if (data.bladerStats)   { bladerStats = Object.assign(bladerStats, data.bladerStats); }
+  if (data.manualAchs)    { manualAchievements = data.manualAchs; }
+  if (data.autoAchOv)     { autoAchOverrides = data.autoAchOv; }
+  if (data.rulersCupTeams){ rulersCupTeams = data.rulersCupTeams; }
+  renderLeaderboard(); renderWeekly(); renderTeamTotals(); updateHeroStats(); renderAchievements();
+  renderHomeSnapshot(); renderRulersCup();
 }
 
 async function cloudSave() {
@@ -1509,6 +1590,7 @@ async function cloudSave() {
   clearTimeout(cloudSaveTimeout);
   cloudSaveTimeout = setTimeout(async () => {
     try {
+      // Season data only — home posts are saved separately via cloudSaveHomePosts()
       const res = await fetch(dataApiUrl(), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -1522,8 +1604,6 @@ async function cloudSave() {
           bladerStats: bladerStats,
           manualAchs: manualAchievements,
           autoAchOv: autoAchOverrides,
-          homePosts: homePosts,
-          homePosts2: homePosts2,
           rulersCupTeams: rulersCupTeams
         })
       });
@@ -1540,6 +1620,7 @@ async function cloudSave() {
 // ═══════════════════════════════════════════════════════
 function loadSavedPhotos() {
   cloudLoad();
+  cloudLoadHomePosts(); // Home posts are global — load independently
 }
 
 const DEFAULT_CARD_BG = 'https://i.imgur.com/0KtgsFq.png';
@@ -3569,7 +3650,7 @@ function savePost2() {
   const idxRaw = document.getElementById('post-modal2-idx').value;
   if (idxRaw === '') { homePosts2.unshift(post); } else { homePosts2[parseInt(idxRaw)] = post; }
   carousel2Idx = 0;
-  cloudSave(); renderCarousel2(); closeAddPostModal2();
+  cloudSaveHomePosts(); renderCarousel2(); closeAddPostModal2();
   showToast(idxRaw === '' ? 'Post added!' : 'Post updated!', 'success');
 }
 function deletePost2() {
@@ -3578,7 +3659,7 @@ function deletePost2() {
   if (isNaN(idx)) return;
   homePosts2.splice(idx, 1);
   carousel2Idx = 0;
-  cloudSave(); renderCarousel2(); closeAddPostModal2();
+  cloudSaveHomePosts(); renderCarousel2(); closeAddPostModal2();
   showToast('Post deleted.', '');
 }
 
@@ -3629,7 +3710,7 @@ function savePost() {
   const idxRaw = document.getElementById('post-modal-idx').value;
   if (idxRaw === '') { homePosts.unshift(post); } else { homePosts[parseInt(idxRaw)] = post; }
   carouselIdx = 0;
-  cloudSave(); renderCarousel(); closeAddPostModal();
+  cloudSaveHomePosts(); renderCarousel(); closeAddPostModal();
   showToast(idxRaw === '' ? 'Post added!' : 'Post updated!', 'success');
 }
 function deletePost() {
@@ -3638,7 +3719,7 @@ function deletePost() {
   if (isNaN(idx)) return;
   homePosts.splice(idx, 1);
   carouselIdx = 0;
-  cloudSave(); renderCarousel(); closeAddPostModal();
+  cloudSaveHomePosts(); renderCarousel(); closeAddPostModal();
   showToast('Post deleted.', '');
 }
 
