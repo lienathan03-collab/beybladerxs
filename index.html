@@ -1329,6 +1329,7 @@ let currentSeason = (() => { try { const s = localStorage.getItem("rxs_selected_
 function isViewOnly() { return currentSeason !== ACTIVE_SEASON; }
 function getSeasonKey(s) { return 'gamedata_s' + (s || currentSeason); }
 
+let challongeLoadGen = 0; // incremented on season switch to cancel in-flight async loads
 function switchSeason(s) {
   if (currentSeason === s) return;
   currentSeason = s;
@@ -1929,9 +1930,6 @@ function findPlayerByName(challongeName) {
   return null;
 }
 
-// ── Generation counter — incremented on every season switch to cancel stale async loads ──
-let challongeLoadGen = 0;
-
 // Safe DOM helper — returns null silently if element doesn't exist
 function pubEl(id) { return document.getElementById(id); }
 function pubShow(id, display) { const el = pubEl(id); if (el) el.style.display = display; }
@@ -2041,7 +2039,9 @@ async function renderFeaturedTournament(tour, prefetchedParticipants, gen) {
 
 function renderPublicTabs(sorted) {
   const emoji = {underway:'🔴', complete:'✅', pending:'⏳'};
-  document.getElementById('pub-tabs').innerHTML = sorted.map((t,i) => {
+  const el = document.getElementById('pub-tabs');
+  if (!el) return;
+  el.innerHTML = sorted.map((t,i) => {
     const tour = t.tournament;
     return `<div class="t-tab${i===0?' active':''}" onclick="switchPublicTournament('${tour.id}','${tour.url}','${tour.name.replace(/'/g,"'")}','${tour.state}',this)">
       <span class="dot"></span>${emoji[tour.state]||''} ${tour.name}
@@ -2053,6 +2053,7 @@ async function switchPublicTournament(id, url, name, state, el) {
   document.querySelectorAll('.t-tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
   const heroEl = document.getElementById('pub-hero');
+  if (!heroEl) return;
   heroEl.innerHTML = '<div class="loader"><div class="spinner"></div>Loading…</div>';
   heroEl.style.display = 'block';
   await renderFeaturedTournament({id, url, name, state, tournament_type:'', participants_count:'?', started_at:null});
