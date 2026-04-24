@@ -1366,7 +1366,11 @@ function switchSeason(s) {
   cloudLoad();
   // If currently on challonge tab, reload it for the new season
   if (document.getElementById('tab-challonge').classList.contains('active') && !isAdmin) {
-    loadPublicTournaments();
+    if (currentSeason === 3) {
+      showChallongeComingSoon();
+    } else {
+      loadPublicTournaments();
+    }
   }
 }
 
@@ -1975,6 +1979,30 @@ function showPubError(msg) {
   if (msgEl) msgEl.textContent = msg;
 }
 
+function showChallongeComingSoon() {
+  pubShow('pub-loading', 'none');
+  pubShow('pub-error', 'none');
+  pubShow('pub-others', 'none');
+  pubHtml('pub-tabs', '');
+  pubShow('pub-hero', 'block');
+  pubHtml('pub-hero', `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+      padding:80px 20px;text-align:center;">
+      <div style="font-size:56px;margin-bottom:20px">⚡</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:800;
+        letter-spacing:4px;text-transform:uppercase;color:var(--accent);margin-bottom:10px">
+        Season 3 Challonge
+      </div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;
+        letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:16px">
+        Coming Soon
+      </div>
+      <div style="font-size:13px;color:var(--muted2);max-width:320px;line-height:1.7">
+        Tournament bracket integration for Season 3 is being set up. Check back soon!
+      </div>
+    </div>`);
+}
+
 async function renderFeaturedTournament(tour, prefetchedParticipants, gen) {
   const state = tour.state;
   const stateLabel = {underway:'🔴 LIVE', complete:'✅ Complete', pending:'⏳ Upcoming'}[state] || state;
@@ -2539,7 +2567,11 @@ function showTab(tab, btn) {
     } else {
       document.getElementById('challonge-admin').style.display = 'none';
       document.getElementById('challonge-public').style.display = 'block';
-      loadPublicTournaments();
+      if (currentSeason === 3) {
+        showChallongeComingSoon();
+      } else {
+        loadPublicTournaments();
+      }
     }
   }
 }
@@ -3875,7 +3907,7 @@ renderHomeSnapshot();
     if (desktopBtn) desktopBtn.classList.add('active');
     if (mobileBtn)  mobileBtn.classList.add('active');
     if (tab === 'home') { renderHomeSnapshot(); startCarouselTimer(); }
-    if (tab === 'challonge') { loadPublicTournaments(); }
+    if (tab === 'challonge') { if (currentSeason === 3) { showChallongeComingSoon(); } else { loadPublicTournaments(); } }
   }
 })();
 
