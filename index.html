@@ -1026,8 +1026,8 @@
       </div>
     </div>
     <button class="nav-admin-btn" id="nav-admin-badge" style="display:none" onclick="adminLogout()">👑 Admin</button>
-    <span id="nav-login-hint" onclick="openLoginModal()" title="Admin Login" style="font-size:13px;color:var(--muted);cursor:pointer;padding:6px 8px;opacity:0.25;flex-shrink:0;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='0.25'">⚙</span>
   </nav>
+  <span id="nav-login-hint" onclick="openLoginModal()" title="Admin Login" style="font-size:13px;color:var(--muted);cursor:pointer;padding:6px 8px;opacity:0.25;flex-shrink:0;z-index:200;position:relative;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='0.25'">⚙</span>
   <!-- MOBILE HEADER EXTRAS: season switcher + login (only visible on mobile) -->
   <div class="mobile-header-extras" id="mobile-header-extras">
     <div class="season-dropdown" id="season-dropdown-mob">
@@ -1668,6 +1668,9 @@
 //  Variables, NOT here. Safe from View Source / AI reading.
 // ═══════════════════════════════════════════════════════
 let isAdmin = false;
+let _acAdminUsername = '';
+let _acAdminPassword = '';
+function _storeAdminCreds(u, p) { _acAdminUsername = u; _acAdminPassword = p; }
 
 // ═══════════════════════════════════════════════════════
 //  SEASON STATE
@@ -5635,12 +5638,7 @@ async function playerSaveDisplayName() {
 // ═══════════════════════════════════════════════════════
 //  ADMIN ACCOUNTS PANEL
 // ═══════════════════════════════════════════════════════
-let _acAdminUsername = ''; // stored at login time for admin account saves
-let _acAdminPassword = '';
 let _acAccounts = {};      // local cache of accounts object
-
-// Called after admin login to cache credentials for account saves
-function _storeAdminCreds(u, p) { _acAdminUsername = u; _acAdminPassword = p; }
 
 async function openAccountsPanel() {
   if (!isAdmin) return;
