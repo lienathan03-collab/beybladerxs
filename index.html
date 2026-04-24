@@ -1298,7 +1298,7 @@ let isAdmin = false;
 const ACTIVE_SEASON = 3;   // <-- bump this when a new season starts
 let currentSeason = 3;     // 3 = active, 2 = archive
 
-function isViewOnly() { return currentSeason !== ACTIVE_SEASON; }
+function isViewOnly() { return false; }
 function getSeasonKey(s) { return 'gamedata_s' + (s || currentSeason); }
 
 function switchSeason(s) {
