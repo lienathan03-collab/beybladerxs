@@ -1335,9 +1335,11 @@ function switchSeason(s) {
   // Reset season-specific data only — homePosts/homePosts2 are global, don't wipe them
   players = []; eventLabels = [];
   podiumPhotos = {1:'',2:'',3:''}; heroBgUrl = '';
-  teamConfig = {}; bladerStats = {}; manualAchievements = {};
+  teamConfig = {}; bladerStats = {}; manualAchievements = [];
   autoAchOverrides = {};
   rulersCupTeams = []; importedTournamentIds = []; publishedTournaments = [];
+  // Clear Challonge cache so the new season loads its own tournaments fresh
+  Object.keys(challongeCache).forEach(k => delete challongeCache[k]);
   // Update dropdown UI
   updateSeasonDropdownUI();
   // Toggle archive banner
@@ -1349,6 +1351,10 @@ function switchSeason(s) {
   renderLeaderboard(); renderWeekly(); renderTeamTotals();
   updateHeroStats(); renderAchievements(); renderHomeSnapshot(); renderRulersCup();
   cloudLoad();
+  // If currently on challonge tab, reload it for the new season
+  if (document.getElementById('tab-challonge').classList.contains('active') && !isAdmin) {
+    loadPublicTournaments();
+  }
 }
 
 function updateSeasonDropdownUI() {
@@ -1818,15 +1824,18 @@ const CACHE_TTL = 5 * 60 * 1000;
 
 async function fetchChallonge(query) {
   const now = Date.now();
-  if (challongeCache[query] && (now - challongeCache[query].ts) < CACHE_TTL) {
-    return challongeCache[query].data;
+  // Always append season so S2 and S3 hit the correct proxy on the backend
+  const sep = query.includes('?') ? '&' : '?';
+  const seasonedQuery = query + sep + 'season=' + currentSeason;
+  if (challongeCache[seasonedQuery] && (now - challongeCache[seasonedQuery].ts) < CACHE_TTL) {
+    return challongeCache[seasonedQuery].data;
   }
-  const resp = await fetch(`/api/challonge${query}`);
+  const resp = await fetch(`/api/challonge${seasonedQuery}`);
   const text = await resp.text();
   let data;
   try { data = JSON.parse(text); } catch(_) { throw new Error(`HTTP ${resp.status} — ${text.slice(0,120)}`); }
   if (data && data.error) throw new Error(data.error);
-  challongeCache[query] = { data, ts: now };
+  challongeCache[seasonedQuery] = { data, ts: now };
   return data;
 }
 
