@@ -10,13 +10,18 @@ export async function onRequest(context) {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
-  const PROXY_URL = env.CHALLONGE_PROXY_URL;
-  if (!PROXY_URL) {
-    return new Response(
-      JSON.stringify({ error: 'CHALLONGE_PROXY_URL not set in Cloudflare Environment Variables.' }),
-      { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
-    );
-  }
+const url2 = new URL(request.url);
+const season = url2.searchParams.get('season') || '2';
+const PROXY_URL = season === '3'
+  ? (env.CHALLONGE_PROXY_URL_S3 || env.CHALLONGE_PROXY_URL)
+  : env.CHALLONGE_PROXY_URL;
+
+if (!PROXY_URL) {
+  return new Response(
+    JSON.stringify({ error: 'CHALLONGE_PROXY_URL not set in Cloudflare Environment Variables.' }),
+    { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+  );
+}
 
   const url = new URL(request.url);
   const action = url.searchParams.get('action');
