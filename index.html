@@ -42,22 +42,42 @@
   nav button:hover, nav button.active { background: var(--surface2); color: var(--accent); }
   nav button.active { border-bottom: 2px solid var(--gold); border-radius: 6px 6px 0 0; }
 
-  /* SEASON SWITCHER */
+  /* SEASON SWITCHER DROPDOWN */
   .season-switcher {
-    display: flex; align-items: center; gap: 0;
+    position: relative; margin: 0 8px; flex-shrink: 0;
+  }
+  .season-dropdown { position: relative; }
+  .season-dropdown-btn {
+    display: flex; align-items: center; gap: 6px;
     background: var(--surface2); border: 1px solid var(--border2);
-    border-radius: 20px; padding: 3px; margin: 0 8px; flex-shrink: 0;
-  }
-  .season-btn {
-    background: transparent; border: none; cursor: pointer;
+    border-radius: 20px; padding: 5px 14px; cursor: pointer;
     font-family: 'Share Tech Mono', monospace; font-size: 11px;
-    font-weight: 700; letter-spacing: 1.5px; color: var(--muted);
-    padding: 4px 13px; border-radius: 14px; transition: all .18s;
-    white-space: nowrap;
+    font-weight: 700; letter-spacing: 1.5px; color: var(--gold);
+    transition: all .18s; white-space: nowrap;
   }
-  .season-btn:hover { color: var(--gold); }
-  .season-btn.s2.active { background: var(--gold); color: #000; }
-  .season-btn.s3.active { background: var(--blue); color: #fff; }
+  .season-dropdown-btn:hover { border-color: var(--gold); }
+  .season-dropdown-btn.archive-mode { color: var(--gold); border-color: var(--gold); background: #1a1200; }
+  .season-dropdown-arrow { font-size: 10px; transition: transform .18s; }
+  .season-dropdown.open .season-dropdown-arrow { transform: rotate(180deg); }
+  .season-dropdown-menu {
+    display: none; position: absolute; top: calc(100% + 6px); right: 0;
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 10px; overflow: hidden; min-width: 180px;
+    z-index: 9999; box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  }
+  .season-dropdown.open .season-dropdown-menu { display: block; }
+  .season-dropdown-item {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; padding: 10px 16px; background: none; border: none;
+    cursor: pointer; font-family: 'Share Tech Mono', monospace; font-size: 12px;
+    font-weight: 700; letter-spacing: 1px; color: var(--fg);
+    transition: background .15s; text-align: left;
+  }
+  .season-dropdown-item:hover { background: var(--surface); }
+  .season-dropdown-item.selected { color: var(--gold); background: #1a1200; }
+  .season-tag { font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 700; letter-spacing: 1px; }
+  .active-tag { background: var(--blue); color: #fff; }
+  .archive-tag { background: #1a1200; color: var(--gold); border: 1px solid var(--gold); }
   .season-archive-banner {
     display: none; background: #1a1200; border-bottom: 1px solid var(--gold);
     padding: 7px 20px; text-align: center;
@@ -799,8 +819,16 @@
     <button onclick="showTab('points', this)">Points</button>
     <span class="nav-login-hint" id="nav-login-hint" style="display:none" onclick="openLoginModal()" title="Admin Login"></span>
     <div class="season-switcher" id="season-switcher">
-      <button class="season-btn s2" id="season-btn-s2" onclick="switchSeason(2)">S2</button>
-      <button class="season-btn s3 active" id="season-btn-s3" onclick="switchSeason(3)">S3</button>
+      <div class="season-dropdown" id="season-dropdown">
+        <button class="season-dropdown-btn" id="season-dropdown-btn" onclick="toggleSeasonDropdown(event)">
+          <span id="season-dropdown-label">SEASON 3</span>
+          <span class="season-dropdown-arrow">▾</span>
+        </button>
+        <div class="season-dropdown-menu" id="season-dropdown-menu">
+          <button class="season-dropdown-item" id="season-item-s3" onclick="selectSeason(3)">Season 3 <span class="season-tag active-tag">ACTIVE</span></button>
+          <button class="season-dropdown-item" id="season-item-s2" onclick="selectSeason(2)">Season 2 <span class="season-tag archive-tag">ARCHIVE</span></button>
+        </div>
+      </div>
     </div>
     <button class="nav-admin-btn" id="nav-admin-badge" style="display:none" onclick="adminLogout()">👑 Admin</button>
   </nav>
@@ -1296,9 +1324,9 @@ let isAdmin = false;
 //  SEASON STATE
 // ═══════════════════════════════════════════════════════
 const ACTIVE_SEASON = 3;   // <-- bump this when a new season starts
-let currentSeason = 3;     // 3 = active, 2 = archive
+let currentSeason = (() => { try { const s = localStorage.getItem("rxs_selected_season"); if (s === "2") return 2; } catch(e) {} return 3; })();
 
-function isViewOnly() { return false; }
+function isViewOnly() { return currentSeason !== ACTIVE_SEASON; }
 function getSeasonKey(s) { return 'gamedata_s' + (s || currentSeason); }
 
 function switchSeason(s) {
@@ -1307,14 +1335,11 @@ function switchSeason(s) {
   // Reset season-specific data only — homePosts/homePosts2 are global, don't wipe them
   players = []; eventLabels = [];
   podiumPhotos = {1:'',2:'',3:''}; heroBgUrl = '';
-  teamConfig = {}; bladerStats = {}; manualAchievements = []; autoAchOverrides = {};
+  teamConfig = {}; bladerStats = {}; manualAchievements = {};
   autoAchOverrides = {};
   rulersCupTeams = []; importedTournamentIds = []; publishedTournaments = [];
-  // Update switcher buttons
-  ['s2','s3'].forEach(k => {
-    const b = document.getElementById('season-btn-' + k);
-    if (b) b.classList.toggle('active', k === 's' + s);
-  });
+  // Update dropdown UI
+  updateSeasonDropdownUI();
   // Toggle archive banner
   const banner = document.getElementById('season-archive-banner');
   if (banner) banner.classList.toggle('visible', isViewOnly());
@@ -1325,6 +1350,39 @@ function switchSeason(s) {
   updateHeroStats(); renderAchievements(); renderHomeSnapshot(); renderRulersCup();
   cloudLoad();
 }
+
+function updateSeasonDropdownUI() {
+  const label = document.getElementById('season-dropdown-label');
+  const btn = document.getElementById('season-dropdown-btn');
+  const itemS3 = document.getElementById('season-item-s3');
+  const itemS2 = document.getElementById('season-item-s2');
+  if (label) label.textContent = currentSeason === 3 ? 'SEASON 3' : 'SEASON 2';
+  if (btn) btn.classList.toggle('archive-mode', currentSeason === 2);
+  if (itemS3) itemS3.classList.toggle('selected', currentSeason === 3);
+  if (itemS2) itemS2.classList.toggle('selected', currentSeason === 2);
+}
+
+function toggleSeasonDropdown(e) {
+  e.stopPropagation();
+  const dd = document.getElementById('season-dropdown');
+  if (dd) dd.classList.toggle('open');
+}
+
+function selectSeason(s) {
+  // Close dropdown
+  const dd = document.getElementById('season-dropdown');
+  if (dd) dd.classList.remove('open');
+  // Persist choice
+  try { localStorage.setItem('rxs_selected_season', s); } catch(e) {}
+  // Switch
+  switchSeason(s);
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function() {
+  const dd = document.getElementById('season-dropdown');
+  if (dd) dd.classList.remove('open');
+});
 
 
 // ═══════════════════════════════════════════════════════
@@ -1763,8 +1821,7 @@ async function fetchChallonge(query) {
   if (challongeCache[query] && (now - challongeCache[query].ts) < CACHE_TTL) {
     return challongeCache[query].data;
   }
-  const seasonParam = query.includes('?') ? '&season=' + currentSeason : '?season=' + currentSeason;
-  const resp = await fetch(`/api/challonge${query}${seasonParam}`);
+  const resp = await fetch(`/api/challonge${query}`);
   const text = await resp.text();
   let data;
   try { data = JSON.parse(text); } catch(_) { throw new Error(`HTTP ${resp.status} — ${text.slice(0,120)}`); }
@@ -2410,7 +2467,7 @@ function deleteRCTeam(idx) {
 
 function showTab(tab, btn) {
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
-  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('nav button:not(.season-btn)').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.mobile-nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
   btn.classList.add('active');
@@ -3274,6 +3331,8 @@ async function executeSnapshot() {
       bladerStats: {},
       manualAchs: [],
       autoAchOv: {},
+      homePosts: [],
+      homePosts2: [],
       rulersCupTeams: s3RulersCupTeams
     };
     const s3Res = await fetch(dataApiUrl(3), {
@@ -3725,6 +3784,15 @@ function deletePost() {
 // ═══════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════
+// Apply persisted season state on page load
+(function initSeasonState() {
+  const banner = document.getElementById('season-archive-banner');
+  if (currentSeason === 2) {
+    if (banner) banner.classList.add('visible');
+    document.body.classList.add('season-readonly');
+  }
+  updateSeasonDropdownUI();
+})();
 renderLeaderboard();
 renderWeekly();
 renderTeamTotals();
