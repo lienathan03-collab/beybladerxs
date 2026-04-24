@@ -1007,7 +1007,7 @@
     <button onclick="showTab('challonge', this)">⚡ Challonge</button>
     <button onclick="showTab('points', this)">Points</button>
     <span class="nav-login-hint" id="nav-login-hint" style="display:none" onclick="openLoginModal()" title="Admin Login"></span>
-    <span class="nav-player-login-hint" id="nav-player-login-hint" onclick="openPlayerLoginModal()" title="Player Login" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted2);padding:6px 10px;letter-spacing:1px;cursor:pointer;border-radius:6px;transition:color .15s;" onmouseover="this.style.color='var(--muted)'" onmouseout="this.style.color='var(--muted2)'">👤 Login</span>
+    <span class="nav-player-login-hint" id="nav-player-login-hint" onclick="openPlayerLoginModal()" title="Player Login" style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--muted);padding:6px 10px;letter-spacing:1px;cursor:pointer;border-radius:6px;transition:color .15s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted)'">👤 Login</span>
     <button class="nav-player-badge" id="nav-player-badge" style="display:none;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px;font-size:12px;padding:6px 12px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px;" onclick="openPlayerMenuModal()">👤 <span id="nav-player-name"></span></button>
     <div class="season-switcher" id="season-switcher">
       <div class="season-dropdown" id="season-dropdown">
@@ -1035,9 +1035,10 @@
         <button class="season-dropdown-item" id="season-item-s2-mob" onclick="selectSeason(2)">Season 2 <span class="season-tag archive-tag">ARCHIVE</span></button>
       </div>
     </div>
-    <span id="mob-login-hint" onclick="openLoginModal()" style="font-size:11px;color:var(--muted2);cursor:pointer;padding:4px 6px;letter-spacing:1px;font-family:'Share Tech Mono',monospace;">👤</span>
+    <span id="mob-login-hint" onclick="openPlayerLoginModal()" style="font-size:13px;color:var(--muted);cursor:pointer;padding:4px 6px;letter-spacing:1px;font-family:'Share Tech Mono',monospace;">👤</span>
+    <button id="mob-player-badge" style="display:none;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px;font-size:11px;padding:4px 8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px;" onclick="openPlayerMenuModal()">👤 <span id="mob-player-name"></span></button>
     <button class="nav-admin-btn" id="mob-admin-badge" style="display:none;font-size:11px;padding:4px 8px;" onclick="adminLogout()">👑</button>
-  </div>
+
 
   <a href="https://www.facebook.com/profile.php?id=61574598407458" target="_blank" rel="noopener" class="fb-link" title="Find us on Facebook">
     <svg class="fb-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -5360,12 +5361,24 @@ function applyPlayerUI() {
   const badge = document.getElementById('nav-player-badge');
   badge.style.display = 'flex';
   document.getElementById('nav-player-name').textContent = displayName;
+  // Mobile
+  const mobHint = document.getElementById('mob-login-hint');
+  const mobBadge = document.getElementById('mob-player-badge');
+  const mobName = document.getElementById('mob-player-name');
+  if (mobHint) mobHint.style.display = 'none';
+  if (mobBadge) { mobBadge.style.display = 'flex'; }
+  if (mobName) mobName.textContent = displayName;
 }
 
 function playerLogout() {
   playerSession = null;
   document.getElementById('nav-player-badge').style.display = 'none';
   document.getElementById('nav-player-login-hint').style.display = '';
+  // Mobile
+  const mobHint = document.getElementById('mob-login-hint');
+  const mobBadge = document.getElementById('mob-player-badge');
+  if (mobHint) mobHint.style.display = '';
+  if (mobBadge) mobBadge.style.display = 'none';
   closePlayerMenuModal();
   showToast('Logged out.', '');
 }
