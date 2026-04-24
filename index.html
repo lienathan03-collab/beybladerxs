@@ -1345,7 +1345,8 @@ function switchSeason(s) {
   const pubHero = document.getElementById('pub-hero');
   const pubOthers = document.getElementById('pub-others');
   if (pubHero) { pubHero.style.display = 'none'; pubHero.innerHTML = ''; }
-  if (pubOthers) { pubOthers.style.display = 'none'; pubOthers.innerHTML = ''; }
+  if (pubOthers) { pubOthers.style.display = 'none'; }
+  pubHtml('pub-tabs', ''); // only clear the tabs list, not the whole container
   const pubLoading = document.getElementById('pub-loading');
   const pubError = document.getElementById('pub-error');
   if (pubLoading) pubLoading.style.display = 'none';
@@ -1943,7 +1944,7 @@ async function loadPublicTournaments() {
   pubShow('pub-others', 'none');
   pubShow('pub-error', 'none');
   pubHtml('pub-hero', '');
-  pubHtml('pub-others', '');
+  pubHtml('pub-tabs', ''); // only clear the tabs list, not the whole container (which holds static HTML)
   try {
     const data = await fetchChallonge('?action=list');
     if (gen !== challongeLoadGen) return; // season switched while we were waiting — discard
