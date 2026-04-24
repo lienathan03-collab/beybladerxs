@@ -1663,6 +1663,7 @@
 </div>
 
 <script>
+
 // ═══════════════════════════════════════════════════════
 //  ADMIN AUTH — passwords are stored in Vercel Environment
 //  Variables, NOT here. Safe from View Source / AI reading.
@@ -1820,20 +1821,6 @@ function openLoginModal() {
   setTimeout(()=>document.getElementById('login-user').focus(), 100);
 }
 function closeLoginModal() { document.getElementById('login-modal').classList.remove('open'); }
-
-// ═══════════════════════════════════════════════════════
-//  PLAYER AUTH
-// ═══════════════════════════════════════════════════════
-function openPlayerLoginModal() {
-  document.getElementById('player-login-user').value = '';
-  document.getElementById('player-login-pass').value = '';
-  document.getElementById('player-login-error').textContent = '';
-  document.getElementById('player-login-modal').classList.add('open');
-  setTimeout(() => document.getElementById('player-login-user').focus(), 100);
-}
-function closePlayerLoginModal() {
-  document.getElementById('player-login-modal').classList.remove('open');
-}
 
 async function doLogin() {
   const u = document.getElementById('login-user').value.trim();
@@ -4679,646 +4666,9 @@ function executeBulkAdd() {
     : `⚠ No new players — ${skipped} already exist${skipped>1?'s':''}`;
   showToast(msg, added > 0 ? 'success' : '');
 }
-</script>
 
-<!-- ══════════════ TEAM EDIT MODAL ══════════════ -->
-<div class="modal-overlay" id="team-edit-modal">
-  <div class="modal" style="max-width:420px">
-    <button class="modal-close" onclick="closeTeamEditModal()">✕</button>
-    <div class="modal-title">Edit Team</div>
-    <div class="modal-sub" id="team-edit-sub">Customize this team's display</div>
-    <input type="hidden" id="team-edit-key" />
-    <div class="form-group">
-      <label class="form-label">Team Name</label>
-      <input class="form-input" type="text" id="team-edit-name" placeholder="e.g. VG" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Logo Image URL</label>
-      <input class="form-input" type="text" id="team-edit-logo" placeholder="https://i.imgur.com/..." oninput="previewTeamLogo(this.value)" />
-      <div id="team-logo-preview" style="margin-top:8px;width:52px;height:52px;border-radius:50%;overflow:hidden;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:24px">?</div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Facebook Page URL</label>
-      <input class="form-input" type="text" id="team-edit-fb" placeholder="https://www.facebook.com/..." />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Accent Color</label>
-      <div style="display:flex;gap:8px;align-items:center">
-        <input class="form-input" type="text" id="team-edit-color" placeholder="#4a9fd4" style="flex:1" />
-        <input type="color" id="team-edit-colorpicker" style="width:40px;height:40px;border:none;background:none;cursor:pointer;border-radius:6px" oninput="document.getElementById('team-edit-color').value=this.value" />
-      </div>
-    </div>
-    <div class="modal-error" id="team-edit-error"></div>
-    <div class="modal-actions">
-      <button class="btn primary" style="flex:1" onclick="applyTeamEdit()">✅ Apply</button>
-      <button class="btn" onclick="closeTeamEditModal()">Cancel</button>
-    </div>
-  </div>
-</div>
+// ══ merged from second script block ══
 
-
-<!-- ══════════════ BLADER PROFILE MODAL ══════════════ -->
-<div class="profile-overlay" id="blader-profile-modal" onclick="if(event.target===this)closeBladerProfile()">
-  <div class="profile-modal">
-    <button class="profile-close" onclick="closeBladerProfile()">✕</button>
-
-    <!-- Hero banner -->
-    <div class="profile-hero">
-      <div class="profile-hero-bg"></div>
-      <div class="profile-hero-content">
-        <div class="profile-avatar"></div>
-        <div class="profile-pname">—</div>
-        <div class="profile-tags"></div>
-      </div>
-    </div>
-
-    <!-- Body -->
-    <div class="profile-body">
-
-      <!-- Top 3 stat cards -->
-      <div class="profile-stat-cards">
-        <div class="profile-stat-card highlight">
-          <span class="psv" id="pc-winrate">—</span>
-          <span class="psl">Match Win Rate</span>
-        </div>
-        <div class="profile-stat-card">
-          <span class="psv" id="pc-rank">—</span>
-          <span class="psl">Rank</span>
-        </div>
-        <div class="profile-stat-card">
-          <span class="psv" id="pc-ppg">—</span>
-          <span class="psl">PPG</span>
-        </div>
-      </div>
-
-      <!-- Season Statistics -->
-      <div class="profile-section-title">Season Statistics</div>
-      <div class="profile-stat-row"><span class="label">Total Points</span><span class="value" id="ps-total">0</span></div>
-      <div class="profile-stat-row"><span class="label">Points Per Game (PPG)</span><span class="value" id="ps-ppg">0</span></div>
-      <div class="profile-stat-row"><span class="label">Total Matches</span><span class="value" id="ps-games">0</span></div>
-      <div class="profile-stat-row"><span class="label">Events Joined</span><span class="value" id="ps-attend">—</span></div>
-      <div class="profile-stat-row"><span class="label">Spin Finishes</span><span class="value" id="ps-spin">0</span></div>
-      <div class="profile-stat-row"><span class="label">Burst Finishes</span><span class="value" id="ps-burst">0</span></div>
-      <div class="profile-stat-row"><span class="label">Extreme Finishes</span><span class="value" id="ps-extreme">0</span></div>
-
-      <!-- Admin Edit Section -->
-      <div class="profile-edit-section">
-        <div class="profile-edit-title">⚙️ Admin — Edit Stats</div>
-        <input type="hidden" id="pe-name" />
-
-        <!-- Photo + Name -->
-        <div class="profile-edit-grid">
-          <div class="profile-edit-field full">
-            <label>Display Name</label>
-            <input type="text" id="pe-display-name" placeholder="Player name on leaderboard" />
-          </div>
-          <div class="profile-edit-field full">
-            <label>Profile Photo</label>
-            <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
-              <div id="pe-photo-preview" style="width:48px;height:48px;border-radius:50%;overflow:hidden;border:2px solid var(--border2);background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px">👤</div>
-              <div style="flex:1;display:flex;flex-direction:column;gap:6px">
-                <input type="text" id="pe-photo-url" placeholder="Paste image URL..." oninput="applyProfilePhotoFromUrl(this.value)"
-                  style="background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:11px;outline:none;width:100%" />
-                <div style="display:flex;gap:6px;align-items:center">
-                  <label style="display:inline-block;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 12px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">
-                    📂 Upload
-                    <input type="file" id="pe-photo-file" accept="image/*" style="display:none" onchange="handleProfilePhotoUpload(this)" />
-                  </label>
-                  <button type="button" onclick="clearProfilePhoto()" style="background:transparent;border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--muted);cursor:pointer">✕ Clear</button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="profile-edit-field full">
-            <label>Background Photo</label>
-            <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
-              <div id="pe-bgphoto-preview" style="width:56px;height:36px;border-radius:6px;border:2px solid var(--border2);background:var(--surface2);flex-shrink:0;background-size:cover;background-position:center"></div>
-              <div style="flex:1;display:flex;flex-direction:column;gap:6px">
-                <input type="text" id="pe-bgphoto-url" placeholder="Paste image URL..." oninput="applyBgPhotoFromUrl(this.value)"
-                  style="background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:11px;outline:none;width:100%" />
-                <div style="display:flex;gap:6px;align-items:center">
-                  <label style="display:inline-block;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 12px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">
-                    🖼 Upload
-                    <input type="file" id="pe-bgphoto-file" accept="image/*" style="display:none" onchange="handleBgPhotoUpload(this)" />
-                  </label>
-                  <button type="button" onclick="clearBgPhoto()" style="background:transparent;border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--muted);cursor:pointer">✕ Clear</button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <input type="hidden" id="pe-photo" />
-          <input type="hidden" id="pe-bgphoto" />
-        </div>
-
-        <!-- Event Scores — direct editable -->
-        <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin:14px 0 6px">📅 Event Points</div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Edit any event score directly. Changes update totals automatically.</div>
-        <div id="pe-event-scores-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px"></div>
-
-        <!-- Finishes — direct totals (not additive) -->
-        <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin:14px 0 6px">🌀 Finish Counts</div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Set the exact total count for each finish type.</div>
-        <div class="profile-edit-grid">
-          <div class="profile-edit-field">
-            <label>Spin Finishes</label>
-            <input type="number" id="pe-spin" placeholder="0" min="0" />
-          </div>
-          <div class="profile-edit-field">
-            <label>Burst Finishes</label>
-            <input type="number" id="pe-burst" placeholder="0" min="0" />
-          </div>
-          <div class="profile-edit-field full">
-            <label>Extreme Finishes</label>
-            <input type="number" id="pe-extreme" placeholder="0" min="0" />
-          </div>
-        </div>
-
-        <!-- Match Record -->
-        <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin:14px 0 6px">⚔️ Match Record</div>
-        <div class="profile-edit-grid">
-          <div class="profile-edit-field">
-            <label>Wins</label>
-            <input type="number" id="pe-wins-input" placeholder="0" min="0" />
-          </div>
-          <div class="profile-edit-field">
-            <label>Losses</label>
-            <input type="number" id="pe-losses-input" placeholder="0" min="0" />
-          </div>
-          <div class="profile-edit-field full">
-            <label>Total Match Points <span style="color:var(--muted);font-size:10px">— for PPG</span></label>
-            <input type="number" id="pe-matchpts-input" placeholder="0" min="0" />
-          </div>
-        </div>
-
-        <button class="btn primary" style="width:100%;margin-top:16px" onclick="saveBladerProfile()">💾 Save All Changes</button>
-      </div>
-
-    </div>
-  </div>
-</div>
-
-
-<!-- ══════════════ SNAPSHOT / SEASON TRANSITION MODAL ══════════════ -->
-<div class="modal-overlay" id="snapshot-modal">
-  <div class="modal" style="max-width:460px">
-    <button class="modal-close" onclick="closeSnapshotModal()">✕</button>
-    <div class="modal-title" style="color:var(--gold)">📦 Archive S2 &amp; Start S3</div>
-    <div class="modal-sub">Freeze Season 2 as a read-only archive and create a fresh Season 3 slate.</div>
-    <div style="margin:20px 0;display:flex;flex-direction:column;gap:10px;">
-      <div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:14px 16px;">
-        <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:14px;letter-spacing:1px;margin-bottom:6px;color:var(--gold)">📸 What gets archived (Season 2)</div>
-        <div style="font-size:12px;color:var(--muted);line-height:1.9">✔ All player scores &amp; weekly history<br>✔ Rulers Cup standings<br>✔ Achievements &amp; blader stats<br>✔ Challonge history &amp; posts<br>✔ Podium photos &amp; hero background</div>
-      </div>
-      <div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:14px 16px;">
-        <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:14px;letter-spacing:1px;margin-bottom:6px;color:var(--blue)">🆕 Season 3 starts with</div>
-        <div style="font-size:12px;color:var(--muted);line-height:1.9">✔ Same player roster (all scores reset to 0)<br>✔ Same teams &amp; Rulers Cup config<br>✔ Event columns cleared (fresh schedule)<br>✔ Achievements &amp; blader stats cleared<br>✔ Challonge &amp; tournament history cleared</div>
-      </div>
-      <div style="background:#2a0a0a;border:1px solid rgba(192,48,48,0.4);border-radius:10px;padding:12px 16px;font-size:12px;color:#f88;">
-        ⚠️ <strong>This cannot be undone.</strong> Season 2 will become permanently read-only. Save all data first.
-      </div>
-    </div>
-    <div style="margin-bottom:14px;">
-      <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:10px;cursor:pointer;">
-        <input type="checkbox" id="snapshot-confirm-check" style="width:16px;height:16px;accent-color:var(--gold)" />
-        I understand — archive Season 2 and start Season 3
-      </label>
-    </div>
-    <div class="modal-error" id="snapshot-error" style="color:var(--red);margin-bottom:8px;"></div>
-    <div class="modal-actions">
-      <button class="btn" style="background:#1a1200;border-color:var(--gold);color:var(--gold);flex:1;" id="snapshot-exec-btn" onclick="executeSnapshot()">📦 Archive &amp; Start S3</button>
-      <button class="btn" onclick="closeSnapshotModal()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════ RESET MODAL ══════════════ -->
-<div class="modal-overlay" id="reset-modal">
-  <div class="modal" style="max-width:420px">
-    <button class="modal-close" onclick="closeResetModal()">✕</button>
-    <div class="modal-title" style="color:var(--red)">⚠️ Reset Data</div>
-    <div class="modal-sub">Choose what to reset. This cannot be undone.</div>
-    <div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">
-      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--border2);border-radius:8px">
-        <input type="checkbox" id="reset-scores" style="width:16px;height:16px;accent-color:var(--red)" />
-        <div>
-          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px">Clear All Scores</div>
-          <div style="font-size:11px;color:var(--muted)">Resets every player's scores to 0 — keeps the player list</div>
-        </div>
-      </label>
-      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--border2);border-radius:8px">
-        <input type="checkbox" id="reset-events" style="width:16px;height:16px;accent-color:var(--red)" />
-        <div>
-          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px">Clear Event Columns</div>
-          <div style="font-size:11px;color:var(--muted)">Removes all event columns — also clears scores</div>
-        </div>
-      </label>
-      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--border2);border-radius:8px">
-        <input type="checkbox" id="reset-leaderboard" style="width:16px;height:16px;accent-color:var(--red)" />
-        <div>
-          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px">Clear All Players</div>
-          <div style="font-size:11px;color:var(--muted)">Removes all players, scores, and event columns entirely</div>
-        </div>
-      </label>
-      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--border2);border-radius:8px">
-        <input type="checkbox" id="reset-blader-stats" style="width:16px;height:16px;accent-color:var(--red)" />
-        <div>
-          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px">Blader Stats &amp; Match Records</div>
-          <div style="font-size:11px;color:var(--muted)">Clears finishes, wins, and match data (photos are kept)</div>
-        </div>
-      </label>
-      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--border2);border-radius:8px">
-        <input type="checkbox" id="reset-challonge-ids" style="width:16px;height:16px;accent-color:var(--red)" />
-        <div>
-          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px">Imported Tournament IDs</div>
-          <div style="font-size:11px;color:var(--muted)">Allows re-importing already recorded tournaments</div>
-        </div>
-      </label>
-    </div>
-    <div class="modal-error" id="reset-error" style="color:var(--red)"></div>
-    <div class="modal-actions">
-      <button class="btn danger" style="flex:1" onclick="executeReset()">🗑 Reset Selected</button>
-      <button class="btn" onclick="closeResetModal()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════ ADD TEAM MODAL ══════════════ -->
-<div class="modal-overlay" id="add-team-modal">
-  <div class="modal" style="max-width:420px">
-    <button class="modal-close" onclick="closeAddTeamModal()">✕</button>
-    <div class="modal-title">➕ Add New Team</div>
-    <div class="modal-sub">Players whose names start with the Team Key will be assigned to this team.</div>
-    <div class="form-group">
-      <label class="form-label">Team Key <span style="color:var(--muted);font-size:10px">(prefix players' names start with, e.g. "VG", "NEXUS")</span></label>
-      <input class="form-input" type="text" id="add-team-key" placeholder="e.g. NEXUS" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Team Name</label>
-      <input class="form-input" type="text" id="add-team-name" placeholder="e.g. Nexus Bladers" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Logo Image URL <span style="color:var(--muted);font-size:10px">(optional)</span></label>
-      <input class="form-input" type="text" id="add-team-logo" placeholder="https://i.imgur.com/..." />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Facebook Page URL <span style="color:var(--muted);font-size:10px">(optional)</span></label>
-      <input class="form-input" type="text" id="add-team-fb" placeholder="https://www.facebook.com/..." />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Accent Color</label>
-      <div style="display:flex;gap:8px;align-items:center">
-        <input class="form-input" type="text" id="add-team-color" placeholder="#4a9fd4" style="flex:1" />
-        <input type="color" id="add-team-colorpicker" value="#4a9fd4" style="width:40px;height:40px;border:none;background:none;cursor:pointer;border-radius:6px" oninput="document.getElementById('add-team-color').value=this.value" />
-      </div>
-    </div>
-    <div class="modal-error" id="add-team-error"></div>
-    <div class="modal-actions">
-      <button class="btn primary" style="flex:1" onclick="applyAddTeam()">✅ Add Team</button>
-      <button class="btn" onclick="closeAddTeamModal()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-
-<!-- ══════════════ ACHIEVEMENT MODAL ══════════════ -->
-<div class="modal-overlay" id="ach-modal">
-  <div class="modal" style="max-width:460px">
-    <button class="modal-close" onclick="closeAchModal()">✕</button>
-    <div class="modal-title" id="ach-modal-title">➕ Add Achievement</div>
-    <input type="hidden" id="ach-modal-idx" />
-    <div class="form-group">
-      <label class="form-label">Icon / Emoji</label>
-      <input class="form-input" type="text" id="ach-modal-icon" placeholder="🏆" style="font-size:22px;text-align:center;width:80px" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Achievement Name</label>
-      <input class="form-input" type="text" id="ach-modal-name" placeholder="e.g. First Blood" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Description</label>
-      <input class="form-input" type="text" id="ach-modal-desc" placeholder="e.g. First player to burst an opponent" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Holder / Winner</label>
-      <input class="form-input" type="text" id="ach-modal-holder" placeholder="e.g. NONOY X — 3 events" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Photo URL <span style="color:var(--muted);font-size:10px">(optional — replaces emoji icon)</span></label>
-      <input class="form-input" type="text" id="ach-modal-photo" placeholder="https://i.imgur.com/..." />
-    </div>
-    <div class="modal-actions" style="margin-top:12px">
-      <button class="btn primary" style="flex:1" onclick="saveAchModal()">💾 Save</button>
-      <button class="btn danger" id="ach-modal-delete" style="display:none" onclick="deleteAchModal()">🗑 Delete</button>
-      <button class="btn" onclick="closeAchModal()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════ BULK ADD PLAYERS MODAL ══════════════ -->
-<div class="modal-overlay" id="bulk-add-modal">
-  <div class="modal" style="max-width:480px">
-    <button class="modal-close" onclick="closeBulkAddModal()">✕</button>
-    <div class="modal-title">➕ Add Players</div>
-    <div class="modal-sub">Add one player per line. All start with 0 points and stats.</div>
-
-    <div class="form-group">
-      <label class="form-label">Player Names <span style="color:var(--muted);font-size:10px">(one per line)</span></label>
-      <textarea id="bulk-names-input" placeholder="VG.JOHN&#10;ZPC.MARIA&#10;HYDRA.ALEX&#10;HSTLR.SAM"
-        style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:12px 14px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:13px;outline:none;width:100%;min-height:160px;resize:vertical;line-height:1.6;transition:border-color .15s"
-        onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border2)'"></textarea>
-    </div>
-
-    <div id="bulk-preview" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px;max-height:180px;overflow-y:auto">
-      <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Preview</div>
-      <div id="bulk-preview-list"></div>
-    </div>
-
-    <div id="bulk-add-error" class="modal-error"></div>
-    <div class="modal-actions">
-      <button class="btn primary" style="flex:1" onclick="executeBulkAdd()">✅ Add Players</button>
-      <button class="btn" onclick="closeBulkAddModal()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════ WEEKLY ADD COLUMN MODAL ══════════════ -->
-<div class="modal-overlay" id="weekly-addcol-modal">
-  <div class="modal" style="max-width:380px">
-    <button class="modal-close" onclick="closeWeeklyAddColModal()">✕</button>
-    <div class="modal-title">➕ Add Event Column</div>
-    <div class="modal-sub">Add a new event column to the Weekly Scores table. All players start with 0 pts for this event.</div>
-    <div class="form-group">
-      <label class="form-label">Event Label</label>
-      <input class="form-input" type="text" id="weekly-addcol-label" placeholder="e.g. W15 or HYDRA OPEN"
-        onkeydown="if(event.key==='Enter')applyWeeklyAddCol()" />
-    </div>
-    <div class="modal-error" id="weekly-addcol-error"></div>
-    <div class="modal-actions">
-      <button class="btn primary" style="flex:1" onclick="applyWeeklyAddCol()">✅ Add Column</button>
-      <button class="btn" onclick="closeWeeklyAddColModal()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════ ADD / EDIT POST MODAL ══════════════ -->
-<div class="modal-overlay" id="add-post-modal">
-  <div class="modal" style="max-width:460px">
-    <button class="modal-close" onclick="closeAddPostModal()">✕</button>
-    <div class="modal-title" id="post-modal-title">➕ Add Post</div>
-    <div class="modal-sub">Paste the post image and Facebook link. Caption is optional.</div>
-    <input type="hidden" id="post-modal-idx" value="" />
-
-    <div class="form-group">
-      <label class="form-label">Image URL <span style="color:var(--muted);font-size:10px">(direct image link)</span></label>
-      <input class="form-input" type="text" id="post-img-url" placeholder="https://i.imgur.com/..." oninput="previewPostImage(this.value)" />
-      <div id="post-img-preview" style="margin-top:8px;width:100%;height:160px;border-radius:8px;overflow:hidden;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--muted2)">🖼</div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Caption <span style="color:var(--muted);font-size:10px">(optional)</span></label>
-      <input class="form-input" type="text" id="post-caption" placeholder="e.g. Week 14 Results are in! 🔥" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Facebook Post URL</label>
-      <input class="form-input" type="text" id="post-fb-url" placeholder="https://www.facebook.com/..." />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Date <span style="color:var(--muted);font-size:10px">(optional)</span></label>
-      <input class="form-input" type="text" id="post-date" placeholder="e.g. April 20, 2025" />
-    </div>
-    <div class="modal-error" id="post-modal-error"></div>
-    <div class="modal-actions">
-      <button class="btn primary" style="flex:1" onclick="savePost()">💾 Save Post</button>
-      <button class="btn danger" id="post-delete-btn" style="display:none" onclick="deletePost()">🗑 Delete</button>
-      <button class="btn" onclick="closeAddPostModal()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════ ADD POST MODAL 2 ══════════════ -->
-<div class="modal-overlay" id="add-post-modal2">
-  <div class="modal" style="max-width:460px">
-    <button class="modal-close" onclick="closeAddPostModal2()">✕</button>
-    <div class="modal-title" id="post-modal2-title">➕ Add Post</div>
-    <div class="modal-sub">Paste the post image and Facebook link. Caption is optional.</div>
-    <input type="hidden" id="post-modal2-idx" value="" />
-
-    <div class="form-group">
-      <label class="form-label">Image URL <span style="color:var(--muted);font-size:10px">(direct image link)</span></label>
-      <input class="form-input" type="text" id="post2-img-url" placeholder="https://i.imgur.com/..." oninput="previewPostImage2(this.value)" />
-      <div id="post2-img-preview" style="margin-top:8px;width:100%;height:160px;border-radius:8px;overflow:hidden;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--muted2)">🖼</div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Caption <span style="color:var(--muted);font-size:10px">(optional)</span></label>
-      <input class="form-input" type="text" id="post2-caption" placeholder="e.g. Week 14 Results are in! 🔥" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Facebook Post URL</label>
-      <input class="form-input" type="text" id="post2-fb-url" placeholder="https://www.facebook.com/..." />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Date <span style="color:var(--muted);font-size:10px">(optional)</span></label>
-      <input class="form-input" type="text" id="post2-date" placeholder="e.g. April 20, 2025" />
-    </div>
-    <div class="modal-error" id="post2-modal-error"></div>
-    <div class="modal-actions">
-      <button class="btn primary" style="flex:1" onclick="savePost2()">💾 Save Post</button>
-      <button class="btn danger" id="post2-delete-btn" style="display:none" onclick="deletePost2()">🗑 Delete</button>
-      <button class="btn" onclick="closeAddPostModal2()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════ ADMIN ACCOUNTS PANEL ══════════════ -->
-<div class="modal-overlay" id="accounts-panel-modal" onclick="if(event.target===this)closeAccountsPanel()">
-  <div class="modal" style="max-width:560px;max-height:88vh;overflow-y:auto">
-    <button class="modal-close" onclick="closeAccountsPanel()">✕</button>
-    <div class="modal-title">👥 Player Accounts</div>
-    <div class="modal-sub">Create and manage player login accounts</div>
-
-    <!-- Create new account form -->
-    <div style="background:#1a1200;border:1px solid var(--gold);border-radius:10px;padding:16px;margin-bottom:20px">
-      <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:12px">➕ Create Account</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div class="form-group" style="margin-bottom:0">
-          <label class="form-label">Username <span style="color:var(--muted);font-size:9px">(login key, lowercase)</span></label>
-          <input class="form-input" type="text" id="ac-new-username" placeholder="e.g. xuyapos"
-            style="text-transform:lowercase" oninput="this.value=this.value.toLowerCase()" />
-        </div>
-        <div class="form-group" style="margin-bottom:0">
-          <label class="form-label">Password</label>
-          <input class="form-input" type="text" id="ac-new-password" placeholder="set a password" />
-        </div>
-        <div class="form-group" style="margin-bottom:0;grid-column:1/-1">
-          <label class="form-label">Initial Display Name <span style="color:var(--muted);font-size:9px">(first alias — usually their leaderboard name)</span></label>
-          <input class="form-input" type="text" id="ac-new-displayname" placeholder="e.g. VG.xuyapos" />
-        </div>
-      </div>
-      <div class="modal-error" id="ac-create-error" style="margin-top:8px"></div>
-      <button class="btn primary" style="width:100%;margin-top:10px" onclick="adminCreateAccount()">✅ Create Account</button>
-    </div>
-
-    <!-- Account list -->
-    <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">
-      Existing Accounts <span id="ac-count" style="color:var(--muted2)"></span>
-    </div>
-    <div id="ac-list" style="display:flex;flex-direction:column;gap:8px">
-      <div style="text-align:center;padding:24px;color:var(--muted2);font-family:'Share Tech Mono',monospace;font-size:12px">Loading…</div>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════ ADMIN EDIT ACCOUNT MODAL ══════════════ -->
-<div class="modal-overlay" id="ac-edit-modal" onclick="if(event.target===this)closeEditAccountModal()">
-  <div class="modal" style="max-width:400px">
-    <button class="modal-close" onclick="closeEditAccountModal()">✕</button>
-    <div class="modal-title" id="ac-edit-title">Edit Account</div>
-    <input type="hidden" id="ac-edit-username" />
-
-    <div class="form-group">
-      <label class="form-label">Username</label>
-      <input class="form-input" type="text" id="ac-edit-username-display" disabled style="opacity:0.5" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">New Password <span style="color:var(--muted);font-size:9px">(leave blank to keep current)</span></label>
-      <input class="form-input" type="text" id="ac-edit-password" placeholder="leave blank to keep" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Display Name</label>
-      <input class="form-input" type="text" id="ac-edit-displayname" placeholder="e.g. VG.xuyapos" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Aliases <span style="color:var(--muted);font-size:9px">(comma-separated)</span></label>
-      <input class="form-input" type="text" id="ac-edit-aliases" placeholder="VG.xuyapos, VG.Power" />
-    </div>
-
-    <div class="modal-error" id="ac-edit-error"></div>
-    <div class="modal-actions">
-      <button class="btn primary" style="flex:1" onclick="adminSaveAccountEdit()">💾 Save</button>
-      <button class="btn danger" onclick="adminDeleteAccount()">🗑 Delete</button>
-      <button class="btn" onclick="closeEditAccountModal()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════ PLAYER LOGIN MODAL ══════════════ -->
-<div class="modal-overlay" id="player-login-modal">
-  <div class="modal">
-    <button class="modal-close" onclick="closePlayerLoginModal()">✕</button>
-    <div class="modal-title">Player Login</div>
-    <div class="modal-sub">Log in to view your profile and manage your aliases</div>
-    <div class="form-group">
-      <label class="form-label">Username</label>
-      <input class="form-input" type="text" id="player-login-user" placeholder="your username" autocomplete="username" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Password</label>
-      <input class="form-input" type="password" id="player-login-pass" placeholder="••••••••" autocomplete="current-password"
-        onkeydown="if(event.key==='Enter')doPlayerLogin()" />
-    </div>
-    <div class="modal-error" id="player-login-error"></div>
-    <div class="modal-actions">
-      <button class="btn primary" style="flex:1" id="player-login-btn" onclick="doPlayerLogin()">Login</button>
-      <button class="btn" onclick="closePlayerLoginModal()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════ PLAYER MENU MODAL ══════════════ -->
-<div class="modal-overlay" id="player-menu-modal" onclick="if(event.target===this)closePlayerMenuModal()">
-  <div class="modal" style="max-width:420px;padding:0;overflow:hidden">
-    <button class="modal-close" onclick="closePlayerMenuModal()" style="top:12px;right:12px;z-index:10">✕</button>
-
-    <!-- Profile hero -->
-    <div style="position:relative;min-height:120px;background:var(--surface2);overflow:hidden">
-      <div id="pm-hero-bg" style="position:absolute;inset:0;background-size:cover;background-position:center;filter:brightness(0.5)"></div>
-      <div style="position:relative;z-index:2;display:flex;align-items:flex-end;gap:14px;padding:20px 20px 16px">
-        <div id="pm-avatar" style="width:72px;height:72px;border-radius:50%;border:3px solid var(--gold);overflow:hidden;background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:32px">👤</div>
-        <div style="flex:1;min-width:0">
-          <div id="pm-displayname" style="font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,0.8)"></div>
-          <div id="pm-username" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px"></div>
-          <div id="pm-team-tag" style="margin-top:4px"></div>
-        </div>
-      </div>
-    </div>
-
-    <div style="padding:18px 20px 20px">
-
-      <!-- Season tabs -->
-      <div class="profile-season-tabs" id="pm-season-tabs">
-        <div class="profile-season-tab active" onclick="switchProfileTab('overall',this)" id="pm-tab-overall">
-          Overall<span class="tab-pts" id="pm-overall-pts">—</span>
-        </div>
-        <div class="profile-season-tab" onclick="switchProfileTab('s3',this)" id="pm-tab-s3">
-          Season 3<span class="tab-pts" id="pm-s3-pts">—</span>
-        </div>
-        <div class="profile-season-tab" onclick="switchProfileTab('s2',this)" id="pm-tab-s2">
-          Season 2<span class="tab-pts" id="pm-s2-pts">—</span>
-        </div>
-      </div>
-
-      <!-- Overall pane -->
-      <div class="profile-season-pane active" id="pm-pane-overall">
-        <div class="profile-overall-banner">
-          <div>
-            <div class="ob-label">Total Points</div>
-            <div class="ob-pts" id="pm-ob-total">—</div>
-          </div>
-          <div style="flex:1;text-align:right">
-            <div class="ob-label">Combined Events</div>
-            <div class="ob-rank" id="pm-ob-events">—</div>
-          </div>
-        </div>
-        <div id="pm-overall-rows"></div>
-      </div>
-
-      <!-- Season 3 pane -->
-      <div class="profile-season-pane" id="pm-pane-s3">
-        <div id="pm-s3-rows"></div>
-      </div>
-
-      <!-- Season 2 pane -->
-      <div class="profile-season-pane" id="pm-pane-s2">
-        <div id="pm-s2-rows"></div>
-      </div>
-
-      <!-- Aliases section -->
-      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:4px;margin-bottom:12px">
-        <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">My Aliases</div>
-        <div id="pm-aliases-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
-        <div style="display:flex;gap:8px">
-          <input class="form-input" type="text" id="pm-new-alias" placeholder="Add alias e.g. VG.NewName" style="flex:1;font-size:12px;padding:7px 10px" onkeydown="if(event.key==='Enter')playerAddAlias()" />
-          <button class="btn primary" style="font-size:11px;padding:6px 12px;white-space:nowrap" onclick="playerAddAlias()">+ Add</button>
-        </div>
-        <div class="modal-error" id="pm-alias-error" style="margin-top:6px"></div>
-      </div>
-
-      <!-- Display name section -->
-      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px">
-        <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Display Name</div>
-        <select class="form-input" id="pm-displayname-select" style="font-size:13px"></select>
-        <button class="btn primary" style="width:100%;margin-top:8px;font-size:12px" onclick="playerSaveDisplayName()">Set Display Name</button>
-      </div>
-
-      <button class="btn danger" style="width:100%;font-size:12px" onclick="playerLogout()">Logout</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════ LIGHTBOX ══════════════ -->
-<div id="lightbox-overlay" onclick="closeLightbox()"
-  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:9999;
-    align-items:center;justify-content:center;cursor:zoom-out;padding:16px;">
-  <button onclick="event.stopPropagation();closeLightbox()" style="position:absolute;top:16px;right:16px;
-    background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);
-    border-radius:50%;width:36px;height:36px;color:#fff;font-size:18px;
-    cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;">✕</button>
-  <img id="lightbox-img" src="" alt=""
-    onclick="event.stopPropagation()"
-    style="max-width:100%;max-height:90vh;object-fit:contain;border-radius:8px;
-    box-shadow:0 8px 40px rgba(0,0,0,0.8);display:block;" />
-</div>
-
-<script>
 function openLightbox(src) {
   const overlay = document.getElementById('lightbox-overlay');
   document.getElementById('lightbox-img').src = src;
@@ -6311,3 +5661,642 @@ async function deleteEvent() {
     showToast('⚠ ' + e.message, 'error');
   }
 }
+</script>
+
+
+<!-- ══════════════ TEAM EDIT MODAL ══════════════ -->
+<div class="modal-overlay" id="team-edit-modal">
+  <div class="modal" style="max-width:420px">
+    <button class="modal-close" onclick="closeTeamEditModal()">✕</button>
+    <div class="modal-title">Edit Team</div>
+    <div class="modal-sub" id="team-edit-sub">Customize this team's display</div>
+    <input type="hidden" id="team-edit-key" />
+    <div class="form-group">
+      <label class="form-label">Team Name</label>
+      <input class="form-input" type="text" id="team-edit-name" placeholder="e.g. VG" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Logo Image URL</label>
+      <input class="form-input" type="text" id="team-edit-logo" placeholder="https://i.imgur.com/..." oninput="previewTeamLogo(this.value)" />
+      <div id="team-logo-preview" style="margin-top:8px;width:52px;height:52px;border-radius:50%;overflow:hidden;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:24px">?</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Facebook Page URL</label>
+      <input class="form-input" type="text" id="team-edit-fb" placeholder="https://www.facebook.com/..." />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Accent Color</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input class="form-input" type="text" id="team-edit-color" placeholder="#4a9fd4" style="flex:1" />
+        <input type="color" id="team-edit-colorpicker" style="width:40px;height:40px;border:none;background:none;cursor:pointer;border-radius:6px" oninput="document.getElementById('team-edit-color').value=this.value" />
+      </div>
+    </div>
+    <div class="modal-error" id="team-edit-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" onclick="applyTeamEdit()">✅ Apply</button>
+      <button class="btn" onclick="closeTeamEditModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════ BLADER PROFILE MODAL ══════════════ -->
+<div class="profile-overlay" id="blader-profile-modal" onclick="if(event.target===this)closeBladerProfile()">
+  <div class="profile-modal">
+    <button class="profile-close" onclick="closeBladerProfile()">✕</button>
+
+    <!-- Hero banner -->
+    <div class="profile-hero">
+      <div class="profile-hero-bg"></div>
+      <div class="profile-hero-content">
+        <div class="profile-avatar"></div>
+        <div class="profile-pname">—</div>
+        <div class="profile-tags"></div>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div class="profile-body">
+
+      <!-- Top 3 stat cards -->
+      <div class="profile-stat-cards">
+        <div class="profile-stat-card highlight">
+          <span class="psv" id="pc-winrate">—</span>
+          <span class="psl">Match Win Rate</span>
+        </div>
+        <div class="profile-stat-card">
+          <span class="psv" id="pc-rank">—</span>
+          <span class="psl">Rank</span>
+        </div>
+        <div class="profile-stat-card">
+          <span class="psv" id="pc-ppg">—</span>
+          <span class="psl">PPG</span>
+        </div>
+      </div>
+
+      <!-- Season Statistics -->
+      <div class="profile-section-title">Season Statistics</div>
+      <div class="profile-stat-row"><span class="label">Total Points</span><span class="value" id="ps-total">0</span></div>
+      <div class="profile-stat-row"><span class="label">Points Per Game (PPG)</span><span class="value" id="ps-ppg">0</span></div>
+      <div class="profile-stat-row"><span class="label">Total Matches</span><span class="value" id="ps-games">0</span></div>
+      <div class="profile-stat-row"><span class="label">Events Joined</span><span class="value" id="ps-attend">—</span></div>
+      <div class="profile-stat-row"><span class="label">Spin Finishes</span><span class="value" id="ps-spin">0</span></div>
+      <div class="profile-stat-row"><span class="label">Burst Finishes</span><span class="value" id="ps-burst">0</span></div>
+      <div class="profile-stat-row"><span class="label">Extreme Finishes</span><span class="value" id="ps-extreme">0</span></div>
+
+      <!-- Admin Edit Section -->
+      <div class="profile-edit-section">
+        <div class="profile-edit-title">⚙️ Admin — Edit Stats</div>
+        <input type="hidden" id="pe-name" />
+
+        <!-- Photo + Name -->
+        <div class="profile-edit-grid">
+          <div class="profile-edit-field full">
+            <label>Display Name</label>
+            <input type="text" id="pe-display-name" placeholder="Player name on leaderboard" />
+          </div>
+          <div class="profile-edit-field full">
+            <label>Profile Photo</label>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
+              <div id="pe-photo-preview" style="width:48px;height:48px;border-radius:50%;overflow:hidden;border:2px solid var(--border2);background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px">👤</div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+                <input type="text" id="pe-photo-url" placeholder="Paste image URL..." oninput="applyProfilePhotoFromUrl(this.value)"
+                  style="background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:11px;outline:none;width:100%" />
+                <div style="display:flex;gap:6px;align-items:center">
+                  <label style="display:inline-block;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 12px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">
+                    📂 Upload
+                    <input type="file" id="pe-photo-file" accept="image/*" style="display:none" onchange="handleProfilePhotoUpload(this)" />
+                  </label>
+                  <button type="button" onclick="clearProfilePhoto()" style="background:transparent;border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--muted);cursor:pointer">✕ Clear</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="profile-edit-field full">
+            <label>Background Photo</label>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
+              <div id="pe-bgphoto-preview" style="width:56px;height:36px;border-radius:6px;border:2px solid var(--border2);background:var(--surface2);flex-shrink:0;background-size:cover;background-position:center"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+                <input type="text" id="pe-bgphoto-url" placeholder="Paste image URL..." oninput="applyBgPhotoFromUrl(this.value)"
+                  style="background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:11px;outline:none;width:100%" />
+                <div style="display:flex;gap:6px;align-items:center">
+                  <label style="display:inline-block;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 12px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">
+                    🖼 Upload
+                    <input type="file" id="pe-bgphoto-file" accept="image/*" style="display:none" onchange="handleBgPhotoUpload(this)" />
+                  </label>
+                  <button type="button" onclick="clearBgPhoto()" style="background:transparent;border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--muted);cursor:pointer">✕ Clear</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <input type="hidden" id="pe-photo" />
+          <input type="hidden" id="pe-bgphoto" />
+        </div>
+
+        <!-- Event Scores — direct editable -->
+        <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin:14px 0 6px">📅 Event Points</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Edit any event score directly. Changes update totals automatically.</div>
+        <div id="pe-event-scores-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px"></div>
+
+        <!-- Finishes — direct totals (not additive) -->
+        <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin:14px 0 6px">🌀 Finish Counts</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Set the exact total count for each finish type.</div>
+        <div class="profile-edit-grid">
+          <div class="profile-edit-field">
+            <label>Spin Finishes</label>
+            <input type="number" id="pe-spin" placeholder="0" min="0" />
+          </div>
+          <div class="profile-edit-field">
+            <label>Burst Finishes</label>
+            <input type="number" id="pe-burst" placeholder="0" min="0" />
+          </div>
+          <div class="profile-edit-field full">
+            <label>Extreme Finishes</label>
+            <input type="number" id="pe-extreme" placeholder="0" min="0" />
+          </div>
+        </div>
+
+        <!-- Match Record -->
+        <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin:14px 0 6px">⚔️ Match Record</div>
+        <div class="profile-edit-grid">
+          <div class="profile-edit-field">
+            <label>Wins</label>
+            <input type="number" id="pe-wins-input" placeholder="0" min="0" />
+          </div>
+          <div class="profile-edit-field">
+            <label>Losses</label>
+            <input type="number" id="pe-losses-input" placeholder="0" min="0" />
+          </div>
+          <div class="profile-edit-field full">
+            <label>Total Match Points <span style="color:var(--muted);font-size:10px">— for PPG</span></label>
+            <input type="number" id="pe-matchpts-input" placeholder="0" min="0" />
+          </div>
+        </div>
+
+        <button class="btn primary" style="width:100%;margin-top:16px" onclick="saveBladerProfile()">💾 Save All Changes</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════ SNAPSHOT / SEASON TRANSITION MODAL ══════════════ -->
+<div class="modal-overlay" id="snapshot-modal">
+  <div class="modal" style="max-width:460px">
+    <button class="modal-close" onclick="closeSnapshotModal()">✕</button>
+    <div class="modal-title" style="color:var(--gold)">📦 Archive S2 &amp; Start S3</div>
+    <div class="modal-sub">Freeze Season 2 as a read-only archive and create a fresh Season 3 slate.</div>
+    <div style="margin:20px 0;display:flex;flex-direction:column;gap:10px;">
+      <div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:14px 16px;">
+        <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:14px;letter-spacing:1px;margin-bottom:6px;color:var(--gold)">📸 What gets archived (Season 2)</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.9">✔ All player scores &amp; weekly history<br>✔ Rulers Cup standings<br>✔ Achievements &amp; blader stats<br>✔ Challonge history &amp; posts<br>✔ Podium photos &amp; hero background</div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:14px 16px;">
+        <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:14px;letter-spacing:1px;margin-bottom:6px;color:var(--blue)">🆕 Season 3 starts with</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.9">✔ Same player roster (all scores reset to 0)<br>✔ Same teams &amp; Rulers Cup config<br>✔ Event columns cleared (fresh schedule)<br>✔ Achievements &amp; blader stats cleared<br>✔ Challonge &amp; tournament history cleared</div>
+      </div>
+      <div style="background:#2a0a0a;border:1px solid rgba(192,48,48,0.4);border-radius:10px;padding:12px 16px;font-size:12px;color:#f88;">
+        ⚠️ <strong>This cannot be undone.</strong> Season 2 will become permanently read-only. Save all data first.
+      </div>
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:10px;cursor:pointer;">
+        <input type="checkbox" id="snapshot-confirm-check" style="width:16px;height:16px;accent-color:var(--gold)" />
+        I understand — archive Season 2 and start Season 3
+      </label>
+    </div>
+    <div class="modal-error" id="snapshot-error" style="color:var(--red);margin-bottom:8px;"></div>
+    <div class="modal-actions">
+      <button class="btn" style="background:#1a1200;border-color:var(--gold);color:var(--gold);flex:1;" id="snapshot-exec-btn" onclick="executeSnapshot()">📦 Archive &amp; Start S3</button>
+      <button class="btn" onclick="closeSnapshotModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ RESET MODAL ══════════════ -->
+<div class="modal-overlay" id="reset-modal">
+  <div class="modal" style="max-width:420px">
+    <button class="modal-close" onclick="closeResetModal()">✕</button>
+    <div class="modal-title" style="color:var(--red)">⚠️ Reset Data</div>
+    <div class="modal-sub">Choose what to reset. This cannot be undone.</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--border2);border-radius:8px">
+        <input type="checkbox" id="reset-scores" style="width:16px;height:16px;accent-color:var(--red)" />
+        <div>
+          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px">Clear All Scores</div>
+          <div style="font-size:11px;color:var(--muted)">Resets every player's scores to 0 — keeps the player list</div>
+        </div>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--border2);border-radius:8px">
+        <input type="checkbox" id="reset-events" style="width:16px;height:16px;accent-color:var(--red)" />
+        <div>
+          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px">Clear Event Columns</div>
+          <div style="font-size:11px;color:var(--muted)">Removes all event columns — also clears scores</div>
+        </div>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--border2);border-radius:8px">
+        <input type="checkbox" id="reset-leaderboard" style="width:16px;height:16px;accent-color:var(--red)" />
+        <div>
+          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px">Clear All Players</div>
+          <div style="font-size:11px;color:var(--muted)">Removes all players, scores, and event columns entirely</div>
+        </div>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--border2);border-radius:8px">
+        <input type="checkbox" id="reset-blader-stats" style="width:16px;height:16px;accent-color:var(--red)" />
+        <div>
+          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px">Blader Stats &amp; Match Records</div>
+          <div style="font-size:11px;color:var(--muted)">Clears finishes, wins, and match data (photos are kept)</div>
+        </div>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--border2);border-radius:8px">
+        <input type="checkbox" id="reset-challonge-ids" style="width:16px;height:16px;accent-color:var(--red)" />
+        <div>
+          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px">Imported Tournament IDs</div>
+          <div style="font-size:11px;color:var(--muted)">Allows re-importing already recorded tournaments</div>
+        </div>
+      </label>
+    </div>
+    <div class="modal-error" id="reset-error" style="color:var(--red)"></div>
+    <div class="modal-actions">
+      <button class="btn danger" style="flex:1" onclick="executeReset()">🗑 Reset Selected</button>
+      <button class="btn" onclick="closeResetModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ ADD TEAM MODAL ══════════════ -->
+<div class="modal-overlay" id="add-team-modal">
+  <div class="modal" style="max-width:420px">
+    <button class="modal-close" onclick="closeAddTeamModal()">✕</button>
+    <div class="modal-title">➕ Add New Team</div>
+    <div class="modal-sub">Players whose names start with the Team Key will be assigned to this team.</div>
+    <div class="form-group">
+      <label class="form-label">Team Key <span style="color:var(--muted);font-size:10px">(prefix players' names start with, e.g. "VG", "NEXUS")</span></label>
+      <input class="form-input" type="text" id="add-team-key" placeholder="e.g. NEXUS" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Team Name</label>
+      <input class="form-input" type="text" id="add-team-name" placeholder="e.g. Nexus Bladers" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Logo Image URL <span style="color:var(--muted);font-size:10px">(optional)</span></label>
+      <input class="form-input" type="text" id="add-team-logo" placeholder="https://i.imgur.com/..." />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Facebook Page URL <span style="color:var(--muted);font-size:10px">(optional)</span></label>
+      <input class="form-input" type="text" id="add-team-fb" placeholder="https://www.facebook.com/..." />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Accent Color</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input class="form-input" type="text" id="add-team-color" placeholder="#4a9fd4" style="flex:1" />
+        <input type="color" id="add-team-colorpicker" value="#4a9fd4" style="width:40px;height:40px;border:none;background:none;cursor:pointer;border-radius:6px" oninput="document.getElementById('add-team-color').value=this.value" />
+      </div>
+    </div>
+    <div class="modal-error" id="add-team-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" onclick="applyAddTeam()">✅ Add Team</button>
+      <button class="btn" onclick="closeAddTeamModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════ ACHIEVEMENT MODAL ══════════════ -->
+<div class="modal-overlay" id="ach-modal">
+  <div class="modal" style="max-width:460px">
+    <button class="modal-close" onclick="closeAchModal()">✕</button>
+    <div class="modal-title" id="ach-modal-title">➕ Add Achievement</div>
+    <input type="hidden" id="ach-modal-idx" />
+    <div class="form-group">
+      <label class="form-label">Icon / Emoji</label>
+      <input class="form-input" type="text" id="ach-modal-icon" placeholder="🏆" style="font-size:22px;text-align:center;width:80px" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Achievement Name</label>
+      <input class="form-input" type="text" id="ach-modal-name" placeholder="e.g. First Blood" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description</label>
+      <input class="form-input" type="text" id="ach-modal-desc" placeholder="e.g. First player to burst an opponent" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Holder / Winner</label>
+      <input class="form-input" type="text" id="ach-modal-holder" placeholder="e.g. NONOY X — 3 events" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Photo URL <span style="color:var(--muted);font-size:10px">(optional — replaces emoji icon)</span></label>
+      <input class="form-input" type="text" id="ach-modal-photo" placeholder="https://i.imgur.com/..." />
+    </div>
+    <div class="modal-actions" style="margin-top:12px">
+      <button class="btn primary" style="flex:1" onclick="saveAchModal()">💾 Save</button>
+      <button class="btn danger" id="ach-modal-delete" style="display:none" onclick="deleteAchModal()">🗑 Delete</button>
+      <button class="btn" onclick="closeAchModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ BULK ADD PLAYERS MODAL ══════════════ -->
+<div class="modal-overlay" id="bulk-add-modal">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" onclick="closeBulkAddModal()">✕</button>
+    <div class="modal-title">➕ Add Players</div>
+    <div class="modal-sub">Add one player per line. All start with 0 points and stats.</div>
+
+    <div class="form-group">
+      <label class="form-label">Player Names <span style="color:var(--muted);font-size:10px">(one per line)</span></label>
+      <textarea id="bulk-names-input" placeholder="VG.JOHN&#10;ZPC.MARIA&#10;HYDRA.ALEX&#10;HSTLR.SAM"
+        style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:12px 14px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:13px;outline:none;width:100%;min-height:160px;resize:vertical;line-height:1.6;transition:border-color .15s"
+        onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border2)'"></textarea>
+    </div>
+
+    <div id="bulk-preview" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px;max-height:180px;overflow-y:auto">
+      <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Preview</div>
+      <div id="bulk-preview-list"></div>
+    </div>
+
+    <div id="bulk-add-error" class="modal-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" onclick="executeBulkAdd()">✅ Add Players</button>
+      <button class="btn" onclick="closeBulkAddModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ WEEKLY ADD COLUMN MODAL ══════════════ -->
+<div class="modal-overlay" id="weekly-addcol-modal">
+  <div class="modal" style="max-width:380px">
+    <button class="modal-close" onclick="closeWeeklyAddColModal()">✕</button>
+    <div class="modal-title">➕ Add Event Column</div>
+    <div class="modal-sub">Add a new event column to the Weekly Scores table. All players start with 0 pts for this event.</div>
+    <div class="form-group">
+      <label class="form-label">Event Label</label>
+      <input class="form-input" type="text" id="weekly-addcol-label" placeholder="e.g. W15 or HYDRA OPEN"
+        onkeydown="if(event.key==='Enter')applyWeeklyAddCol()" />
+    </div>
+    <div class="modal-error" id="weekly-addcol-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" onclick="applyWeeklyAddCol()">✅ Add Column</button>
+      <button class="btn" onclick="closeWeeklyAddColModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ ADD / EDIT POST MODAL ══════════════ -->
+<div class="modal-overlay" id="add-post-modal">
+  <div class="modal" style="max-width:460px">
+    <button class="modal-close" onclick="closeAddPostModal()">✕</button>
+    <div class="modal-title" id="post-modal-title">➕ Add Post</div>
+    <div class="modal-sub">Paste the post image and Facebook link. Caption is optional.</div>
+    <input type="hidden" id="post-modal-idx" value="" />
+
+    <div class="form-group">
+      <label class="form-label">Image URL <span style="color:var(--muted);font-size:10px">(direct image link)</span></label>
+      <input class="form-input" type="text" id="post-img-url" placeholder="https://i.imgur.com/..." oninput="previewPostImage(this.value)" />
+      <div id="post-img-preview" style="margin-top:8px;width:100%;height:160px;border-radius:8px;overflow:hidden;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--muted2)">🖼</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Caption <span style="color:var(--muted);font-size:10px">(optional)</span></label>
+      <input class="form-input" type="text" id="post-caption" placeholder="e.g. Week 14 Results are in! 🔥" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Facebook Post URL</label>
+      <input class="form-input" type="text" id="post-fb-url" placeholder="https://www.facebook.com/..." />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Date <span style="color:var(--muted);font-size:10px">(optional)</span></label>
+      <input class="form-input" type="text" id="post-date" placeholder="e.g. April 20, 2025" />
+    </div>
+    <div class="modal-error" id="post-modal-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" onclick="savePost()">💾 Save Post</button>
+      <button class="btn danger" id="post-delete-btn" style="display:none" onclick="deletePost()">🗑 Delete</button>
+      <button class="btn" onclick="closeAddPostModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ ADD POST MODAL 2 ══════════════ -->
+<div class="modal-overlay" id="add-post-modal2">
+  <div class="modal" style="max-width:460px">
+    <button class="modal-close" onclick="closeAddPostModal2()">✕</button>
+    <div class="modal-title" id="post-modal2-title">➕ Add Post</div>
+    <div class="modal-sub">Paste the post image and Facebook link. Caption is optional.</div>
+    <input type="hidden" id="post-modal2-idx" value="" />
+
+    <div class="form-group">
+      <label class="form-label">Image URL <span style="color:var(--muted);font-size:10px">(direct image link)</span></label>
+      <input class="form-input" type="text" id="post2-img-url" placeholder="https://i.imgur.com/..." oninput="previewPostImage2(this.value)" />
+      <div id="post2-img-preview" style="margin-top:8px;width:100%;height:160px;border-radius:8px;overflow:hidden;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--muted2)">🖼</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Caption <span style="color:var(--muted);font-size:10px">(optional)</span></label>
+      <input class="form-input" type="text" id="post2-caption" placeholder="e.g. Week 14 Results are in! 🔥" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Facebook Post URL</label>
+      <input class="form-input" type="text" id="post2-fb-url" placeholder="https://www.facebook.com/..." />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Date <span style="color:var(--muted);font-size:10px">(optional)</span></label>
+      <input class="form-input" type="text" id="post2-date" placeholder="e.g. April 20, 2025" />
+    </div>
+    <div class="modal-error" id="post2-modal-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" onclick="savePost2()">💾 Save Post</button>
+      <button class="btn danger" id="post2-delete-btn" style="display:none" onclick="deletePost2()">🗑 Delete</button>
+      <button class="btn" onclick="closeAddPostModal2()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ ADMIN ACCOUNTS PANEL ══════════════ -->
+<div class="modal-overlay" id="accounts-panel-modal" onclick="if(event.target===this)closeAccountsPanel()">
+  <div class="modal" style="max-width:560px;max-height:88vh;overflow-y:auto">
+    <button class="modal-close" onclick="closeAccountsPanel()">✕</button>
+    <div class="modal-title">👥 Player Accounts</div>
+    <div class="modal-sub">Create and manage player login accounts</div>
+
+    <!-- Create new account form -->
+    <div style="background:#1a1200;border:1px solid var(--gold);border-radius:10px;padding:16px;margin-bottom:20px">
+      <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:12px">➕ Create Account</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Username <span style="color:var(--muted);font-size:9px">(login key, lowercase)</span></label>
+          <input class="form-input" type="text" id="ac-new-username" placeholder="e.g. xuyapos"
+            style="text-transform:lowercase" oninput="this.value=this.value.toLowerCase()" />
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Password</label>
+          <input class="form-input" type="text" id="ac-new-password" placeholder="set a password" />
+        </div>
+        <div class="form-group" style="margin-bottom:0;grid-column:1/-1">
+          <label class="form-label">Initial Display Name <span style="color:var(--muted);font-size:9px">(first alias — usually their leaderboard name)</span></label>
+          <input class="form-input" type="text" id="ac-new-displayname" placeholder="e.g. VG.xuyapos" />
+        </div>
+      </div>
+      <div class="modal-error" id="ac-create-error" style="margin-top:8px"></div>
+      <button class="btn primary" style="width:100%;margin-top:10px" onclick="adminCreateAccount()">✅ Create Account</button>
+    </div>
+
+    <!-- Account list -->
+    <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">
+      Existing Accounts <span id="ac-count" style="color:var(--muted2)"></span>
+    </div>
+    <div id="ac-list" style="display:flex;flex-direction:column;gap:8px">
+      <div style="text-align:center;padding:24px;color:var(--muted2);font-family:'Share Tech Mono',monospace;font-size:12px">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ ADMIN EDIT ACCOUNT MODAL ══════════════ -->
+<div class="modal-overlay" id="ac-edit-modal" onclick="if(event.target===this)closeEditAccountModal()">
+  <div class="modal" style="max-width:400px">
+    <button class="modal-close" onclick="closeEditAccountModal()">✕</button>
+    <div class="modal-title" id="ac-edit-title">Edit Account</div>
+    <input type="hidden" id="ac-edit-username" />
+
+    <div class="form-group">
+      <label class="form-label">Username</label>
+      <input class="form-input" type="text" id="ac-edit-username-display" disabled style="opacity:0.5" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">New Password <span style="color:var(--muted);font-size:9px">(leave blank to keep current)</span></label>
+      <input class="form-input" type="text" id="ac-edit-password" placeholder="leave blank to keep" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Display Name</label>
+      <input class="form-input" type="text" id="ac-edit-displayname" placeholder="e.g. VG.xuyapos" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Aliases <span style="color:var(--muted);font-size:9px">(comma-separated)</span></label>
+      <input class="form-input" type="text" id="ac-edit-aliases" placeholder="VG.xuyapos, VG.Power" />
+    </div>
+
+    <div class="modal-error" id="ac-edit-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" onclick="adminSaveAccountEdit()">💾 Save</button>
+      <button class="btn danger" onclick="adminDeleteAccount()">🗑 Delete</button>
+      <button class="btn" onclick="closeEditAccountModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ PLAYER LOGIN MODAL ══════════════ -->
+<div class="modal-overlay" id="player-login-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closePlayerLoginModal()">✕</button>
+    <div class="modal-title">Player Login</div>
+    <div class="modal-sub">Log in to view your profile and manage your aliases</div>
+    <div class="form-group">
+      <label class="form-label">Username</label>
+      <input class="form-input" type="text" id="player-login-user" placeholder="your username" autocomplete="username" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input class="form-input" type="password" id="player-login-pass" placeholder="••••••••" autocomplete="current-password"
+        onkeydown="if(event.key==='Enter')doPlayerLogin()" />
+    </div>
+    <div class="modal-error" id="player-login-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" id="player-login-btn" onclick="doPlayerLogin()">Login</button>
+      <button class="btn" onclick="closePlayerLoginModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ PLAYER MENU MODAL ══════════════ -->
+<div class="modal-overlay" id="player-menu-modal" onclick="if(event.target===this)closePlayerMenuModal()">
+  <div class="modal" style="max-width:420px;padding:0;overflow:hidden">
+    <button class="modal-close" onclick="closePlayerMenuModal()" style="top:12px;right:12px;z-index:10">✕</button>
+
+    <!-- Profile hero -->
+    <div style="position:relative;min-height:120px;background:var(--surface2);overflow:hidden">
+      <div id="pm-hero-bg" style="position:absolute;inset:0;background-size:cover;background-position:center;filter:brightness(0.5)"></div>
+      <div style="position:relative;z-index:2;display:flex;align-items:flex-end;gap:14px;padding:20px 20px 16px">
+        <div id="pm-avatar" style="width:72px;height:72px;border-radius:50%;border:3px solid var(--gold);overflow:hidden;background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:32px">👤</div>
+        <div style="flex:1;min-width:0">
+          <div id="pm-displayname" style="font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,0.8)"></div>
+          <div id="pm-username" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px"></div>
+          <div id="pm-team-tag" style="margin-top:4px"></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:18px 20px 20px">
+
+      <!-- Season tabs -->
+      <div class="profile-season-tabs" id="pm-season-tabs">
+        <div class="profile-season-tab active" onclick="switchProfileTab('overall',this)" id="pm-tab-overall">
+          Overall<span class="tab-pts" id="pm-overall-pts">—</span>
+        </div>
+        <div class="profile-season-tab" onclick="switchProfileTab('s3',this)" id="pm-tab-s3">
+          Season 3<span class="tab-pts" id="pm-s3-pts">—</span>
+        </div>
+        <div class="profile-season-tab" onclick="switchProfileTab('s2',this)" id="pm-tab-s2">
+          Season 2<span class="tab-pts" id="pm-s2-pts">—</span>
+        </div>
+      </div>
+
+      <!-- Overall pane -->
+      <div class="profile-season-pane active" id="pm-pane-overall">
+        <div class="profile-overall-banner">
+          <div>
+            <div class="ob-label">Total Points</div>
+            <div class="ob-pts" id="pm-ob-total">—</div>
+          </div>
+          <div style="flex:1;text-align:right">
+            <div class="ob-label">Combined Events</div>
+            <div class="ob-rank" id="pm-ob-events">—</div>
+          </div>
+        </div>
+        <div id="pm-overall-rows"></div>
+      </div>
+
+      <!-- Season 3 pane -->
+      <div class="profile-season-pane" id="pm-pane-s3">
+        <div id="pm-s3-rows"></div>
+      </div>
+
+      <!-- Season 2 pane -->
+      <div class="profile-season-pane" id="pm-pane-s2">
+        <div id="pm-s2-rows"></div>
+      </div>
+
+      <!-- Aliases section -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:4px;margin-bottom:12px">
+        <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">My Aliases</div>
+        <div id="pm-aliases-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+        <div style="display:flex;gap:8px">
+          <input class="form-input" type="text" id="pm-new-alias" placeholder="Add alias e.g. VG.NewName" style="flex:1;font-size:12px;padding:7px 10px" onkeydown="if(event.key==='Enter')playerAddAlias()" />
+          <button class="btn primary" style="font-size:11px;padding:6px 12px;white-space:nowrap" onclick="playerAddAlias()">+ Add</button>
+        </div>
+        <div class="modal-error" id="pm-alias-error" style="margin-top:6px"></div>
+      </div>
+
+      <!-- Display name section -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px">
+        <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Display Name</div>
+        <select class="form-input" id="pm-displayname-select" style="font-size:13px"></select>
+        <button class="btn primary" style="width:100%;margin-top:8px;font-size:12px" onclick="playerSaveDisplayName()">Set Display Name</button>
+      </div>
+
+      <button class="btn danger" style="width:100%;font-size:12px" onclick="playerLogout()">Logout</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ LIGHTBOX ══════════════ -->
+<div id="lightbox-overlay" onclick="closeLightbox()"
+  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:9999;
+    align-items:center;justify-content:center;cursor:zoom-out;padding:16px;">
+  <button onclick="event.stopPropagation();closeLightbox()" style="position:absolute;top:16px;right:16px;
+    background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);
+    border-radius:50%;width:36px;height:36px;color:#fff;font-size:18px;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;">✕</button>
+  <img id="lightbox-img" src="" alt=""
+    onclick="event.stopPropagation()"
+    style="max-width:100%;max-height:90vh;object-fit:contain;border-radius:8px;
+    box-shadow:0 8px 40px rgba(0,0,0,0.8);display:block;" />
+</div>
