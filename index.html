@@ -677,6 +677,8 @@
   /* ── PERFORMANCE: promote carousel tracks to own GPU layer ── */
   #carousel-track, #carousel2-track { will-change: transform; }
 
+  footer { text-align: center; padding: 24px; border-top: 1px solid var(--border); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted2); margin-top: 40px; }
+
   /* ══════════════ MOBILE BOTTOM NAV ══════════════ */
   .mobile-nav {
     display: none;
@@ -1270,7 +1272,7 @@
   </div>
 </div>
 
-<footer>Beyblade RXS · Roxas City Community · Season 1</footer>
+<footer>Beyblade RXS · Roxas City Community · <span id="footer-season">Season 3</span></footer>
 <div class="toast" id="toast"></div>
 
 <!-- ══════════════ LOGIN MODAL ══════════════ -->
@@ -1435,6 +1437,8 @@ function updateSeasonDropdownUI() {
   if (btn) btn.classList.toggle('archive-mode', currentSeason === 2);
   if (itemS3) itemS3.classList.toggle('selected', currentSeason === 3);
   if (itemS2) itemS2.classList.toggle('selected', currentSeason === 2);
+  const footerSeason = document.getElementById('footer-season');
+  if (footerSeason) footerSeason.textContent = 'Season ' + currentSeason;
 }
 
 function toggleSeasonDropdown(e) {
