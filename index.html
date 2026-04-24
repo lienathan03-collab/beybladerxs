@@ -42,6 +42,31 @@
   nav button:hover, nav button.active { background: var(--surface2); color: var(--accent); }
   nav button.active { border-bottom: 2px solid var(--gold); border-radius: 6px 6px 0 0; }
 
+  /* SEASON SWITCHER */
+  .season-switcher {
+    display: flex; align-items: center; gap: 0;
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 20px; padding: 3px; margin: 0 8px; flex-shrink: 0;
+  }
+  .season-btn {
+    background: transparent; border: none; cursor: pointer;
+    font-family: 'Share Tech Mono', monospace; font-size: 11px;
+    font-weight: 700; letter-spacing: 1.5px; color: var(--muted);
+    padding: 4px 13px; border-radius: 14px; transition: all .18s;
+    white-space: nowrap;
+  }
+  .season-btn:hover { color: var(--gold); }
+  .season-btn.s2.active { background: var(--gold); color: #000; }
+  .season-btn.s3.active { background: var(--blue); color: #fff; }
+  .season-archive-banner {
+    display: none; background: #1a1200; border-bottom: 1px solid var(--gold);
+    padding: 7px 20px; text-align: center;
+    font-family: 'Share Tech Mono', monospace; font-size: 11px;
+    color: var(--gold); letter-spacing: 1.5px;
+  }
+  .season-archive-banner.visible { display: block; }
+  .season-archive-banner span { opacity: .7; margin: 0 12px; }
+
   /* ADMIN BADGE IN NAV */
   .nav-admin-btn {
     display: flex; align-items: center; gap: 6px;
@@ -750,8 +775,14 @@
     <button class="btn" style="font-size:11px;padding:5px 12px;" onclick="openPhotoModal()">📸 Edit Podium Photos</button>
     <button class="btn" style="font-size:11px;padding:5px 12px;" onclick="openHeroBgModal()">🖼 Edit Background</button>
     <button class="btn danger" style="font-size:11px;padding:5px 12px;" onclick="openResetModal()">🗑 Reset Data</button>
+    <button class="btn" style="font-size:11px;padding:5px 12px;background:#1a1200;border-color:var(--gold);color:var(--gold);" onclick="openSnapshotModal()">📦 Archive S2 → Start S3</button>
     <button class="btn danger" style="font-size:11px;padding:5px 12px;" onclick="adminLogout()">Logout</button>
   </div>
+</div>
+
+<!-- ══════════════ SEASON ARCHIVE BANNER ══════════════ -->
+<div class="season-archive-banner" id="season-archive-banner">
+  🏆 SEASON 2 ARCHIVE <span>—</span> View-only · All data is read-only
 </div>
 
 <header>
@@ -767,6 +798,10 @@
     <button onclick="showTab('challonge', this)">⚡ Challonge</button>
     <button onclick="showTab('points', this)">Points</button>
     <span class="nav-login-hint" id="nav-login-hint" style="display:none" onclick="openLoginModal()" title="Admin Login"></span>
+    <div class="season-switcher" id="season-switcher">
+      <button class="season-btn s2" id="season-btn-s2" onclick="switchSeason(2)">S2</button>
+      <button class="season-btn s3 active" id="season-btn-s3" onclick="switchSeason(3)">S3</button>
+    </div>
     <button class="nav-admin-btn" id="nav-admin-badge" style="display:none" onclick="adminLogout()">👑 Admin</button>
   </nav>
   <a href="https://www.facebook.com/profile.php?id=61574598407458" target="_blank" rel="noopener" class="fb-link" title="Find us on Facebook">
@@ -1258,7 +1293,41 @@
 let isAdmin = false;
 
 // ═══════════════════════════════════════════════════════
-//  DATA
+//  SEASON STATE
+// ═══════════════════════════════════════════════════════
+const ACTIVE_SEASON = 3;   // <-- bump this when a new season starts
+let currentSeason = 3;     // 3 = active, 2 = archive
+
+function isViewOnly() { return currentSeason !== ACTIVE_SEASON; }
+function getSeasonKey(s) { return 'gamedata_s' + (s || currentSeason); }
+
+function switchSeason(s) {
+  if (currentSeason === s) return;
+  currentSeason = s;
+  // Reset in-memory data so stale data doesn't flash
+  players = []; eventLabels = [];
+  podiumPhotos = {1:'',2:'',3:''}; heroBgUrl = '';
+  teamConfig = {}; bladerStats = {}; manualAchievements = {};
+  autoAchOverrides = {}; homePosts = []; homePosts2 = [];
+  rulersCupTeams = []; importedTournamentIds = []; publishedTournaments = [];
+  // Update switcher buttons
+  ['s2','s3'].forEach(k => {
+    const b = document.getElementById('season-btn-' + k);
+    if (b) b.classList.toggle('active', k === 's' + s);
+  });
+  // Toggle archive banner
+  const banner = document.getElementById('season-archive-banner');
+  if (banner) banner.classList.toggle('visible', isViewOnly());
+  // Toggle body class so admin-active CSS buttons hide in archive view
+  document.body.classList.toggle('season-readonly', isViewOnly());
+  // Re-render empty state immediately, then load real data
+  renderLeaderboard(); renderWeekly(); renderTeamTotals();
+  updateHeroStats(); renderAchievements(); renderCarousel();
+  renderCarousel2(); renderHomeSnapshot(); renderRulersCup();
+  cloudLoad();
+}
+
+
 // ═══════════════════════════════════════════════════════
 let players = [];
 let eventLabels = [];
@@ -1371,17 +1440,20 @@ function applyAdminUI() {
 //  Environment Variables — never exposed to the browser.
 // ═══════════════════════════════════════════════════════
 const DATA_API = '/api/data';
+function dataApiUrl(season) { return DATA_API + '?key=gamedata_s' + (season || currentSeason); }
 
 let cloudSaveTimeout = null;
 
 // ── localStorage fallback ──
-const LS_KEY = 'beyblade_rxs_data';
+const LS_KEY_BASE = 'beyblade_rxs_data';
+function getLsKey() { return LS_KEY_BASE + '_s' + currentSeason; }
 function localSave() {
-  try { localStorage.setItem(LS_KEY, JSON.stringify({ photos: podiumPhotos, heroBgUrl: heroBgUrl||'', players, eventLabels, importedIds: importedTournamentIds, teamConfig, bladerStats, manualAchs: manualAchievements, autoAchOv: autoAchOverrides, homePosts, homePosts2, rulersCupTeams })); } catch(e) {}
+  if (isViewOnly()) return; // never write over archive data
+  try { localStorage.setItem(getLsKey(), JSON.stringify({ photos: podiumPhotos, heroBgUrl: heroBgUrl||'', players, eventLabels, importedIds: importedTournamentIds, teamConfig, bladerStats, manualAchs: manualAchievements, autoAchOv: autoAchOverrides, homePosts, homePosts2, rulersCupTeams })); } catch(e) {}
 }
 function localLoad() {
   try {
-    const raw = localStorage.getItem(LS_KEY);
+    const raw = localStorage.getItem(getLsKey());
     if (!raw) return false;
     const d = JSON.parse(raw);
     if (d.photos)                    { podiumPhotos = d.photos; applyPodiumPhotos(); }
@@ -1405,7 +1477,7 @@ function localLoad() {
 async function cloudLoad() {
   localLoad(); // show local data instantly while cloud fetches
   try {
-    const res = await fetch(DATA_API);
+    const res = await fetch(dataApiUrl());
     if (!res.ok) {
       console.error('[Cloud] Load failed:', res.status, await res.text());
       showToast('⚠️ Cloud load failed (' + res.status + ')', 'error');
@@ -1437,7 +1509,7 @@ async function cloudSave() {
   clearTimeout(cloudSaveTimeout);
   cloudSaveTimeout = setTimeout(async () => {
     try {
-      const res = await fetch(DATA_API, {
+      const res = await fetch(dataApiUrl(), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1501,7 +1573,7 @@ function applyPodiumPhotos() {
 }
 
 function adminEditPhoto(n) {
-  if (!isAdmin) return;
+  if (!isAdmin || isViewOnly()) return;
   openPhotoModal();
   setTimeout(()=> document.getElementById('photo-url-'+n).focus(), 200);
 }
@@ -2026,6 +2098,7 @@ function importTournamentResults() {
 }
 
 function confirmImportFinal(labelEnc, resultsEnc, tidEnc, turlEnc) {
+  if (isViewOnly()) { showToast('⛔ Season 2 is read-only', 'error'); return; }
   const baseResults = JSON.parse(decodeURIComponent(resultsEnc));
   const tournamentId = decodeURIComponent(tidEnc);
   const tournamentUrl = decodeURIComponent(turlEnc);
@@ -2050,6 +2123,7 @@ function confirmImportFinal(labelEnc, resultsEnc, tidEnc, turlEnc) {
 }
 
 async function confirmImport(labelEnc, resultsEnc, tournamentId, tournamentUrl) {
+  if (isViewOnly()) { showToast('⛔ Season 2 is read-only', 'error'); return; }
   const label = decodeURIComponent(labelEnc);
   const results = JSON.parse(decodeURIComponent(resultsEnc));
   eventLabels.push(label);
@@ -2227,6 +2301,7 @@ function closeRCModal() {
 }
 
 function saveRCTeam() {
+  if (isViewOnly()) { showToast('⛔ Season 2 is read-only', 'error'); return; }
   const name = document.getElementById('rc-name-input').value.trim();
   const pts = parseInt(document.getElementById('rc-pts-input').value) || 0;
   const urlInput = document.getElementById('rc-photo-input').value.trim();
@@ -2244,6 +2319,7 @@ function saveRCTeam() {
 }
 
 function deleteRCTeam(idx) {
+  if (isViewOnly()) { showToast('⛔ Season 2 is read-only', 'error'); return; }
   if (!confirm('Delete this team?')) return;
   rulersCupTeams.splice(idx, 1);
   renderRulersCup();
@@ -2629,6 +2705,7 @@ function editAutoAch(autoKey) {
 }
 
 function saveAchModal() {
+  if (isViewOnly()) { showToast('⛔ Season 2 is read-only', 'error'); return; }
   const idxRaw = document.getElementById('ach-modal-idx').value;
   const a = {
     icon: document.getElementById('ach-modal-icon').value.trim() || '🏆',
@@ -2660,6 +2737,7 @@ function saveAchModal() {
 }
 
 function deleteAchModal() {
+  if (isViewOnly()) { showToast('⛔ Season 2 is read-only', 'error'); return; }
   const idxRaw = document.getElementById('ach-modal-idx').value;
   if (idxRaw.startsWith('manual:')) {
     const idx = parseInt(idxRaw.replace('manual:', ''));
@@ -2918,6 +2996,7 @@ function clearBgPhoto() {
 }
 
 function saveBladerProfile() {
+  if (isViewOnly()) { showToast('⛔ Season 2 is read-only', 'error'); return; }
   const name = document.getElementById('pe-name').value;
   if (!name) return;
   const st = ensureBladerStats(name);
@@ -3012,6 +3091,7 @@ function previewTeamLogo(url) {
   }
 }
 function applyTeamEdit() {
+  if (isViewOnly()) { showToast('⛔ Season 2 is read-only', 'error'); return; }
   const key = document.getElementById('team-edit-key').value;
   if (!teamConfig[key]) return;
   teamConfig[key].name   = document.getElementById('team-edit-name').value.trim() || key;
@@ -3028,7 +3108,7 @@ function applyTeamEdit() {
 //  MANUAL SAVE BUTTON
 // ═══════════════════════════════════════════════════════
 async function adminManualSave() {
-  if (!isAdmin) return;
+  if (!isAdmin || isViewOnly()) { showToast('⛔ Season 2 is read-only', 'error'); return; }
   const btn = document.querySelector('.admin-bar-actions .btn.primary');
   if (btn) { btn.textContent = '⏳ Saving…'; btn.disabled = true; }
   await cloudSave();
@@ -3042,6 +3122,98 @@ async function adminManualSave() {
 // ═══════════════════════════════════════════════════════
 //  RESET MODAL
 // ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+//  SEASON SNAPSHOT — Archive S2 & Start S3
+// ═══════════════════════════════════════════════════════
+function openSnapshotModal() {
+  if (!isAdmin) return;
+  document.getElementById('snapshot-confirm-check').checked = false;
+  document.getElementById('snapshot-error').textContent = '';
+  document.getElementById('snapshot-modal').classList.add('open');
+}
+function closeSnapshotModal() {
+  document.getElementById('snapshot-modal').classList.remove('open');
+}
+async function executeSnapshot() {
+  if (!isAdmin) return;
+  if (!document.getElementById('snapshot-confirm-check').checked) {
+    document.getElementById('snapshot-error').textContent = 'Please check the confirmation box first.';
+    return;
+  }
+  const btn = document.getElementById('snapshot-exec-btn');
+  btn.textContent = '⏳ Archiving…';
+  btn.disabled = true;
+  document.getElementById('snapshot-error').textContent = '';
+
+  try {
+    // 1. Save current S2 data under the gamedata_s2 key (frozen archive)
+    const s2Payload = {
+      photos: podiumPhotos,
+      heroBgUrl: heroBgUrl || '',
+      players: players,
+      eventLabels: eventLabels,
+      importedIds: importedTournamentIds,
+      teamConfig: teamConfig,
+      bladerStats: bladerStats,
+      manualAchs: manualAchievements,
+      autoAchOv: autoAchOverrides,
+      homePosts: homePosts,
+      homePosts2: homePosts2,
+      rulersCupTeams: rulersCupTeams
+    };
+    const archiveRes = await fetch(dataApiUrl(2), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(s2Payload)
+    });
+    if (!archiveRes.ok) throw new Error('Archive save failed: ' + archiveRes.status);
+
+    // 2. Build fresh S3 data — same players/teams, scores zeroed
+    const s3Players = players.map(p => ({
+      no: p.no,
+      name: p.name,
+      scores: [],
+      total: 0,
+      rank: 0
+    }));
+    // Re-rank (all tied at 0)
+    s3Players.forEach((p, i) => { p.rank = 1; });
+
+    // Keep teamConfig & rulersCupTeams structure, reset points to 0
+    const s3RulersCupTeams = rulersCupTeams.map(t => ({ ...t, points: 0 }));
+
+    const s3Payload = {
+      photos: { 1: '', 2: '', 3: '' },
+      heroBgUrl: heroBgUrl || '',
+      players: s3Players,
+      eventLabels: [],
+      importedIds: [],
+      teamConfig: teamConfig,
+      bladerStats: {},
+      manualAchs: [],
+      autoAchOv: {},
+      homePosts: [],
+      homePosts2: [],
+      rulersCupTeams: s3RulersCupTeams
+    };
+    const s3Res = await fetch(dataApiUrl(3), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(s3Payload)
+    });
+    if (!s3Res.ok) throw new Error('S3 init failed: ' + s3Res.status);
+
+    // 3. Switch UI to Season 3
+    closeSnapshotModal();
+    showToast('✅ Season 2 archived! Welcome to Season 3 🎉', 'success');
+    switchSeason(3);
+  } catch(e) {
+    document.getElementById('snapshot-error').textContent = '❌ ' + e.message;
+    btn.textContent = '📦 Archive & Start S3';
+    btn.disabled = false;
+  }
+}
+
 function openResetModal() {
   if (!isAdmin) return;
   document.getElementById('reset-scores').checked = false;
@@ -3113,6 +3285,7 @@ function openAddTeamModal() {
 }
 function closeAddTeamModal() { document.getElementById('add-team-modal').classList.remove('open'); }
 function applyAddTeam() {
+  if (isViewOnly()) { showToast('⛔ Season 2 is read-only', 'error'); return; }
   const key   = document.getElementById('add-team-key').value.trim().toUpperCase();
   const name  = document.getElementById('add-team-name').value.trim();
   const logo  = document.getElementById('add-team-logo').value.trim();
@@ -3135,7 +3308,7 @@ function applyAddTeam() {
 //  DELETE TEAM
 // ═══════════════════════════════════════════════════════
 function confirmDeleteTeam(key) {
-  if (!isAdmin) return;
+  if (!isAdmin || isViewOnly()) return;
   const cfg = teamConfig[key];
   if (!cfg) return;
   if (!confirm('Delete team "' + cfg.name + '"? Players with this prefix will become Independent.')) return;
@@ -3385,6 +3558,7 @@ function previewPostImage2(url) {
   } else { el.innerHTML = '🖼'; }
 }
 function savePost2() {
+  if (isViewOnly()) { showToast('⛔ Season 2 is read-only', 'error'); return; }
   const img = document.getElementById('post2-img-url').value.trim();
   const caption = document.getElementById('post2-caption').value.trim();
   const fbUrl = document.getElementById('post2-fb-url').value.trim();
@@ -3399,6 +3573,7 @@ function savePost2() {
   showToast(idxRaw === '' ? 'Post added!' : 'Post updated!', 'success');
 }
 function deletePost2() {
+  if (isViewOnly()) { showToast('⛔ Season 2 is read-only', 'error'); return; }
   const idx = parseInt(document.getElementById('post-modal2-idx').value);
   if (isNaN(idx)) return;
   homePosts2.splice(idx, 1);
@@ -3443,6 +3618,7 @@ function previewPostImage(url) {
   } else { el.innerHTML = '🖼'; }
 }
 function savePost() {
+  if (isViewOnly()) { showToast('⛔ Season 2 is read-only', 'error'); return; }
   const img = document.getElementById('post-img-url').value.trim();
   const caption = document.getElementById('post-caption').value.trim();
   const fbUrl = document.getElementById('post-fb-url').value.trim();
@@ -3457,6 +3633,7 @@ function savePost() {
   showToast(idxRaw === '' ? 'Post added!' : 'Post updated!', 'success');
 }
 function deletePost() {
+  if (isViewOnly()) { showToast('⛔ Season 2 is read-only', 'error'); return; }
   const idx = parseInt(document.getElementById('post-modal-idx').value);
   if (isNaN(idx)) return;
   homePosts.splice(idx, 1);
@@ -3560,6 +3737,7 @@ function cancelWeeklyEdit() {
 }
 
 function saveWeeklyEdits() {
+  if (isViewOnly()) { showToast('⛔ Season 2 is read-only', 'error'); return; }
   // Read all editable cells back into players
   document.querySelectorAll('.weekly-score-input').forEach(inp => {
     const playerName = decodeURIComponent(inp.dataset.player);
@@ -3597,6 +3775,7 @@ function openWeeklyAddColModal() {
 }
 function closeWeeklyAddColModal() { document.getElementById('weekly-addcol-modal').classList.remove('open'); }
 function applyWeeklyAddCol() {
+  if (isViewOnly()) { showToast('⛔ Season 2 is read-only', 'error'); return; }
   const label = document.getElementById('weekly-addcol-label').value.trim();
   if (!label) { document.getElementById('weekly-addcol-error').textContent = 'Label is required.'; return; }
   eventLabels.push(label);
@@ -3654,6 +3833,7 @@ function previewBulkAdd() {
 }
 
 function executeBulkAdd() {
+  if (isViewOnly()) { showToast('⛔ Season 2 is read-only', 'error'); return; }
   const raw = document.getElementById('bulk-names-input').value;
   const names = raw.split('\n').map(s => s.trim()).filter(Boolean);
   const errEl = document.getElementById('bulk-add-error');
@@ -3863,6 +4043,39 @@ function executeBulkAdd() {
   </div>
 </div>
 
+
+<!-- ══════════════ SNAPSHOT / SEASON TRANSITION MODAL ══════════════ -->
+<div class="modal-overlay" id="snapshot-modal">
+  <div class="modal" style="max-width:460px">
+    <button class="modal-close" onclick="closeSnapshotModal()">✕</button>
+    <div class="modal-title" style="color:var(--gold)">📦 Archive S2 &amp; Start S3</div>
+    <div class="modal-sub">Freeze Season 2 as a read-only archive and create a fresh Season 3 slate.</div>
+    <div style="margin:20px 0;display:flex;flex-direction:column;gap:10px;">
+      <div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:14px 16px;">
+        <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:14px;letter-spacing:1px;margin-bottom:6px;color:var(--gold)">📸 What gets archived (Season 2)</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.9">✔ All player scores &amp; weekly history<br>✔ Rulers Cup standings<br>✔ Achievements &amp; blader stats<br>✔ Challonge history &amp; posts<br>✔ Podium photos &amp; hero background</div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:14px 16px;">
+        <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:14px;letter-spacing:1px;margin-bottom:6px;color:var(--blue)">🆕 Season 3 starts with</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.9">✔ Same player roster (all scores reset to 0)<br>✔ Same teams &amp; Rulers Cup config<br>✔ Event columns cleared (fresh schedule)<br>✔ Achievements &amp; blader stats cleared<br>✔ Challonge &amp; tournament history cleared</div>
+      </div>
+      <div style="background:#2a0a0a;border:1px solid rgba(192,48,48,0.4);border-radius:10px;padding:12px 16px;font-size:12px;color:#f88;">
+        ⚠️ <strong>This cannot be undone.</strong> Season 2 will become permanently read-only. Save all data first.
+      </div>
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:10px;cursor:pointer;">
+        <input type="checkbox" id="snapshot-confirm-check" style="width:16px;height:16px;accent-color:var(--gold)" />
+        I understand — archive Season 2 and start Season 3
+      </label>
+    </div>
+    <div class="modal-error" id="snapshot-error" style="color:var(--red);margin-bottom:8px;"></div>
+    <div class="modal-actions">
+      <button class="btn" style="background:#1a1200;border-color:var(--gold);color:var(--gold);flex:1;" id="snapshot-exec-btn" onclick="executeSnapshot()">📦 Archive &amp; Start S3</button>
+      <button class="btn" onclick="closeSnapshotModal()">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <!-- ══════════════ RESET MODAL ══════════════ -->
 <div class="modal-overlay" id="reset-modal">
