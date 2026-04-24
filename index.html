@@ -1338,7 +1338,8 @@ function switchSeason(s) {
   teamConfig = {}; bladerStats = {}; manualAchievements = [];
   autoAchOverrides = {};
   rulersCupTeams = []; importedTournamentIds = []; publishedTournaments = [];
-  // Clear Challonge cache AND wipe the Challonge DOM so stale season data doesn't linger
+  // Clear Challonge cache AND cancel any in-flight async loads
+  challongeLoadGen++;
   Object.keys(challongeCache).forEach(k => delete challongeCache[k]);
   const pubHero = document.getElementById('pub-hero');
   const pubOthers = document.getElementById('pub-others');
@@ -1580,13 +1581,17 @@ async function cloudLoadHomePosts() {
   localLoadHomePosts(); // show cached posts instantly
   try {
     const res = await fetch(HOME_DATA_API);
-    if (!res.ok) return;
+    if (!res.ok) { console.warn('[Cloud] Home posts load failed:', res.status); return; }
     const data = await res.json();
-    if (data.homePosts)  { homePosts  = data.homePosts; }
-    if (data.homePosts2) { homePosts2 = data.homePosts2; }
+    console.log('[Cloud] homedata raw:', JSON.stringify(data).slice(0, 200));
+    // Only overwrite if cloud actually has posts — don't replace with empty arrays
+    if (data.homePosts  && data.homePosts.length  > 0) homePosts  = data.homePosts;
+    if (data.homePosts2 && data.homePosts2.length > 0) homePosts2 = data.homePosts2;
     renderCarousel(); renderCarousel2();
-    // Cache locally
-    try { localStorage.setItem('beyblade_rxs_homeposts', JSON.stringify({ homePosts, homePosts2 })); } catch(e) {}
+    // Cache locally only if we got real data
+    if ((homePosts && homePosts.length) || (homePosts2 && homePosts2.length)) {
+      try { localStorage.setItem('beyblade_rxs_homeposts', JSON.stringify({ homePosts, homePosts2 })); } catch(e) {}
+    }
   } catch(e) { console.error('[Cloud] Home posts load error:', e); }
 }
 
@@ -1924,14 +1929,26 @@ function findPlayerByName(challongeName) {
   return null;
 }
 
+// ── Generation counter — incremented on every season switch to cancel stale async loads ──
+let challongeLoadGen = 0;
+
+// Safe DOM helper — returns null silently if element doesn't exist
+function pubEl(id) { return document.getElementById(id); }
+function pubShow(id, display) { const el = pubEl(id); if (el) el.style.display = display; }
+function pubHtml(id, html) { const el = pubEl(id); if (el) el.innerHTML = html; }
+
 // ── PUBLIC VIEW: auto-load best tournament ──
 async function loadPublicTournaments() {
-  document.getElementById('pub-loading').style.display = 'flex';
-  document.getElementById('pub-hero').style.display = 'none';
-  document.getElementById('pub-others').style.display = 'none';
-  document.getElementById('pub-error').style.display = 'none';
+  const gen = ++challongeLoadGen; // capture generation for this call
+  pubShow('pub-loading', 'flex');
+  pubShow('pub-hero', 'none');
+  pubShow('pub-others', 'none');
+  pubShow('pub-error', 'none');
+  pubHtml('pub-hero', '');
+  pubHtml('pub-others', '');
   try {
     const data = await fetchChallonge('?action=list');
+    if (gen !== challongeLoadGen) return; // season switched while we were waiting — discard
     if (!data || !data.length) { showPubError('No tournaments found.'); return; }
     const stateOrder = {underway:0, pending:1, complete:2};
     const sorted = [...data].sort((a,b) => {
@@ -1939,31 +1956,35 @@ async function loadPublicTournaments() {
       if (sa !== sb) return sa - sb;
       return new Date(b.tournament.created_at) - new Date(a.tournament.created_at);
     });
-    // Fetch participants in parallel with rendering tabs
     const [featuredTour] = sorted;
     const [,participantsData] = await Promise.all([
       Promise.resolve(renderPublicTabs(sorted)),
       fetchChallonge(`?action=participants&tournament_id=${encodeURIComponent(featuredTour.tournament.url)}`).catch(()=>[])
     ]);
-    await renderFeaturedTournament(featuredTour.tournament, participantsData);
-    document.getElementById('pub-loading').style.display = 'none';
-    document.getElementById('pub-others').style.display = 'block';
-  } catch(e) { showPubError(e.message); }
+    if (gen !== challongeLoadGen) return; // stale — discard
+    await renderFeaturedTournament(featuredTour.tournament, participantsData, gen);
+    if (gen !== challongeLoadGen) return;
+    pubShow('pub-loading', 'none');
+    pubShow('pub-others', 'block');
+  } catch(e) { if (gen === challongeLoadGen) showPubError(e.message); }
 }
 
 function showPubError(msg) {
-  document.getElementById('pub-loading').style.display = 'none';
-  document.getElementById('pub-error').style.display = 'block';
-  document.getElementById('pub-error-msg').textContent = msg;
+  pubShow('pub-loading', 'none');
+  pubShow('pub-error', 'block');
+  const msgEl = pubEl('pub-error-msg');
+  if (msgEl) msgEl.textContent = msg;
 }
 
-async function renderFeaturedTournament(tour, prefetchedParticipants) {
+async function renderFeaturedTournament(tour, prefetchedParticipants, gen) {
   const state = tour.state;
   const stateLabel = {underway:'🔴 LIVE', complete:'✅ Complete', pending:'⏳ Upcoming'}[state] || state;
   const stateClass = {underway:'live', complete:'complete', pending:'pending'}[state] || 'pending';
   const date = tour.started_at ? new Date(tour.started_at).toLocaleDateString('en-PH', {year:'numeric',month:'long',day:'numeric'}) : 'Not started yet';
   const isImported = importedTournamentIds.includes(String(tour.id));
   const heroEl = document.getElementById('pub-hero');
+  if (!heroEl) return; // tab not in DOM yet
+  if (gen !== undefined && gen !== challongeLoadGen) return; // stale call
   heroEl.innerHTML = '<div class="skel-card" style="height:80px;margin-bottom:12px"></div><div class="skel-card" style="height:120px"></div>';
   heroEl.style.display = 'block';
   let participants = [];
@@ -1993,6 +2014,7 @@ async function renderFeaturedTournament(tour, prefetchedParticipants) {
   const autoBanner = (state === 'complete' && !isImported) ? `
     <div class="auto-import-banner"><div class="aib-icon">💡</div><div>This tournament is <strong>complete</strong> but not yet added to the leaderboard. <strong>Admin can import</strong> from the Admin panel.</div></div>` :
     (isImported ? `<div class="auto-import-banner" style="background:#0a0f1a;border-color:var(--blue)"><div class="aib-icon">✅</div><div style="color:#5a9fd4">Results from this tournament have been <strong style="color:var(--blue)">added to the leaderboard</strong>.</div></div>` : '');
+  if (gen !== undefined && gen !== challongeLoadGen) return; // stale
   heroEl.innerHTML = `
     <div class="challonge-live-hero state-${stateClass}">
       <div class="clh-top">
