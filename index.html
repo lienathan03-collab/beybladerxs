@@ -9,7 +9,11 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="preconnect" href="https://api.jsonbin.io" crossorigin />
 <link rel="preconnect" href="https://i.imgur.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap" rel="stylesheet">
+<!-- Rajdhani: only weights actually used (600,700,800 via bold). 400/500 removed.  -->
+<!-- Exo 2: only 400,600,800 used (body text + search input + bold). 300 removed.   -->
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Share+Tech+Mono&family=Exo+2:wght@400;600;800&display=swap" />
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Share+Tech+Mono&family=Exo+2:wght@400;600;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+<noscript><link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Share+Tech+Mono&family=Exo+2:wght@400;600;800&display=swap" rel="stylesheet" /></noscript>
 <style>
   :root {
     --bg: #080808; --surface: #0f0f0f; --surface2: #161616; --surface3: #1e1e1e;
@@ -375,6 +379,44 @@
   .profile-edit-field input:focus { border-color: var(--gold); }
   .profile-edit-field.full { grid-column: 1 / -1; }
 
+  /* PLAYER PROFILE SEASON TABS */
+  .profile-season-tabs {
+    display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;
+  }
+  .profile-season-tab {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 8px; padding: 8px 4px; cursor: pointer;
+    font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase; color: var(--muted);
+    transition: all .15s; text-align: center;
+  }
+  .profile-season-tab:hover { border-color: var(--gold); color: var(--text); }
+  .profile-season-tab.active { background: #1a1200; border-color: var(--gold); color: var(--gold2); }
+  .profile-season-tab .tab-pts {
+    display: block; font-family: 'Share Tech Mono', monospace;
+    font-size: 16px; color: var(--accent); margin-top: 2px;
+  }
+  .profile-season-tab.active .tab-pts { color: var(--gold2); }
+  .profile-season-pane { display: none; }
+  .profile-season-pane.active { display: block; }
+  .profile-overall-banner {
+    background: linear-gradient(135deg, #1a1200, #0d0d0d);
+    border: 1px solid var(--gold); border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .profile-overall-banner .ob-pts {
+    font-family: 'Share Tech Mono', monospace; font-size: 28px;
+    color: var(--gold2); font-weight: 700; flex-shrink: 0;
+  }
+  .profile-overall-banner .ob-label {
+    font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted);
+  }
+  .profile-overall-banner .ob-rank {
+    font-family: 'Rajdhani', sans-serif; font-size: 14px;
+    font-weight: 700; color: var(--accent); margin-top: 2px;
+  }
+
   /* SEASON KING badge */
   .season-king-badge {
     display: inline-flex; align-items: center; gap: 5px;
@@ -626,7 +668,14 @@
   .admin-bar-text { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--gold); letter-spacing: 1px; }
   .admin-bar-actions { margin-left: auto; display: flex; gap: 8px; }
 
-  footer { text-align: center; padding: 24px; border-top: 1px solid var(--border); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted2); margin-top: 40px; }
+  /* ── PERFORMANCE: skip rendering off-screen tab content ── */
+  .section:not(.active) {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 600px;
+  }
+
+  /* ── PERFORMANCE: promote carousel tracks to own GPU layer ── */
+  #carousel-track, #carousel2-track { will-change: transform; }
 
   /* ══════════════ MOBILE BOTTOM NAV ══════════════ */
   .mobile-nav {
@@ -796,6 +845,7 @@
     <button class="btn" style="font-size:11px;padding:5px 12px;" onclick="openHeroBgModal()">🖼 Edit Background</button>
     <button class="btn danger" style="font-size:11px;padding:5px 12px;" onclick="openResetModal()">🗑 Reset Data</button>
     <button class="btn" style="font-size:11px;padding:5px 12px;background:#1a1200;border-color:var(--gold);color:var(--gold);" onclick="openSnapshotModal()">📦 Archive S2 → Start S3</button>
+    <button class="btn" style="font-size:11px;padding:5px 12px;" onclick="openAccountsPanel()">👥 Accounts</button>
     <button class="btn danger" style="font-size:11px;padding:5px 12px;" onclick="adminLogout()">Logout</button>
   </div>
 </div>
@@ -818,6 +868,8 @@
     <button onclick="showTab('challonge', this)">⚡ Challonge</button>
     <button onclick="showTab('points', this)">Points</button>
     <span class="nav-login-hint" id="nav-login-hint" style="display:none" onclick="openLoginModal()" title="Admin Login"></span>
+    <span class="nav-player-login-hint" id="nav-player-login-hint" onclick="openPlayerLoginModal()" title="Player Login" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted2);padding:6px 10px;letter-spacing:1px;cursor:pointer;border-radius:6px;transition:color .15s;" onmouseover="this.style.color='var(--muted)'" onmouseout="this.style.color='var(--muted2)'">👤 Login</span>
+    <button class="nav-player-badge" id="nav-player-badge" style="display:none;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px;font-size:12px;padding:6px 12px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px;" onclick="openPlayerMenuModal()">👤 <span id="nav-player-name"></span></button>
     <div class="season-switcher" id="season-switcher">
       <div class="season-dropdown" id="season-dropdown">
         <button class="season-dropdown-btn" id="season-dropdown-btn" onclick="toggleSeasonDropdown(event)">
@@ -1207,7 +1259,7 @@
         <input class="form-input" id="rc-photo-input" placeholder="or paste image URL..." style="flex:1" oninput="if(this.value){window._rcPhotoBase64=null;document.getElementById('rc-photo-preview-img').src=this.value;document.getElementById('rc-photo-preview').style.display='block'}else{document.getElementById('rc-photo-preview').style.display='none'}" />
       </div>
       <div id="rc-photo-preview" style="display:none;margin-top:6px;text-align:center">
-        <img id="rc-photo-preview-img" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid var(--border2)" />
+        <img id="rc-photo-preview-img" loading="lazy" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid var(--border2)" />
       </div>
     </div>
     <div class="modal-error" id="rc-modal-error"></div>
@@ -1257,17 +1309,17 @@
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
       <div style="text-align:center">
         <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin-bottom:6px">👑 1st</div>
-        <img id="prev-1" class="photo-preview" src="" onerror="this.style.display='none'" style="display:none" />
+        <img id="prev-1" loading="lazy" class="photo-preview" src="" onerror="this.style.display='none'" style="display:none" />
         <div id="prev-1-sil" style="width:80px;height:80px;border-radius:50%;background:#1a1200;border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 6px">🧍</div>
       </div>
       <div style="text-align:center">
         <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--silver);margin-bottom:6px">🥈 2nd</div>
-        <img id="prev-2" class="photo-preview" src="" onerror="this.style.display='none'" style="display:none" />
+        <img id="prev-2" loading="lazy" class="photo-preview" src="" onerror="this.style.display='none'" style="display:none" />
         <div id="prev-2-sil" style="width:80px;height:80px;border-radius:50%;background:#141414;border:2px solid var(--silver);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 6px">🧍</div>
       </div>
       <div style="text-align:center">
         <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--bronze);margin-bottom:6px">🥉 3rd</div>
-        <img id="prev-3" class="photo-preview" src="" onerror="this.style.display='none'" style="display:none" />
+        <img id="prev-3" loading="lazy" class="photo-preview" src="" onerror="this.style.display='none'" style="display:none" />
         <div id="prev-3-sil" style="width:80px;height:80px;border-radius:50%;background:#1a0e08;border:2px solid var(--bronze);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 6px">🧍</div>
       </div>
     </div>
@@ -1463,6 +1515,7 @@ async function doLogin() {
     const data = await res.json();
     if (res.ok && data.success) {
       isAdmin = true;
+      _storeAdminCreds(u, p);
       closeLoginModal();
       applyAdminUI();
       showToast('Welcome, ' + u + '! Admin mode active.', 'success');
@@ -1479,6 +1532,8 @@ async function doLogin() {
 
 function adminLogout() {
   isAdmin = false;
+  _acAdminUsername = '';
+  _acAdminPassword = '';
   document.getElementById('admin-bar').classList.remove('visible');
   document.getElementById('nav-admin-badge').style.display = 'none';
   document.getElementById('nav-login-hint').style.display = '';
@@ -1701,7 +1756,7 @@ async function cloudSave() {
         showToast('⚠️ Cloud save failed (' + res.status + ')', 'error');
       } else { console.log('[Cloud] Saved OK'); }
     } catch(e) { console.error('[Cloud] Save error:', e); }
-  }, 800);
+  }, 1200); // 1200ms debounce — batches rapid edits into one KV write
 }
 
 // ═══════════════════════════════════════════════════════
@@ -3218,7 +3273,7 @@ function clearBgPhoto() {
   }
 }
 
-function saveBladerProfile() {
+async function saveBladerProfile() {
   if (isViewOnly()) { showToast('⛔ Season 2 is read-only', 'error'); return; }
   const name = document.getElementById('pe-name').value;
   if (!name) return;
@@ -3233,24 +3288,30 @@ function saveBladerProfile() {
   if (burstVal   !== '') st.burstFinishes   = parseInt(burstVal)   || 0;
   if (extremeVal !== '') st.extremeFinishes = parseInt(extremeVal) || 0;
   const addSpin = 0, addBurst = 0, addExtreme = 0; // kept for toast message compat
-  // handle rename
+
+  // ── Handle rename ──
   const newDisplayName = document.getElementById('pe-display-name').value.trim();
-  if (newDisplayName && newDisplayName !== name) {
+  const isRename = newDisplayName && newDisplayName !== name;
+  if (isRename) {
     const p = players.find(pl => pl.name === name);
     if (p) {
-      // move bladerStats to new key
+      // Move bladerStats to new key in active season
       bladerStats[newDisplayName] = st;
       delete bladerStats[name];
       p.name = newDisplayName;
     }
   }
+
+  // Resolve the effective name for subsequent operations (post-rename)
+  const effectiveName = isRename ? newDisplayName : name;
+
   // event score overrides — only update slots where admin typed a value
   const evInputs = document.querySelectorAll('.pe-event-score-input');
   evInputs.forEach(inp => {
     const idx = parseInt(inp.dataset.eventIdx);
     const val = inp.value.trim();
     if (val === '' || isNaN(idx)) return;
-    const p = players.find(pl => pl.name === name);
+    const p = players.find(pl => pl.name === effectiveName);
     if (!p || idx >= p.scores.length) return;
     const oldVal = p.scores[idx] || 0;
     const newVal = parseInt(val) || 0;
@@ -3278,10 +3339,122 @@ function saveBladerProfile() {
   document.getElementById('pe-wins-input').value     = '';
   document.getElementById('pe-losses-input').value   = '';
   document.getElementById('pe-matchpts-input').value = '';
+
+  // ── Cross-season + accounts rename sync ──
+  if (isRename) {
+    await syncRenameAcrossSeasons(name, newDisplayName);
+  }
+
   cloudSave();
   renderLeaderboard(); renderWeekly(); updateHeroStats(); renderAchievements(); applyPodiumPhotos();
-  openBladerProfile(name);
-  showToast(`Saved! +${addSpin} spin, +${addBurst} burst, +${addExtreme} extreme`, 'success');
+  openBladerProfile(effectiveName);
+  showToast(isRename
+    ? `✅ Renamed "${name}" → "${newDisplayName}" and synced across all seasons`
+    : `Saved! +${addSpin} spin, +${addBurst} burst, +${addExtreme} extreme`,
+    'success');
+}
+
+// ═══════════════════════════════════════════════════════
+//  CROSS-SEASON RENAME SYNC
+//  Renames a player in gamedata_s2, gamedata_s3, and accounts KV.
+//  The active season is already updated in memory by saveBladerProfile
+//  before this is called, so we skip it here.
+// ═══════════════════════════════════════════════════════
+async function syncRenameAcrossSeasons(oldName, newName) {
+  const SEASONS = [2, 3];
+  const errors = [];
+
+  for (const s of SEASONS) {
+    // Skip the currently active season — already updated in memory and will
+    // be written by the cloudSave() call that follows this function.
+    if (s === currentSeason) continue;
+    try {
+      const res = await fetch(DATA_API + '?key=gamedata_s' + s);
+      if (!res.ok) continue; // Season data doesn't exist yet — skip silently
+      const data = await res.json();
+      if (!data || !data.players) continue;
+
+      let changed = false;
+
+      // Rename in players array
+      data.players.forEach(p => {
+        if (p.name === oldName) { p.name = newName; changed = true; }
+      });
+
+      // Rename in bladerStats
+      if (data.bladerStats && data.bladerStats[oldName] !== undefined) {
+        data.bladerStats[newName] = data.bladerStats[oldName];
+        delete data.bladerStats[oldName];
+        changed = true;
+      }
+
+      if (!changed) continue;
+
+      const putRes = await fetch(DATA_API + '?key=gamedata_s' + s, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!putRes.ok) errors.push('S' + s + ' save failed (' + putRes.status + ')');
+      else console.log('[Rename] Season ' + s + ' updated: ' + oldName + ' → ' + newName);
+    } catch(e) {
+      errors.push('S' + s + ': ' + e.message);
+    }
+  }
+
+  // Sync accounts — update displayName and any alias that exactly matches oldName
+  try {
+    const acRes = await fetch('/api/accounts');
+    if (acRes.ok) {
+      const accounts = await acRes.json();
+      let acChanged = false;
+      Object.keys(accounts).forEach(username => {
+        const acc = accounts[username];
+        // Update displayName if it matched the old name
+        if (acc.displayName === oldName) { acc.displayName = newName; acChanged = true; }
+        // Update any alias that matched the old name
+        if (Array.isArray(acc.aliases)) {
+          acc.aliases = acc.aliases.map(a => a === oldName ? newName : a);
+          // mark changed only if an alias was actually renamed
+          if (acc.aliases.some((a, i) => a !== (accounts[username].aliases[i]))) acChanged = true;
+        }
+      });
+      if (acChanged && _acAdminUsername && _acAdminPassword) {
+        const putRes = await fetch('/api/accounts', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ adminUsername: _acAdminUsername, adminPassword: _acAdminPassword, accounts })
+        });
+        if (!putRes.ok) errors.push('Accounts save failed (' + putRes.status + ')');
+        else {
+          console.log('[Rename] Accounts updated: ' + oldName + ' → ' + newName);
+          // Refresh local cache if accounts panel is open
+          _acAccounts = accounts;
+        }
+      } else if (acChanged) {
+        console.warn('[Rename] Accounts need rename but admin creds not cached — skipping accounts sync');
+        errors.push('Accounts not synced (log out and back in to refresh)');
+      }
+    }
+  } catch(e) {
+    errors.push('Accounts: ' + e.message);
+  }
+
+  // Also update in-session player if they were the renamed one
+  if (playerSession && playerSession.account) {
+    if (playerSession.account.displayName === oldName) {
+      playerSession.account.displayName = newName;
+      applyPlayerUI();
+    }
+    if (Array.isArray(playerSession.account.aliases)) {
+      playerSession.account.aliases = playerSession.account.aliases.map(a => a === oldName ? newName : a);
+    }
+  }
+
+  if (errors.length) {
+    console.warn('[Rename] Some syncs failed:', errors);
+    showToast('⚠ Rename partial: ' + errors.join('; '), 'error');
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -3665,7 +3838,9 @@ function goToSlide(idx) { carouselIdx = (idx + homePosts.length) % homePosts.len
 function carouselMove(dir) { goToSlide(carouselIdx + dir); resetCarouselTimer(); }
 
 // Re-render carousel on resize/orientation change so widths stay correct
-window.addEventListener('resize', () => { if (homePosts.length) renderCarousel(); });
+// Debounced resize — avoids layout thrash on every pixel during drag
+let _resizeTimer;
+window.addEventListener('resize', () => { clearTimeout(_resizeTimer); _resizeTimer = setTimeout(() => { if (homePosts.length) renderCarousel(); if (homePosts2.length) renderCarousel2(); }, 120); }, { passive: true });
 function startCarouselTimer() { stopCarouselTimer(); if (homePosts.length > 1) carouselTimer = setInterval(() => carouselMove(1), CAROUSEL_INTERVAL); }
 function stopCarouselTimer() { if (carouselTimer) { clearInterval(carouselTimer); carouselTimer = null; } }
 function resetCarouselTimer() { stopCarouselTimer(); startCarouselTimer(); }
@@ -3740,7 +3915,7 @@ function renderCarousel2() {
 }
 function goToSlide2(idx) { carousel2Idx = (idx + homePosts2.length) % homePosts2.length; renderCarousel2(); }
 function carousel2Move(dir) { goToSlide2(carousel2Idx + dir); resetCarousel2Timer(); }
-window.addEventListener('resize', () => { if (homePosts2.length) renderCarousel2(); });
+// (resize handled by shared debounced listener above)
 function startCarousel2Timer() { stopCarousel2Timer(); if (homePosts2.length > 1) carousel2Timer = setInterval(() => carousel2Move(1), CAROUSEL_INTERVAL); }
 function stopCarousel2Timer() { if (carousel2Timer) { clearInterval(carousel2Timer); carousel2Timer = null; } }
 function resetCarousel2Timer() { stopCarousel2Timer(); startCarousel2Timer(); }
@@ -4546,6 +4721,182 @@ function executeBulkAdd() {
   </div>
 </div>
 
+<!-- ══════════════ ADMIN ACCOUNTS PANEL ══════════════ -->
+<div class="modal-overlay" id="accounts-panel-modal" onclick="if(event.target===this)closeAccountsPanel()">
+  <div class="modal" style="max-width:560px;max-height:88vh;overflow-y:auto">
+    <button class="modal-close" onclick="closeAccountsPanel()">✕</button>
+    <div class="modal-title">👥 Player Accounts</div>
+    <div class="modal-sub">Create and manage player login accounts</div>
+
+    <!-- Create new account form -->
+    <div style="background:#1a1200;border:1px solid var(--gold);border-radius:10px;padding:16px;margin-bottom:20px">
+      <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:12px">➕ Create Account</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Username <span style="color:var(--muted);font-size:9px">(login key, lowercase)</span></label>
+          <input class="form-input" type="text" id="ac-new-username" placeholder="e.g. xuyapos"
+            style="text-transform:lowercase" oninput="this.value=this.value.toLowerCase()" />
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Password</label>
+          <input class="form-input" type="text" id="ac-new-password" placeholder="set a password" />
+        </div>
+        <div class="form-group" style="margin-bottom:0;grid-column:1/-1">
+          <label class="form-label">Initial Display Name <span style="color:var(--muted);font-size:9px">(first alias — usually their leaderboard name)</span></label>
+          <input class="form-input" type="text" id="ac-new-displayname" placeholder="e.g. VG.xuyapos" />
+        </div>
+      </div>
+      <div class="modal-error" id="ac-create-error" style="margin-top:8px"></div>
+      <button class="btn primary" style="width:100%;margin-top:10px" onclick="adminCreateAccount()">✅ Create Account</button>
+    </div>
+
+    <!-- Account list -->
+    <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">
+      Existing Accounts <span id="ac-count" style="color:var(--muted2)"></span>
+    </div>
+    <div id="ac-list" style="display:flex;flex-direction:column;gap:8px">
+      <div style="text-align:center;padding:24px;color:var(--muted2);font-family:'Share Tech Mono',monospace;font-size:12px">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ ADMIN EDIT ACCOUNT MODAL ══════════════ -->
+<div class="modal-overlay" id="ac-edit-modal" onclick="if(event.target===this)closeEditAccountModal()">
+  <div class="modal" style="max-width:400px">
+    <button class="modal-close" onclick="closeEditAccountModal()">✕</button>
+    <div class="modal-title" id="ac-edit-title">Edit Account</div>
+    <input type="hidden" id="ac-edit-username" />
+
+    <div class="form-group">
+      <label class="form-label">Username</label>
+      <input class="form-input" type="text" id="ac-edit-username-display" disabled style="opacity:0.5" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">New Password <span style="color:var(--muted);font-size:9px">(leave blank to keep current)</span></label>
+      <input class="form-input" type="text" id="ac-edit-password" placeholder="leave blank to keep" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Display Name</label>
+      <input class="form-input" type="text" id="ac-edit-displayname" placeholder="e.g. VG.xuyapos" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Aliases <span style="color:var(--muted);font-size:9px">(comma-separated)</span></label>
+      <input class="form-input" type="text" id="ac-edit-aliases" placeholder="VG.xuyapos, VG.Power" />
+    </div>
+
+    <div class="modal-error" id="ac-edit-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" onclick="adminSaveAccountEdit()">💾 Save</button>
+      <button class="btn danger" onclick="adminDeleteAccount()">🗑 Delete</button>
+      <button class="btn" onclick="closeEditAccountModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ PLAYER LOGIN MODAL ══════════════ -->
+<div class="modal-overlay" id="player-login-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closePlayerLoginModal()">✕</button>
+    <div class="modal-title">Player Login</div>
+    <div class="modal-sub">Log in to view your profile and manage your aliases</div>
+    <div class="form-group">
+      <label class="form-label">Username</label>
+      <input class="form-input" type="text" id="player-login-user" placeholder="your username" autocomplete="username" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input class="form-input" type="password" id="player-login-pass" placeholder="••••••••" autocomplete="current-password"
+        onkeydown="if(event.key==='Enter')doPlayerLogin()" />
+    </div>
+    <div class="modal-error" id="player-login-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" id="player-login-btn" onclick="doPlayerLogin()">Login</button>
+      <button class="btn" onclick="closePlayerLoginModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ PLAYER MENU MODAL ══════════════ -->
+<div class="modal-overlay" id="player-menu-modal" onclick="if(event.target===this)closePlayerMenuModal()">
+  <div class="modal" style="max-width:420px;padding:0;overflow:hidden">
+    <button class="modal-close" onclick="closePlayerMenuModal()" style="top:12px;right:12px;z-index:10">✕</button>
+
+    <!-- Profile hero -->
+    <div style="position:relative;min-height:120px;background:var(--surface2);overflow:hidden">
+      <div id="pm-hero-bg" style="position:absolute;inset:0;background-size:cover;background-position:center;filter:brightness(0.5)"></div>
+      <div style="position:relative;z-index:2;display:flex;align-items:flex-end;gap:14px;padding:20px 20px 16px">
+        <div id="pm-avatar" style="width:72px;height:72px;border-radius:50%;border:3px solid var(--gold);overflow:hidden;background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:32px">👤</div>
+        <div style="flex:1;min-width:0">
+          <div id="pm-displayname" style="font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,0.8)"></div>
+          <div id="pm-username" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px"></div>
+          <div id="pm-team-tag" style="margin-top:4px"></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:18px 20px 20px">
+
+      <!-- Season tabs -->
+      <div class="profile-season-tabs" id="pm-season-tabs">
+        <div class="profile-season-tab active" onclick="switchProfileTab('overall',this)" id="pm-tab-overall">
+          Overall<span class="tab-pts" id="pm-overall-pts">—</span>
+        </div>
+        <div class="profile-season-tab" onclick="switchProfileTab('s3',this)" id="pm-tab-s3">
+          Season 3<span class="tab-pts" id="pm-s3-pts">—</span>
+        </div>
+        <div class="profile-season-tab" onclick="switchProfileTab('s2',this)" id="pm-tab-s2">
+          Season 2<span class="tab-pts" id="pm-s2-pts">—</span>
+        </div>
+      </div>
+
+      <!-- Overall pane -->
+      <div class="profile-season-pane active" id="pm-pane-overall">
+        <div class="profile-overall-banner">
+          <div>
+            <div class="ob-label">Total Points</div>
+            <div class="ob-pts" id="pm-ob-total">—</div>
+          </div>
+          <div style="flex:1;text-align:right">
+            <div class="ob-label">Combined Events</div>
+            <div class="ob-rank" id="pm-ob-events">—</div>
+          </div>
+        </div>
+        <div id="pm-overall-rows"></div>
+      </div>
+
+      <!-- Season 3 pane -->
+      <div class="profile-season-pane" id="pm-pane-s3">
+        <div id="pm-s3-rows"></div>
+      </div>
+
+      <!-- Season 2 pane -->
+      <div class="profile-season-pane" id="pm-pane-s2">
+        <div id="pm-s2-rows"></div>
+      </div>
+
+      <!-- Aliases section -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:4px;margin-bottom:12px">
+        <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">My Aliases</div>
+        <div id="pm-aliases-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+        <div style="display:flex;gap:8px">
+          <input class="form-input" type="text" id="pm-new-alias" placeholder="Add alias e.g. VG.NewName" style="flex:1;font-size:12px;padding:7px 10px" onkeydown="if(event.key==='Enter')playerAddAlias()" />
+          <button class="btn primary" style="font-size:11px;padding:6px 12px;white-space:nowrap" onclick="playerAddAlias()">+ Add</button>
+        </div>
+        <div class="modal-error" id="pm-alias-error" style="margin-top:6px"></div>
+      </div>
+
+      <!-- Display name section -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px">
+        <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Display Name</div>
+        <select class="form-input" id="pm-displayname-select" style="font-size:13px"></select>
+        <button class="btn primary" style="width:100%;margin-top:8px;font-size:12px" onclick="playerSaveDisplayName()">Set Display Name</button>
+      </div>
+
+      <button class="btn danger" style="width:100%;font-size:12px" onclick="playerLogout()">Logout</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════ LIGHTBOX ══════════════ -->
 <div id="lightbox-overlay" onclick="closeLightbox()"
   style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:9999;
@@ -4572,6 +4923,543 @@ function closeLightbox() {
   document.body.style.overflow = '';
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+// ═══════════════════════════════════════════════════════
+//  PLAYER AUTH
+// ═══════════════════════════════════════════════════════
+let playerSession = null; // { username, account: { password, aliases, displayName } }
+
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+function openPlayerLoginModal() {
+  document.getElementById('player-login-user').value = '';
+  document.getElementById('player-login-pass').value = '';
+  document.getElementById('player-login-error').textContent = '';
+  document.getElementById('player-login-modal').classList.add('open');
+  setTimeout(() => document.getElementById('player-login-user').focus(), 100);
+}
+function closePlayerLoginModal() {
+  document.getElementById('player-login-modal').classList.remove('open');
+}
+
+async function doPlayerLogin() {
+  const username = document.getElementById('player-login-user').value.trim().toLowerCase();
+  const password = document.getElementById('player-login-pass').value;
+  const errEl    = document.getElementById('player-login-error');
+  const btn      = document.getElementById('player-login-btn');
+  if (!username || !password) { errEl.textContent = 'Username and password required.'; return; }
+  btn.disabled = true; btn.textContent = 'Checking…';
+  errEl.textContent = '';
+  try {
+    const hash = await sha256(password);
+    const res  = await fetch('/api/accounts');
+    if (!res.ok) throw new Error('Could not load accounts.');
+    const accounts = await res.json();
+    const account  = accounts[username];
+    if (!account || account.password !== hash) {
+      errEl.textContent = 'Incorrect username or password.';
+      document.getElementById('player-login-pass').value = '';
+      return;
+    }
+    playerSession = { username, account };
+    closePlayerLoginModal();
+    applyPlayerUI();
+    showToast('Welcome back, ' + (account.displayName || username) + '!', 'success');
+  } catch(e) {
+    errEl.textContent = e.message || 'Login failed. Try again.';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Login';
+  }
+}
+
+function applyPlayerUI() {
+  if (!playerSession) return;
+  const displayName = playerSession.account.displayName || playerSession.username;
+  document.getElementById('nav-player-login-hint').style.display = 'none';
+  const badge = document.getElementById('nav-player-badge');
+  badge.style.display = 'flex';
+  document.getElementById('nav-player-name').textContent = displayName;
+}
+
+function playerLogout() {
+  playerSession = null;
+  document.getElementById('nav-player-badge').style.display = 'none';
+  document.getElementById('nav-player-login-hint').style.display = '';
+  closePlayerMenuModal();
+  showToast('Logged out.', '');
+}
+
+// ═══════════════════════════════════════════════════════
+//  PLAYER MENU MODAL — with season tabs
+// ═══════════════════════════════════════════════════════
+
+// Cache for season data fetched for the profile tabs
+let profileSeasonCache = {};
+
+async function fetchSeasonData(season) {
+  if (profileSeasonCache[season]) return profileSeasonCache[season];
+  try {
+    const res = await fetch('/api/data?key=gamedata_s' + season);
+    if (!res.ok) return null;
+    const d = await res.json();
+    profileSeasonCache[season] = d;
+    return d;
+  } catch(e) { return null; }
+}
+
+function findPlayerInData(data, aliases) {
+  if (!data || !data.players) return null;
+  // Try each alias against the player list
+  for (const alias of (aliases || [])) {
+    const found = data.players.find(p => p.name.toLowerCase() === alias.toLowerCase());
+    if (found) return found;
+  }
+  return null;
+}
+
+function buildSeasonStatRows(player, data) {
+  if (!player) {
+    return `<div style="text-align:center;padding:24px;color:var(--muted2);font-family:'Share Tech Mono',monospace;font-size:12px">No data for this season</div>`;
+  }
+  const eventsJoined = player.scores.filter(s => s > 0).length;
+  const totalEvents  = (data.eventLabels || []).length;
+  const st           = (data.bladerStats || {})[player.name] || {};
+  const wins         = st.wins || 0;
+  const losses       = st.losses || 0;
+  const totalDecided = wins + losses;
+  const winRate      = totalDecided > 0 ? ((wins / totalDecided) * 100).toFixed(1) + '%' : '—';
+  const matchPts     = st.matchPoints || 0;
+  const matchesPlayed= st.matchesPlayed || 0;
+  const ppg          = matchesPlayed > 0 && matchPts > 0
+    ? (matchPts / matchesPlayed).toFixed(2)
+    : eventsJoined > 0 ? (player.total / eventsJoined).toFixed(2) : '0.00';
+  const rankEmoji    = player.rank === 1 ? '👑 ' : player.rank === 2 ? '🥈 ' : player.rank === 3 ? '🥉 ' : '#';
+  const rows = [
+    ['Season Rank',     rankEmoji + (player.rank || '—')],
+    ['Total Points',    player.total],
+    ['Points Per Game', ppg],
+    ['Events Joined',   eventsJoined + ' / ' + totalEvents],
+    ['Match Win Rate',  winRate],
+    ['Wins / Losses',   wins + ' / ' + losses],
+    ['Spin Finishes',   st.spinFinishes || 0],
+    ['Burst Finishes',  st.burstFinishes || 0],
+    ['Extreme Finishes',st.extremeFinishes || 0],
+  ];
+  return rows.map(([label, value]) =>
+    `<div class="profile-stat-row">
+      <span class="label">${label}</span>
+      <span class="value">${value}</span>
+    </div>`
+  ).join('');
+}
+
+async function openPlayerMenuModal() {
+  if (!playerSession) { openPlayerLoginModal(); return; }
+  const { username, account } = playerSession;
+  const displayName = account.displayName || username;
+
+  // Hero
+  document.getElementById('pm-displayname').textContent = displayName;
+  document.getElementById('pm-username').textContent    = '@' + username;
+
+  // Team tag
+  const team = getTeam(displayName);
+  const cfg  = teamConfig[team] || {};
+  const tagEl = document.getElementById('pm-team-tag');
+  tagEl.innerHTML = team
+    ? `<span style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:2px 10px;border-radius:20px;color:${cfg.color||'#888'};background:${cfg.color||'#888'}22;border:1px solid ${cfg.color||'#888'}55">${cfg.name||team}</span>`
+    : '';
+
+  // Avatar + hero bg from current active season bladerStats
+  const st = getBladerStats(displayName);
+  document.getElementById('pm-avatar').innerHTML = st.photo
+    ? `<img src="${st.photo}" style="width:100%;height:100%;object-fit:cover" />`
+    : '👤';
+  const heroBg = document.getElementById('pm-hero-bg');
+  heroBg.style.backgroundImage = (st.bgPhoto || st.photo)
+    ? `url("${st.bgPhoto || st.photo}")`
+    : '';
+
+  // Reset to overall tab
+  switchProfileTab('overall', document.getElementById('pm-tab-overall'));
+
+  // Aliases + display name select
+  renderPlayerAliases();
+  renderPlayerDisplayNameSelect();
+  document.getElementById('pm-alias-error').textContent = '';
+  document.getElementById('pm-new-alias').value = '';
+  document.getElementById('player-menu-modal').classList.add('open');
+
+  // Load season data async
+  loadProfileSeasonData(account.aliases || [displayName]);
+}
+
+async function loadProfileSeasonData(aliases) {
+  // Show loading state
+  ['s2','s3'].forEach(s => {
+    document.getElementById('pm-' + s + '-pts').textContent = '…';
+    document.getElementById('pm-' + s + '-rows').innerHTML =
+      '<div style="text-align:center;padding:20px;color:var(--muted);font-family:\'Share Tech Mono\',monospace;font-size:11px">Loading…</div>';
+  });
+
+  const [dataS2, dataS3] = await Promise.all([
+    fetchSeasonData(2),
+    fetchSeasonData(3)
+  ]);
+
+  const playerS2 = findPlayerInData(dataS2, aliases);
+  const playerS3 = findPlayerInData(dataS3, aliases);
+
+  const ptsS2 = playerS2 ? playerS2.total : 0;
+  const ptsS3 = playerS3 ? playerS3.total : 0;
+  const ptsOverall = ptsS2 + ptsS3;
+
+  const evS2 = playerS2 ? playerS2.scores.filter(s => s > 0).length : 0;
+  const evS3 = playerS3 ? playerS3.scores.filter(s => s > 0).length : 0;
+
+  // Update tab point previews
+  document.getElementById('pm-s2-pts').textContent    = ptsS2 || '—';
+  document.getElementById('pm-s3-pts').textContent    = ptsS3 || '—';
+  document.getElementById('pm-overall-pts').textContent = ptsOverall || '—';
+
+  // Overall pane
+  document.getElementById('pm-ob-total').textContent  = ptsOverall;
+  document.getElementById('pm-ob-events').textContent = (evS2 + evS3) + ' events';
+
+  // Determine overall best rank
+  const rankS2 = playerS2 ? playerS2.rank : null;
+  const rankS3 = playerS3 ? playerS3.rank : null;
+  const bestRank = (rankS2 && rankS3) ? Math.min(rankS2, rankS3) : (rankS2 || rankS3);
+  const overallRows = [
+    ['Best Season Rank', bestRank ? (bestRank === 1 ? '👑 1st' : '#' + bestRank) : '—'],
+    ['Season 2 Points',  ptsS2],
+    ['Season 3 Points',  ptsS3],
+    ['S2 Events Joined', evS2],
+    ['S3 Events Joined', evS3],
+  ];
+  document.getElementById('pm-overall-rows').innerHTML = overallRows.map(([label, value]) =>
+    `<div class="profile-stat-row"><span class="label">${label}</span><span class="value">${value}</span></div>`
+  ).join('');
+
+  // Season panes
+  document.getElementById('pm-s3-rows').innerHTML = buildSeasonStatRows(playerS3, dataS3 || {});
+  document.getElementById('pm-s2-rows').innerHTML = buildSeasonStatRows(playerS2, dataS2 || {});
+}
+
+function switchProfileTab(tab, el) {
+  document.querySelectorAll('.profile-season-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.profile-season-pane').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('pm-pane-' + tab).classList.add('active');
+}
+
+function closePlayerMenuModal() {
+  document.getElementById('player-menu-modal').classList.remove('open');
+}
+
+function renderPlayerAliases() {
+  const aliases = playerSession.account.aliases || [];
+  const el = document.getElementById('pm-aliases-list');
+  if (!aliases.length) {
+    el.innerHTML = '<span style="font-size:12px;color:var(--muted2)">No aliases yet.</span>';
+    return;
+  }
+  el.innerHTML = aliases.map((a, i) => {
+    const isDisplay = a === playerSession.account.displayName;
+    return `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--surface);border:1px solid ${isDisplay ? 'var(--gold)' : 'var(--border2)'};border-radius:20px;padding:3px 10px;font-family:'Share Tech Mono',monospace;font-size:11px;color:${isDisplay ? 'var(--gold)' : 'var(--text)'}">
+      ${a}${!isDisplay ? `<span style="cursor:pointer;color:var(--muted);margin-left:2px" onclick="playerRemoveAlias(${i})" title="Remove">✕</span>` : ''}
+    </span>`;
+  }).join('');
+}
+
+function renderPlayerDisplayNameSelect() {
+  const aliases = playerSession.account.aliases || [];
+  const current = playerSession.account.displayName || playerSession.username;
+  const sel = document.getElementById('pm-displayname-select');
+  sel.innerHTML = aliases.map(a =>
+    `<option value="${a}" ${a === current ? 'selected' : ''}>${a}</option>`
+  ).join('');
+  if (!aliases.length) sel.innerHTML = '<option disabled>No aliases yet</option>';
+}
+
+async function playerAddAlias() {
+  const alias  = document.getElementById('pm-new-alias').value.trim();
+  const errEl  = document.getElementById('pm-alias-error');
+  errEl.textContent = '';
+  if (!alias) { errEl.textContent = 'Enter an alias name.'; return; }
+  const aliases = playerSession.account.aliases || [];
+  if (aliases.map(a=>a.toLowerCase()).includes(alias.toLowerCase())) {
+    errEl.textContent = 'Alias already exists.'; return;
+  }
+  aliases.push(alias);
+  if (aliases.length === 1) playerSession.account.displayName = alias;
+  playerSession.account.aliases = aliases;
+  await savePlayerAccount();
+  document.getElementById('pm-new-alias').value = '';
+  renderPlayerAliases();
+  renderPlayerDisplayNameSelect();
+  showToast('Alias "' + alias + '" added!', 'success');
+}
+
+async function playerRemoveAlias(idx) {
+  const aliases = playerSession.account.aliases || [];
+  const removed = aliases[idx];
+  if (removed === playerSession.account.displayName) {
+    showToast('Switch display name first before removing this alias.', 'error'); return;
+  }
+  aliases.splice(idx, 1);
+  playerSession.account.aliases = aliases;
+  await savePlayerAccount();
+  renderPlayerAliases();
+  renderPlayerDisplayNameSelect();
+  showToast('Alias removed.', '');
+}
+
+async function playerSaveDisplayName() {
+  const sel = document.getElementById('pm-displayname-select');
+  const chosen = sel.value;
+  if (!chosen) return;
+  playerSession.account.displayName = chosen;
+  await savePlayerAccount();
+  document.getElementById('nav-player-name').textContent = chosen;
+  document.getElementById('pm-displayname').textContent  = chosen;
+  renderPlayerAliases();
+  showToast('Display name set to "' + chosen + '"!', 'success');
+}
+
+// ═══════════════════════════════════════════════════════
+//  ADMIN ACCOUNTS PANEL
+// ═══════════════════════════════════════════════════════
+let _acAdminUsername = ''; // stored at login time for admin account saves
+let _acAdminPassword = '';
+let _acAccounts = {};      // local cache of accounts object
+
+// Called after admin login to cache credentials for account saves
+function _storeAdminCreds(u, p) { _acAdminUsername = u; _acAdminPassword = p; }
+
+async function openAccountsPanel() {
+  if (!isAdmin) return;
+  document.getElementById('ac-new-username').value    = '';
+  document.getElementById('ac-new-password').value    = '';
+  document.getElementById('ac-new-displayname').value = '';
+  document.getElementById('ac-create-error').textContent = '';
+  document.getElementById('accounts-panel-modal').classList.add('open');
+  await loadAccountsList();
+}
+function closeAccountsPanel() {
+  document.getElementById('accounts-panel-modal').classList.remove('open');
+}
+
+async function loadAccountsList() {
+  const listEl = document.getElementById('ac-list');
+  listEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted2);font-family:\'Share Tech Mono\',monospace;font-size:12px">Loading…</div>';
+  try {
+    const res = await fetch('/api/accounts');
+    if (!res.ok) throw new Error('Could not load accounts (' + res.status + ')');
+    _acAccounts = await res.json();
+    renderAccountsList();
+  } catch(e) {
+    listEl.innerHTML = `<div style="color:var(--red);font-size:12px;text-align:center;padding:20px">${e.message}</div>`;
+  }
+}
+
+function renderAccountsList() {
+  const entries = Object.entries(_acAccounts);
+  document.getElementById('ac-count').textContent = '(' + entries.length + ')';
+  if (!entries.length) {
+    document.getElementById('ac-list').innerHTML =
+      '<div style="text-align:center;padding:24px;color:var(--muted2);font-family:\'Share Tech Mono\',monospace;font-size:12px">No accounts yet.</div>';
+    return;
+  }
+  document.getElementById('ac-list').innerHTML = entries.map(([username, acc]) => {
+    const displayName = acc.displayName || username;
+    const aliases     = (acc.aliases || []).join(', ') || '—';
+    const st          = getBladerStats(displayName);
+    const avatarHtml  = st.photo
+      ? `<img src="${st.photo}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1px solid var(--border2)" />`
+      : `<div style="width:36px;height:36px;border-radius:50%;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">👤</div>`;
+    // find this player in current season's leaderboard
+    const lbPlayer = players.find(p => p.name.toLowerCase() === displayName.toLowerCase());
+    const rankBadge = lbPlayer
+      ? `<span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--gold)">${lbPlayer.total} pts · #${lbPlayer.rank}</span>`
+      : `<span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted2)">Not on leaderboard</span>`;
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:12px">
+      ${avatarHtml}
+      <div style="flex:1;min-width:0">
+        <div style="font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;color:var(--accent)">${displayName}</div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);margin-top:1px">@${username}</div>
+        <div style="font-size:11px;color:var(--muted2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${aliases}">Aliases: ${aliases}</div>
+        <div style="margin-top:3px">${rankBadge}</div>
+      </div>
+      <button class="btn" style="font-size:11px;padding:5px 10px;flex-shrink:0" onclick="openEditAccountModal('${username}')">✏️ Edit</button>
+    </div>`;
+  }).join('');
+}
+
+async function adminCreateAccount() {
+  const username    = document.getElementById('ac-new-username').value.trim().toLowerCase();
+  const password    = document.getElementById('ac-new-password').value.trim();
+  const displayName = document.getElementById('ac-new-displayname').value.trim();
+  const errEl       = document.getElementById('ac-create-error');
+  errEl.textContent = '';
+
+  if (!username)    { errEl.textContent = 'Username is required.'; return; }
+  if (!password)    { errEl.textContent = 'Password is required.'; return; }
+  if (!displayName) { errEl.textContent = 'Display name is required.'; return; }
+  if (_acAccounts[username]) { errEl.textContent = 'Username "' + username + '" already exists.'; return; }
+  if (!/^[a-z0-9_]+$/.test(username)) { errEl.textContent = 'Username can only contain a-z, 0-9, underscore.'; return; }
+
+  const btn = document.querySelector('#accounts-panel-modal .btn.primary');
+  btn.disabled = true; btn.textContent = 'Creating…';
+
+  try {
+    const hash = await sha256(password);
+    _acAccounts[username] = {
+      password:    hash,
+      aliases:     [displayName],
+      displayName: displayName
+    };
+    await adminSaveAccounts();
+    // Clear form
+    document.getElementById('ac-new-username').value    = '';
+    document.getElementById('ac-new-password').value    = '';
+    document.getElementById('ac-new-displayname').value = '';
+    renderAccountsList();
+    showToast('Account "' + username + '" created!', 'success');
+  } catch(e) {
+    errEl.textContent = e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = '✅ Create Account';
+  }
+}
+
+function openEditAccountModal(username) {
+  const acc = _acAccounts[username];
+  if (!acc) return;
+  document.getElementById('ac-edit-username').value         = username;
+  document.getElementById('ac-edit-username-display').value = username;
+  document.getElementById('ac-edit-title').textContent      = 'Edit: ' + username;
+  document.getElementById('ac-edit-password').value         = '';
+  document.getElementById('ac-edit-displayname').value      = acc.displayName || '';
+  document.getElementById('ac-edit-aliases').value          = (acc.aliases || []).join(', ');
+  document.getElementById('ac-edit-error').textContent      = '';
+  document.getElementById('ac-edit-modal').classList.add('open');
+}
+function closeEditAccountModal() {
+  document.getElementById('ac-edit-modal').classList.remove('open');
+}
+
+async function adminSaveAccountEdit() {
+  const username    = document.getElementById('ac-edit-username').value;
+  const newPassword = document.getElementById('ac-edit-password').value.trim();
+  const displayName = document.getElementById('ac-edit-displayname').value.trim();
+  const aliasesRaw  = document.getElementById('ac-edit-aliases').value;
+  const errEl       = document.getElementById('ac-edit-error');
+  errEl.textContent = '';
+
+  if (!displayName) { errEl.textContent = 'Display name is required.'; return; }
+
+  const aliases = aliasesRaw.split(',').map(s => s.trim()).filter(Boolean);
+  if (!aliases.length) { errEl.textContent = 'At least one alias is required.'; return; }
+
+  const btn = document.querySelector('#ac-edit-modal .btn.primary');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  try {
+    const existing = _acAccounts[username] || {};
+    const updatedAcc = {
+      ...existing,
+      displayName,
+      aliases
+    };
+    // Only update password if a new one was typed
+    if (newPassword) {
+      updatedAcc.password = await sha256(newPassword);
+    }
+    _acAccounts[username] = updatedAcc;
+    await adminSaveAccounts();
+    closeEditAccountModal();
+    renderAccountsList();
+    showToast('Account "' + username + '" updated!', 'success');
+    // If logged-in player is this account, update their session
+    if (playerSession && playerSession.username === username) {
+      playerSession.account = updatedAcc;
+      applyPlayerUI();
+    }
+  } catch(e) {
+    errEl.textContent = e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = '💾 Save';
+  }
+}
+
+async function adminDeleteAccount() {
+  const username = document.getElementById('ac-edit-username').value;
+  if (!confirm('Delete account "' + username + '"? This cannot be undone.')) return;
+  delete _acAccounts[username];
+  try {
+    await adminSaveAccounts();
+    closeEditAccountModal();
+    renderAccountsList();
+    showToast('Account "' + username + '" deleted.', '');
+    // If this was the logged-in player, log them out
+    if (playerSession && playerSession.username === username) playerLogout();
+  } catch(e) {
+    showToast('Delete failed: ' + e.message, 'error');
+  }
+}
+
+// Writes _acAccounts to KV using admin credentials
+async function adminSaveAccounts() {
+  if (!_acAdminUsername || !_acAdminPassword) {
+    throw new Error('Admin session expired. Please log out and log back in.');
+  }
+  const res = await fetch('/api/accounts', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      adminUsername: _acAdminUsername,
+      adminPassword: _acAdminPassword,
+      accounts:      _acAccounts
+    })
+  });
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw new Error(d.error || 'Save failed (' + res.status + ')');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  SAVE PLAYER ACCOUNT (player self-save)
+// ═══════════════════════════════════════════════════════
+async function savePlayerAccount() {
+  try {
+    const res = await fetch('/api/accounts');
+    if (!res.ok) throw new Error('Could not load accounts.');
+    const accounts = await res.json();
+    accounts[playerSession.username] = playerSession.account;
+    const saveRes = await fetch('/api/accounts?self=1', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        selfUsername:     playerSession.username,
+        selfPasswordHash: playerSession.account.password,
+        accounts
+      })
+    });
+    if (!saveRes.ok) {
+      const d = await saveRes.json();
+      throw new Error(d.error || 'Save failed.');
+    }
+  } catch(e) {
+    showToast('⚠ Could not save: ' + e.message, 'error');
+  }
+}
+
+
 </script>
 
 </html>
