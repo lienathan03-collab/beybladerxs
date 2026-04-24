@@ -616,6 +616,86 @@
   }
   .mob-lb-submenu button:active { background: #1a1200; border-color: var(--gold); color: var(--gold); }
 
+  /* ── EVENTS TAB ── */
+  .event-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; overflow: hidden;
+    transition: border-color .15s;
+  }
+  .event-card:hover { border-color: var(--gold); }
+  .event-card-header {
+    background: linear-gradient(135deg, #1a1200, #0d0d0d);
+    padding: 16px 18px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .event-card-status {
+    font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; padding: 2px 10px; border-radius: 20px;
+    display: inline-block; margin-bottom: 8px;
+  }
+  .ev-status-open   { color: #4aaa6a; border: 1px solid #4aaa6a; background: #0a1f0f; }
+  .ev-status-closed { color: #f06464; border: 1px solid #f06464; background: #1f0a0a; }
+  .ev-status-done   { color: var(--silver); border: 1px solid #555; background: var(--surface2); }
+  .event-card-title {
+    font-family: 'Rajdhani', sans-serif; font-size: 17px; font-weight: 800;
+    letter-spacing: 1.5px; text-transform: uppercase; color: #fff;
+    margin-bottom: 3px; line-height: 1.2;
+  }
+  .event-card-date { font-size: 12px; color: var(--muted); }
+  .event-card-body { padding: 14px 18px; }
+  .event-meta-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;
+  }
+  .event-meta-item {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px;
+  }
+  .event-meta-label {
+    font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--muted2); margin-bottom: 3px;
+  }
+  .event-meta-value { font-size: 12px; font-weight: 600; color: var(--accent); }
+  .event-joiner-preview {
+    font-family: 'Share Tech Mono', monospace; font-size: 11px;
+    color: var(--muted); margin-top: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .event-joiner-count {
+    font-size: 18px; font-weight: 700;
+    color: var(--gold); font-family: 'Share Tech Mono', monospace;
+  }
+  .ev-join-btn {
+    margin-top: 10px; width: 100%; padding: 10px;
+    background: var(--gold); border: none; border-radius: 8px;
+    color: #000; font-family: 'Rajdhani', sans-serif;
+    font-size: 13px; font-weight: 800; letter-spacing: 1.5px;
+    text-transform: uppercase; cursor: pointer; transition: background .15s;
+  }
+  .ev-join-btn:hover { background: var(--gold2); }
+  .ev-join-btn.joined {
+    background: var(--surface2); color: var(--muted);
+    border: 1px solid var(--border2);
+  }
+  .ev-join-btn.joined:hover { border-color: #f06464; color: #f06464; }
+  .ev-join-btn:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+  .ev-joiner-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 8px;
+    font-size: 13px;
+  }
+  .ev-joiner-num {
+    font-family: 'Share Tech Mono', monospace; font-size: 11px;
+    color: var(--muted); width: 22px; flex-shrink: 0; text-align: center;
+  }
+  .ev-joiner-name { flex: 1; font-weight: 600; }
+  .ev-joiner-remove {
+    background: transparent; border: 1px solid #f06464;
+    color: #f06464; border-radius: 5px; padding: 2px 7px;
+    font-size: 11px; cursor: pointer; flex-shrink: 0; display: none;
+  }
+  .admin-active .ev-joiner-remove { display: inline-block; }
+
   /* Skeleton loader */
   @keyframes shimmer { 0%{background-position:-600px 0} 100%{background-position:600px 0} }
   .skel-card {
@@ -923,6 +1003,7 @@
       </div>
     </div>
     <button onclick="showTab('achievements', this)">Achievements</button>
+    <button onclick="showTab('events', this)">🎯 Events</button>
     <button onclick="showTab('challonge', this)">⚡ Challonge</button>
     <button onclick="showTab('points', this)">Points</button>
     <span class="nav-login-hint" id="nav-login-hint" style="display:none" onclick="openLoginModal()" title="Admin Login"></span>
@@ -976,6 +1057,9 @@
     </button>
     <button class="mobile-nav-btn" onclick="showTab('achievements', this)" data-tab="achievements">
       <span class="mn-icon">🎖️</span>Awards
+    </button>
+    <button class="mobile-nav-btn" onclick="showTab('events', this)" data-tab="events">
+      <span class="mn-icon">🎯</span>Events
     </button>
     <button class="mobile-nav-btn" onclick="showTab('challonge', this)" data-tab="challonge">
       <span class="mn-icon">⚡</span>Tourney
@@ -1283,7 +1367,139 @@
 
 </div>
 
-<!-- ══════════════ POINTS TAB ══════════════ -->
+<!-- ══════════════ EVENTS TAB ══════════════ -->
+<div id="tab-events" class="section">
+  <div class="section-header">
+    <span class="section-title">🎯 Events</span>
+    <div class="section-line"></div>
+    <button class="btn admin-only-btn" id="events-add-btn" style="display:none;font-size:11px;padding:5px 12px;" onclick="openAddEventModal()">➕ Create Event</button>
+  </div>
+  <div id="events-list" style="display:flex;flex-direction:column;gap:16px;margin-top:8px">
+    <div id="events-loading" style="text-align:center;padding:48px 20px;color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:12px">Loading events…</div>
+  </div>
+</div>
+
+<!-- ══════════════ EVENT DETAIL MODAL ══════════════ -->
+<div class="modal-overlay" id="event-detail-modal" onclick="if(event.target===this)closeEventDetail()">
+  <div class="modal" style="max-width:500px;max-height:90vh;overflow-y:auto;padding:0">
+    <button class="modal-close" onclick="closeEventDetail()" style="top:12px;right:12px;z-index:10">✕</button>
+
+    <!-- Event header banner -->
+    <div id="evd-banner" style="background:linear-gradient(135deg,#1a1200,#0d0d0d);border-radius:16px 16px 0 0;padding:28px 24px 20px;border-bottom:1px solid var(--border2)">
+      <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:6px" id="evd-status-label">OPEN</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#fff;margin-bottom:4px" id="evd-title">—</div>
+      <div style="font-size:12px;color:var(--muted)" id="evd-datetime">—</div>
+    </div>
+
+    <div style="padding:20px 24px">
+      <!-- Info rows -->
+      <div id="evd-info" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px"></div>
+
+      <!-- Description -->
+      <div id="evd-desc-wrap" style="display:none;margin-bottom:20px">
+        <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Details</div>
+        <div id="evd-desc" style="font-size:13px;color:var(--muted);line-height:1.7;white-space:pre-wrap"></div>
+      </div>
+
+      <!-- Join / Unjoin button -->
+      <div id="evd-join-area" style="margin-bottom:20px"></div>
+
+      <!-- Sure Bladers list -->
+      <div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between">
+          <span>✅ Sure Bladers <span id="evd-joiner-count" style="color:var(--gold)">0</span></span>
+          <button class="btn admin-only-btn" id="evd-admin-add-btn" style="display:none;font-size:10px;padding:3px 10px" onclick="openAdminAddJoiner()">➕ Add Name</button>
+        </div>
+        <div id="evd-joiners-list" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ ADMIN ADD JOINER MODAL ══════════════ -->
+<div class="modal-overlay" id="admin-add-joiner-modal" onclick="if(event.target===this)closeAdminAddJoiner()">
+  <div class="modal" style="max-width:360px">
+    <button class="modal-close" onclick="closeAdminAddJoiner()">✕</button>
+    <div class="modal-title">➕ Add Blader</div>
+    <div class="modal-sub">Manually add a name to the Sure Bladers list</div>
+    <div class="form-group">
+      <label class="form-label">Name</label>
+      <input class="form-input" type="text" id="admin-add-joiner-input" placeholder="e.g. UGL.ZPC The Arcadion"
+        onkeydown="if(event.key==='Enter')adminAddJoinerSave()" />
+    </div>
+    <div class="modal-error" id="admin-add-joiner-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" onclick="adminAddJoinerSave()">✅ Add</button>
+      <button class="btn" onclick="closeAdminAddJoiner()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ CREATE / EDIT EVENT MODAL ══════════════ -->
+<div class="modal-overlay" id="add-event-modal" onclick="if(event.target===this)closeAddEventModal()">
+  <div class="modal" style="max-width:480px;max-height:90vh;overflow-y:auto">
+    <button class="modal-close" onclick="closeAddEventModal()">✕</button>
+    <div class="modal-title" id="add-event-modal-title">➕ Create Event</div>
+    <input type="hidden" id="add-event-id" value="" />
+
+    <div class="form-group">
+      <label class="form-label">Title</label>
+      <input class="form-input" type="text" id="ev-title" placeholder="e.g. Beyblade RXS Official Tournament Season III" />
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input class="form-input" type="text" id="ev-date" placeholder="e.g. April 25, 2026 (Saturday)" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Time</label>
+        <input class="form-input" type="text" id="ev-time" placeholder="e.g. 1:30pm" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Venue / Location</label>
+      <input class="form-input" type="text" id="ev-venue" placeholder="e.g. SM City Roxas" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Category / Format</label>
+      <input class="form-input" type="text" id="ev-format" placeholder="e.g. 3G Beyclass System" />
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group">
+        <label class="form-label">Entry Fee</label>
+        <input class="form-input" type="text" id="ev-fee" placeholder="e.g. 350" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">GCash Number</label>
+        <input class="form-input" type="text" id="ev-gcash" placeholder="e.g. 09167288358" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Prizes</label>
+      <input class="form-input" type="text" id="ev-prizes" placeholder="e.g. Beypark Dran Buster or Rare Whale Wave" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description / Notes <span style="color:var(--muted);font-size:9px">(optional)</span></label>
+      <textarea class="form-input" id="ev-desc" rows="3" placeholder="Any extra info..." style="resize:vertical;font-family:'Share Tech Mono',monospace;font-size:12px"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Status</label>
+      <select class="form-input" id="ev-status" style="font-size:13px">
+        <option value="open">🟢 Open — Signups open</option>
+        <option value="closed">🔴 Closed — Signups closed</option>
+        <option value="done">✅ Done — Event completed</option>
+      </select>
+    </div>
+    <div class="modal-error" id="add-event-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" onclick="saveEvent()">💾 Save Event</button>
+      <button class="btn danger" id="delete-event-btn" style="display:none" onclick="deleteEvent()">🗑 Delete</button>
+      <button class="btn" onclick="closeAddEventModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
 <div id="tab-points" class="section">
   <div class="section-header"><span class="section-title">Point System</span><div class="section-line"></div></div>
   <div class="points-grid">
@@ -1659,6 +1875,9 @@ function applyAdminUI() {
   if (addPostBtn) addPostBtn.style.display = '';
   const addPost2Btn = document.getElementById('home-add-post2-btn');
   if (addPost2Btn) addPost2Btn.style.display = '';
+  // Show events add btn if on events tab
+  const addEventBtn = document.getElementById('events-add-btn');
+  if (addEventBtn) addEventBtn.style.display = '';
   // Always show carousel2 section for admin so they can add posts
   const c2section = document.getElementById('carousel2-section');
   if (c2section) c2section.style.display = '';
@@ -2779,6 +2998,11 @@ function showTab(tab, btn) {
         loadPublicTournaments();
       }
     }
+  }
+  if (tab === 'events') {
+    loadEvents();
+    const addBtn = document.getElementById('events-add-btn');
+    if (addBtn) addBtn.style.display = isAdmin ? '' : 'none';
   }
 }
 
@@ -4217,7 +4441,7 @@ renderHomeSnapshot();
 
 // Restore tab from URL hash on load (so refresh stays on same tab)
 (function restoreTabFromHash() {
-  const validTabs = ['home','leaderboard','rulerscup','weekly','achievements','challonge','points'];
+  const validTabs = ['home','leaderboard','rulerscup','weekly','achievements','events','challonge','points'];
   const hash = window.location.hash.replace('#','');
   const tab = validTabs.includes(hash) ? hash : 'home';
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
@@ -4237,6 +4461,7 @@ renderHomeSnapshot();
   }
   if (tab === 'home') { renderHomeSnapshot(); startCarouselTimer(); }
   if (tab === 'challonge') { if (currentSeason === 3) { showChallongeComingSoon(); } else { loadPublicTournaments(); } }
+  if (tab === 'events') { loadEvents(); const ab = document.getElementById('events-add-btn'); if(ab) ab.style.display = isAdmin ? '' : 'none'; }
 })();
 
 // ═══════════════════════════════════════════════════════
@@ -5613,6 +5838,440 @@ async function savePlayerAccount() {
 }
 
 
-</script>
+// ═══════════════════════════════════════════════════════
+//  EVENTS SYSTEM
+// ═══════════════════════════════════════════════════════
+const EVENTS_API = '/api/events';
+let eventsData = []; // local cache
+let currentEventDetail = null; // event being viewed in modal
 
-</html>
+// ── Load all events from KV ──
+async function loadEvents() {
+  const listEl = document.getElementById('events-list');
+  if (!listEl) return;
+  try {
+    const res = await fetch(EVENTS_API);
+    if (!res.ok) throw new Error('Load failed (' + res.status + ')');
+    const data = await res.json();
+    eventsData = data.events || [];
+    renderEventsList();
+  } catch(e) {
+    const listEl = document.getElementById('events-list');
+    if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:48px 20px;color:var(--muted2);font-family:\'Share Tech Mono\',monospace;font-size:12px">⚠ Could not load events: ' + e.message + '</div>';
+  }
+}
+
+function getStatusHtml(status) {
+  if (status === 'open')   return '<span class="event-card-status ev-status-open">🟢 Open</span>';
+  if (status === 'closed') return '<span class="event-card-status ev-status-closed">🔴 Closed</span>';
+  return '<span class="event-card-status ev-status-done">✅ Done</span>';
+}
+
+function isPlayerJoined(ev) {
+  if (!playerSession) return false;
+  return (ev.joiners || []).some(j => j.username === playerSession.username);
+}
+
+// ── Render the events list ──
+function renderEventsList() {
+  const listEl = document.getElementById('events-list');
+  if (!listEl) return;
+  if (!eventsData.length) {
+    listEl.innerHTML = '<div style="text-align:center;padding:60px 20px;background:var(--surface);border:1px dashed var(--border2);border-radius:16px"><div style="font-size:36px;margin-bottom:12px">🎯</div><div style="font-family:\'Rajdhani\',sans-serif;font-size:16px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">No Events Yet</div><div style="font-size:13px;color:var(--muted2)">Admin can create events using the ➕ Create Event button above.</div></div>';
+    return;
+  }
+
+  // Sort: open first, then closed, then done; newest first within each group
+  const order = { open: 0, closed: 1, done: 2 };
+  const sorted = [...eventsData].sort((a, b) => {
+    const os = (order[a.status] ?? 1) - (order[b.status] ?? 1);
+    if (os !== 0) return os;
+    return (b.createdAt || '').localeCompare(a.createdAt || '');
+  });
+
+  listEl.innerHTML = sorted.map(ev => {
+    const joinCount = (ev.joiners || []).length;
+    const joined = isPlayerJoined(ev);
+    const canJoin = playerSession && ev.status === 'open';
+    const adminEditBtn = `<button class="btn admin-only-btn" style="display:none;font-size:10px;padding:3px 10px;margin-top:8px" onclick="event.stopPropagation();openEditEventModal('${ev.id}')">✏️ Edit Event</button>`;
+
+    // Build meta items
+    const metaItems = [];
+    if (ev.venue)  metaItems.push({ label: '📍 Venue', value: ev.venue });
+    if (ev.format) metaItems.push({ label: '🎮 Format', value: ev.format });
+    if (ev.fee)    metaItems.push({ label: '💰 Entry Fee', value: '₱' + ev.fee });
+    if (ev.prizes) metaItems.push({ label: '🏆 Prizes', value: ev.prizes });
+    if (ev.gcash)  metaItems.push({ label: '📱 GCash', value: ev.gcash });
+
+    const metaHtml = metaItems.map(m =>
+      `<div class="event-meta-item"><div class="event-meta-label">${m.label}</div><div class="event-meta-value">${m.value}</div></div>`
+    ).join('');
+
+    const joinBtnHtml = !playerSession
+      ? `<div style="margin-top:10px;font-size:12px;color:var(--muted);text-align:center;padding:10px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">👤 <span style="cursor:pointer;color:var(--gold);text-decoration:underline" onclick="event.stopPropagation();openPlayerLoginModal()">Login</span> to join this event</div>`
+      : ev.status !== 'open'
+        ? ''
+        : joined
+          ? `<button class="ev-join-btn joined" onclick="event.stopPropagation();handleJoinToggle('${ev.id}',true)">✅ Joined — Click to Unjoin</button>`
+          : `<button class="ev-join-btn" onclick="event.stopPropagation();handleJoinToggle('${ev.id}',false)">⚡ Join This Event</button>`;
+
+    return `<div class="event-card" onclick="openEventDetail('${ev.id}')">
+      <div class="event-card-header">
+        ${getStatusHtml(ev.status)}
+        <div class="event-card-title">${ev.title}</div>
+        <div class="event-card-date">${[ev.date, ev.time].filter(Boolean).join(' · ')}</div>
+      </div>
+      <div class="event-card-body">
+        <div class="event-meta-grid">${metaHtml}</div>
+        <div class="event-joiner-preview">
+          <span class="event-joiner-count">${joinCount}</span>
+          <span>Sure Blader${joinCount !== 1 ? 's' : ''} registered</span>
+        </div>
+        ${joinBtnHtml}
+        ${adminEditBtn}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Show/hide admin buttons based on current state
+  if (isAdmin) document.querySelectorAll('.admin-only-btn').forEach(b => b.style.display = '');
+}
+
+// ── Open event detail modal ──
+function openEventDetail(eventId) {
+  const ev = eventsData.find(e => e.id === eventId);
+  if (!ev) return;
+  currentEventDetail = ev;
+
+  document.getElementById('evd-title').textContent = ev.title;
+  document.getElementById('evd-datetime').textContent = [ev.date, ev.time].filter(Boolean).join(' · ') || '—';
+
+  // Status label
+  const statusLabels = { open: '🟢 SIGNUPS OPEN', closed: '🔴 SIGNUPS CLOSED', done: '✅ EVENT COMPLETED' };
+  document.getElementById('evd-status-label').textContent = statusLabels[ev.status] || 'OPEN';
+
+  // Info grid
+  const infoItems = [];
+  if (ev.venue)  infoItems.push({ label: '📍 Venue',      value: ev.venue });
+  if (ev.format) infoItems.push({ label: '🎮 Format',     value: ev.format });
+  if (ev.fee)    infoItems.push({ label: '💰 Entry Fee',  value: '₱' + ev.fee });
+  if (ev.gcash)  infoItems.push({ label: '📱 GCash',      value: ev.gcash });
+  if (ev.prizes) infoItems.push({ label: '🏆 Prizes',     value: ev.prizes });
+
+  document.getElementById('evd-info').innerHTML = infoItems.map(m =>
+    `<div class="event-meta-item"><div class="event-meta-label">${m.label}</div><div class="event-meta-value">${m.value}</div></div>`
+  ).join('');
+
+  // Description
+  const descWrap = document.getElementById('evd-desc-wrap');
+  const descEl   = document.getElementById('evd-desc');
+  if (ev.desc && ev.desc.trim()) {
+    descEl.textContent = ev.desc.trim();
+    descWrap.style.display = '';
+  } else {
+    descWrap.style.display = 'none';
+  }
+
+  // Join area
+  renderDetailJoinArea(ev);
+
+  // Admin add button
+  const adminAddBtn = document.getElementById('evd-admin-add-btn');
+  if (adminAddBtn) adminAddBtn.style.display = isAdmin ? '' : 'none';
+
+  // Render joiners
+  renderDetailJoinersList(ev);
+
+  document.getElementById('event-detail-modal').classList.add('open');
+}
+
+function renderDetailJoinArea(ev) {
+  const area = document.getElementById('evd-join-area');
+  if (!area) return;
+  if (!playerSession) {
+    area.innerHTML = `<div style="font-size:12px;color:var(--muted);text-align:center;padding:12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">👤 <span style="cursor:pointer;color:var(--gold);text-decoration:underline" onclick="closeEventDetail();openPlayerLoginModal()">Login</span> to join this event</div>`;
+    return;
+  }
+  if (ev.status !== 'open') { area.innerHTML = ''; return; }
+  const joined = isPlayerJoined(ev);
+  area.innerHTML = joined
+    ? `<button class="ev-join-btn joined" onclick="handleJoinToggle('${ev.id}',true)">✅ You're In — Click to Unjoin</button>`
+    : `<button class="ev-join-btn" onclick="handleJoinToggle('${ev.id}',false)">⚡ Join This Event</button>`;
+}
+
+function renderDetailJoinersList(ev) {
+  const listEl = document.getElementById('evd-joiners-list');
+  const countEl = document.getElementById('evd-joiner-count');
+  const joiners = ev.joiners || [];
+  countEl.textContent = joiners.length;
+  if (!joiners.length) {
+    listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted2);font-family:\'Share Tech Mono\',monospace;font-size:11px">No one has joined yet. Be the first!</div>';
+    return;
+  }
+  listEl.innerHTML = joiners.map((j, i) =>
+    `<div class="ev-joiner-row">
+      <span class="ev-joiner-num">${i + 1}.</span>
+      <span class="ev-joiner-name">${j.name}</span>
+      <button class="ev-joiner-remove" onclick="adminRemoveJoiner(${i})" title="Remove">✕</button>
+    </div>`
+  ).join('');
+}
+
+function closeEventDetail() {
+  document.getElementById('event-detail-modal').classList.remove('open');
+  currentEventDetail = null;
+}
+
+// ── Join / Unjoin ──
+async function handleJoinToggle(eventId, isJoined) {
+  if (!playerSession) { openPlayerLoginModal(); return; }
+  const btn = event.target;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving…'; }
+
+  try {
+    const hash = playerSession.account.password; // already hashed from login
+    const displayName = playerSession.account.displayName || playerSession.username;
+    const res = await fetch(EVENTS_API + '?action=' + (isJoined ? 'unjoin' : 'join'), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username:    playerSession.username,
+        passwordHash: hash,
+        eventId:     eventId,
+        displayName: displayName
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+
+    // Update local cache
+    const idx = eventsData.findIndex(e => e.id === eventId);
+    if (idx !== -1) eventsData[idx] = data.event;
+
+    // Refresh both list and detail if open
+    renderEventsList();
+    if (currentEventDetail && currentEventDetail.id === eventId) {
+      currentEventDetail = data.event;
+      renderDetailJoinArea(data.event);
+      renderDetailJoinersList(data.event);
+    }
+    showToast(isJoined ? 'You have unjoined the event.' : '✅ You\'re in! See you there 🔥', isJoined ? '' : 'success');
+  } catch(e) {
+    showToast('⚠ ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = isJoined ? '✅ You\'re In — Click to Unjoin' : '⚡ Join This Event'; }
+  }
+}
+
+// ── Admin: open "Add Name" modal ──
+function openAdminAddJoiner() {
+  if (!isAdmin || !currentEventDetail) return;
+  document.getElementById('admin-add-joiner-input').value = '';
+  document.getElementById('admin-add-joiner-error').textContent = '';
+  document.getElementById('admin-add-joiner-modal').classList.add('open');
+  setTimeout(() => document.getElementById('admin-add-joiner-input').focus(), 150);
+}
+function closeAdminAddJoiner() {
+  document.getElementById('admin-add-joiner-modal').classList.remove('open');
+}
+
+async function adminAddJoinerSave() {
+  if (!isAdmin || !currentEventDetail) return;
+  const name = document.getElementById('admin-add-joiner-input').value.trim();
+  const errEl = document.getElementById('admin-add-joiner-error');
+  errEl.textContent = '';
+  if (!name) { errEl.textContent = 'Name is required.'; return; }
+
+  const btn = document.querySelector('#admin-add-joiner-modal .btn.primary');
+  btn.disabled = true; btn.textContent = 'Adding…';
+
+  try {
+    const res = await fetch(EVENTS_API + '?action=admin_add', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        adminUsername: _acAdminUsername,
+        adminPassword: _acAdminPassword,
+        eventId: currentEventDetail.id,
+        name
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+
+    const idx = eventsData.findIndex(e => e.id === currentEventDetail.id);
+    if (idx !== -1) eventsData[idx] = data.event;
+    currentEventDetail = data.event;
+    renderDetailJoinersList(data.event);
+    renderEventsList();
+    closeAdminAddJoiner();
+    showToast('"' + name + '" added to Sure Bladers!', 'success');
+  } catch(e) {
+    errEl.textContent = e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = '✅ Add';
+  }
+}
+
+async function adminRemoveJoiner(joinerIdx) {
+  if (!isAdmin || !currentEventDetail) return;
+  const joiner = (currentEventDetail.joiners || [])[joinerIdx];
+  if (!joiner) return;
+  if (!confirm('Remove "' + joiner.name + '" from Sure Bladers?')) return;
+
+  try {
+    const res = await fetch(EVENTS_API + '?action=admin_remove', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        adminUsername: _acAdminUsername,
+        adminPassword: _acAdminPassword,
+        eventId: currentEventDetail.id,
+        joinerIdx
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+
+    const idx = eventsData.findIndex(e => e.id === currentEventDetail.id);
+    if (idx !== -1) eventsData[idx] = data.event;
+    currentEventDetail = data.event;
+    renderDetailJoinersList(data.event);
+    renderEventsList();
+    showToast('"' + joiner.name + '" removed.', '');
+  } catch(e) {
+    showToast('⚠ ' + e.message, 'error');
+  }
+}
+
+// ── Admin: Create / Edit event modal ──
+function openAddEventModal() {
+  if (!isAdmin) return;
+  document.getElementById('add-event-modal-title').textContent = '➕ Create Event';
+  document.getElementById('add-event-id').value = '';
+  document.getElementById('ev-title').value  = '';
+  document.getElementById('ev-date').value   = '';
+  document.getElementById('ev-time').value   = '';
+  document.getElementById('ev-venue').value  = '';
+  document.getElementById('ev-format').value = '';
+  document.getElementById('ev-fee').value    = '';
+  document.getElementById('ev-gcash').value  = '';
+  document.getElementById('ev-prizes').value = '';
+  document.getElementById('ev-desc').value   = '';
+  document.getElementById('ev-status').value = 'open';
+  document.getElementById('add-event-error').textContent = '';
+  document.getElementById('delete-event-btn').style.display = 'none';
+  document.getElementById('add-event-modal').classList.add('open');
+  setTimeout(() => document.getElementById('ev-title').focus(), 150);
+}
+
+function openEditEventModal(eventId) {
+  if (!isAdmin) return;
+  const ev = eventsData.find(e => e.id === eventId);
+  if (!ev) return;
+  document.getElementById('add-event-modal-title').textContent = '✏️ Edit Event';
+  document.getElementById('add-event-id').value = ev.id;
+  document.getElementById('ev-title').value  = ev.title  || '';
+  document.getElementById('ev-date').value   = ev.date   || '';
+  document.getElementById('ev-time').value   = ev.time   || '';
+  document.getElementById('ev-venue').value  = ev.venue  || '';
+  document.getElementById('ev-format').value = ev.format || '';
+  document.getElementById('ev-fee').value    = ev.fee    || '';
+  document.getElementById('ev-gcash').value  = ev.gcash  || '';
+  document.getElementById('ev-prizes').value = ev.prizes || '';
+  document.getElementById('ev-desc').value   = ev.desc   || '';
+  document.getElementById('ev-status').value = ev.status || 'open';
+  document.getElementById('add-event-error').textContent = '';
+  document.getElementById('delete-event-btn').style.display = '';
+  document.getElementById('add-event-modal').classList.add('open');
+}
+
+function closeAddEventModal() {
+  document.getElementById('add-event-modal').classList.remove('open');
+}
+
+async function saveEvent() {
+  if (!isAdmin) return;
+  const title  = document.getElementById('ev-title').value.trim();
+  const errEl  = document.getElementById('add-event-error');
+  errEl.textContent = '';
+  if (!title) { errEl.textContent = 'Title is required.'; return; }
+
+  const existingId = document.getElementById('add-event-id').value;
+  const isEdit     = !!existingId;
+
+  const eventObj = {
+    id:      isEdit ? existingId : 'evt_' + Date.now(),
+    title,
+    date:    document.getElementById('ev-date').value.trim(),
+    time:    document.getElementById('ev-time').value.trim(),
+    venue:   document.getElementById('ev-venue').value.trim(),
+    format:  document.getElementById('ev-format').value.trim(),
+    fee:     document.getElementById('ev-fee').value.trim(),
+    gcash:   document.getElementById('ev-gcash').value.trim(),
+    prizes:  document.getElementById('ev-prizes').value.trim(),
+    desc:    document.getElementById('ev-desc').value.trim(),
+    status:  document.getElementById('ev-status').value,
+    createdAt: isEdit ? (eventsData.find(e => e.id === existingId)?.createdAt || new Date().toISOString()) : new Date().toISOString(),
+    joiners: isEdit ? (eventsData.find(e => e.id === existingId)?.joiners || []) : []
+  };
+
+  const btn = document.querySelector('#add-event-modal .btn.primary');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  try {
+    // Merge into local array
+    const newEvents = isEdit
+      ? eventsData.map(e => e.id === existingId ? eventObj : e)
+      : [eventObj, ...eventsData];
+
+    const res = await fetch(EVENTS_API, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        adminUsername: _acAdminUsername,
+        adminPassword: _acAdminPassword,
+        events: newEvents
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Save failed');
+
+    eventsData = newEvents;
+    renderEventsList();
+    closeAddEventModal();
+    showToast(isEdit ? '✅ Event updated!' : '✅ Event created!', 'success');
+  } catch(e) {
+    errEl.textContent = e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = '💾 Save Event';
+  }
+}
+
+async function deleteEvent() {
+  if (!isAdmin) return;
+  const eventId = document.getElementById('add-event-id').value;
+  const ev = eventsData.find(e => e.id === eventId);
+  if (!ev) return;
+  if (!confirm('Delete "' + ev.title + '"? This cannot be undone.')) return;
+
+  const newEvents = eventsData.filter(e => e.id !== eventId);
+  try {
+    const res = await fetch(EVENTS_API, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        adminUsername: _acAdminUsername,
+        adminPassword: _acAdminPassword,
+        events: newEvents
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Delete failed');
+    eventsData = newEvents;
+    renderEventsList();
+    closeAddEventModal();
+    showToast('Event deleted.', '');
+  } catch(e) {
+    showToast('⚠ ' + e.message, 'error');
+  }
+}
