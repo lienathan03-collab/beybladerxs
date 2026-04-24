@@ -1027,7 +1027,7 @@
     </div>
     <button class="nav-admin-btn" id="nav-admin-badge" style="display:none" onclick="adminLogout()">👑 Admin</button>
   </nav>
-  <span id="nav-login-hint" onclick="openLoginModal()" title="Admin Login" style="font-size:13px;color:var(--muted);cursor:pointer;padding:6px 8px;opacity:0.25;flex-shrink:0;z-index:200;position:relative;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='0.25'">⚙</span>
+  <span id="nav-login-hint" style="display:none"></span>
   <!-- MOBILE HEADER EXTRAS: season switcher + login (only visible on mobile) -->
   <div class="mobile-header-extras" id="mobile-header-extras">
     <div class="season-dropdown" id="season-dropdown-mob">
@@ -1041,7 +1041,7 @@
       </div>
     </div>
     <span id="mob-login-hint" onclick="openPlayerLoginModal()" style="font-size:13px;color:var(--muted);cursor:pointer;padding:4px 6px;letter-spacing:1px;font-family:'Share Tech Mono',monospace;">👤</span>
-    <span id="mob-admin-login-hint" onclick="openLoginModal()" title="Admin" style="font-size:11px;color:var(--muted);cursor:pointer;padding:4px 4px;opacity:0.3;">⚙</span>
+    <span id="mob-admin-login-hint" style="display:none"></span>
     <button id="mob-player-badge" style="display:none;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px;font-size:11px;padding:4px 8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px;" onclick="openPlayerMenuModal()">👤 <span id="mob-player-name"></span></button>
     <button class="nav-admin-btn" id="mob-admin-badge" style="display:none;font-size:11px;padding:4px 8px;" onclick="adminLogout()">👑</button>
 
