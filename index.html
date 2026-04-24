@@ -1011,7 +1011,7 @@
     <button onclick="showTab('events', this)">🎯 Events</button>
     <button onclick="showTab('challonge', this)">⚡ Challonge</button>
     <button onclick="showTab('points', this)">Points</button>
-    <span class="nav-login-hint" id="nav-login-hint" style="display:none" onclick="openLoginModal()" title="Admin Login"></span>
+    <span class="nav-login-hint" id="nav-login-hint" onclick="openLoginModal()" title="Admin Login" style="opacity:0.3;">⚙</span>
     <span class="nav-player-login-hint" id="nav-player-login-hint" onclick="openPlayerLoginModal()" title="Player Login" style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--muted);padding:6px 10px;letter-spacing:1px;cursor:pointer;border-radius:6px;transition:color .15s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted)'">👤 Login</span>
     <button class="nav-player-badge" id="nav-player-badge" style="display:none;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px;font-size:12px;padding:6px 12px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px;" onclick="openPlayerMenuModal()">👤 <span id="nav-player-name"></span></button>
     <div class="season-switcher" id="season-switcher">
@@ -1041,6 +1041,7 @@
       </div>
     </div>
     <span id="mob-login-hint" onclick="openPlayerLoginModal()" style="font-size:13px;color:var(--muted);cursor:pointer;padding:4px 6px;letter-spacing:1px;font-family:'Share Tech Mono',monospace;">👤</span>
+    <span id="mob-admin-login-hint" onclick="openLoginModal()" title="Admin" style="font-size:11px;color:var(--muted);cursor:pointer;padding:4px 4px;opacity:0.3;">⚙</span>
     <button id="mob-player-badge" style="display:none;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px;font-size:11px;padding:4px 8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px;" onclick="openPlayerMenuModal()">👤 <span id="mob-player-name"></span></button>
     <button class="nav-admin-btn" id="mob-admin-badge" style="display:none;font-size:11px;padding:4px 8px;" onclick="adminLogout()">👑</button>
 
@@ -1855,9 +1856,9 @@ function adminLogout() {
   document.getElementById('nav-admin-badge').style.display = 'none';
   document.getElementById('nav-login-hint').style.display = '';
   const mobAdminBadge = document.getElementById('mob-admin-badge');
-  const mobLoginHint = document.getElementById('mob-login-hint');
+  const mobAdminLoginHint = document.getElementById('mob-admin-login-hint');
   if (mobAdminBadge) mobAdminBadge.style.display = 'none';
-  if (mobLoginHint) mobLoginHint.style.display = '';
+  if (mobAdminLoginHint) mobAdminLoginHint.style.display = '';
   document.body.classList.remove('admin-active');
   document.querySelectorAll('.admin-only-btn').forEach(b => b.style.display = 'none');
   // Switch challonge tab back to public view
@@ -1871,9 +1872,9 @@ function applyAdminUI() {
   document.getElementById('nav-admin-badge').style.display = '';
   document.getElementById('nav-login-hint').style.display = 'none';
   const mobAdminBadge = document.getElementById('mob-admin-badge');
-  const mobLoginHint = document.getElementById('mob-login-hint');
+  const mobAdminLoginHint = document.getElementById('mob-admin-login-hint');
   if (mobAdminBadge) mobAdminBadge.style.display = '';
-  if (mobLoginHint) mobLoginHint.style.display = 'none';
+  if (mobAdminLoginHint) mobAdminLoginHint.style.display = 'none';
   document.body.classList.add('admin-active');
   document.querySelectorAll('.admin-only-btn').forEach(b => b.style.display = '');
   // Show add-post btn if on home tab
