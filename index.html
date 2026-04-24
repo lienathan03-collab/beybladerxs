@@ -1011,7 +1011,6 @@
     <button onclick="showTab('events', this)">🎯 Events</button>
     <button onclick="showTab('challonge', this)">⚡ Challonge</button>
     <button onclick="showTab('points', this)">Points</button>
-    <span class="nav-login-hint" id="nav-login-hint" onclick="openLoginModal()" title="Admin Login" style="opacity:0.3;">⚙</span>
     <span class="nav-player-login-hint" id="nav-player-login-hint" onclick="openPlayerLoginModal()" title="Player Login" style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--muted);padding:6px 10px;letter-spacing:1px;cursor:pointer;border-radius:6px;transition:color .15s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted)'">👤 Login</span>
     <button class="nav-player-badge" id="nav-player-badge" style="display:none;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px;font-size:12px;padding:6px 12px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px;" onclick="openPlayerMenuModal()">👤 <span id="nav-player-name"></span></button>
     <div class="season-switcher" id="season-switcher">
@@ -1027,6 +1026,7 @@
       </div>
     </div>
     <button class="nav-admin-btn" id="nav-admin-badge" style="display:none" onclick="adminLogout()">👑 Admin</button>
+    <span id="nav-login-hint" onclick="openLoginModal()" title="Admin Login" style="font-size:13px;color:var(--muted);cursor:pointer;padding:6px 8px;opacity:0.25;flex-shrink:0;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='0.25'">⚙</span>
   </nav>
   <!-- MOBILE HEADER EXTRAS: season switcher + login (only visible on mobile) -->
   <div class="mobile-header-extras" id="mobile-header-extras">
@@ -1853,8 +1853,10 @@ function adminLogout() {
   _acAdminUsername = '';
   _acAdminPassword = '';
   document.getElementById('admin-bar').classList.remove('visible');
-  document.getElementById('nav-admin-badge').style.display = 'none';
-  document.getElementById('nav-login-hint').style.display = '';
+  const navAdminBadgeOut = document.getElementById('nav-admin-badge');
+  if (navAdminBadgeOut) navAdminBadgeOut.style.display = 'none';
+  const navLoginHintOut = document.getElementById('nav-login-hint');
+  if (navLoginHintOut) navLoginHintOut.style.display = '';
   const mobAdminBadge = document.getElementById('mob-admin-badge');
   const mobAdminLoginHint = document.getElementById('mob-admin-login-hint');
   if (mobAdminBadge) mobAdminBadge.style.display = 'none';
@@ -1869,8 +1871,10 @@ function adminLogout() {
 
 function applyAdminUI() {
   document.getElementById('admin-bar').classList.add('visible');
-  document.getElementById('nav-admin-badge').style.display = '';
-  document.getElementById('nav-login-hint').style.display = 'none';
+  const navAdminBadge = document.getElementById('nav-admin-badge');
+  if (navAdminBadge) navAdminBadge.style.display = '';
+  const navLoginHint = document.getElementById('nav-login-hint');
+  if (navLoginHint) navLoginHint.style.display = 'none';
   const mobAdminBadge = document.getElementById('mob-admin-badge');
   const mobAdminLoginHint = document.getElementById('mob-admin-login-hint');
   if (mobAdminBadge) mobAdminBadge.style.display = '';
