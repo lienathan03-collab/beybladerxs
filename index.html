@@ -1821,6 +1821,20 @@ function openLoginModal() {
 }
 function closeLoginModal() { document.getElementById('login-modal').classList.remove('open'); }
 
+// ═══════════════════════════════════════════════════════
+//  PLAYER AUTH
+// ═══════════════════════════════════════════════════════
+function openPlayerLoginModal() {
+  document.getElementById('player-login-user').value = '';
+  document.getElementById('player-login-pass').value = '';
+  document.getElementById('player-login-error').textContent = '';
+  document.getElementById('player-login-modal').classList.add('open');
+  setTimeout(() => document.getElementById('player-login-user').focus(), 100);
+}
+function closePlayerLoginModal() {
+  document.getElementById('player-login-modal').classList.remove('open');
+}
+
 async function doLogin() {
   const u = document.getElementById('login-user').value.trim();
   const p = document.getElementById('login-pass').value;
