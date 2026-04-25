@@ -5288,6 +5288,10 @@ async function playerRenameSelf() {
     if (mobName) mobName.textContent = newName;
     document.getElementById('pm-rename-input').value = '';
     showToast('✅ Renamed to "' + newName + '"!', 'success');
+
+    // Reload season stats with updated aliases so S2 + S3 both reflect the new name
+    profileSeasonCache = {}; // bust cache so renamed data is fetched fresh
+    loadProfileSeasonData(playerSession.account.aliases || [newName]);
   } catch(e) {
     errEl.textContent = 'Rename failed: ' + e.message;
   } finally {
