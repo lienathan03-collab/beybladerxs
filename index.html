@@ -1527,6 +1527,8 @@
   .tj-option.taken { color:var(--muted2); pointer-events:none; font-style:italic; }
   .tj-option.is-you { color:var(--gold); }
   .tj-no-results { padding:10px 14px; color:var(--muted2); font-size:12px; font-family:'Share Tech Mono',monospace; }
+  .tj-add-new { color:var(--gold) !important; border-top:1px solid rgba(212,175,55,0.2); margin-top:4px; }
+  .tj-add-new:hover { background:rgba(212,175,55,0.18) !important; }
 </style>
 <div class="modal-overlay" id="team-join-modal" onclick="if(event.target===this)closeTeamJoinModal()">
   <div class="modal" style="max-width:400px">
@@ -1835,6 +1837,8 @@
 </div>
 
 <script>
+
+const EVENTS_API = '/api/events'; // declared first — used during page init
 
 // ═══════════════════════════════════════════════════════
 //  ADMIN AUTH — passwords are stored in Vercel Environment
@@ -5514,7 +5518,6 @@ async function savePlayerAccount() {
 // ═══════════════════════════════════════════════════════
 //  EVENTS SYSTEM
 // ═══════════════════════════════════════════════════════
-const EVENTS_API = '/api/events';
 let eventsData = []; // local cache
 let currentEventDetail = null; // event being viewed in modal
 
@@ -5782,19 +5785,15 @@ function tjGetTakenNames() {
 
 function tjRenderOptions(slot, filter) {
   const displayName = playerSession ? (playerSession.account.displayName || playerSession.username) : null;
-  const taken = tjGetTakenNames();
   const el = document.getElementById('tj-options-' + slot);
-  const q = (filter || '').toLowerCase().trim();
+  const q = (filter || '').trim();
+  const qLow = q.toLowerCase();
   const list = players
     .map(p => p.name)
-    .filter(n => !q || n.toLowerCase().includes(q));
-  if (!list.length) {
-    el.innerHTML = '<div class="tj-no-results">No players found</div>';
-    return;
-  }
-  el.innerHTML = list.map(name => {
+    .filter(n => !q || n.toLowerCase().includes(qLow));
+
+  const rows = list.map(name => {
     const isYou = name === displayName;
-    // taken = chosen in ANOTHER slot (not this slot's current value)
     const otherSlotTaken = Object.entries(_tjSelected)
       .some(([s, v]) => parseInt(s) !== slot && v === name);
     const cls = otherSlotTaken ? 'taken' : isYou ? 'is-you' : '';
@@ -5802,7 +5801,23 @@ function tjRenderOptions(slot, filter) {
     return `<div class="tj-option ${cls}" onclick="tjSelectMember(${slot},'${name.replace(/'/g,"\'")}')">
       ${name}${suffix}
     </div>`;
-  }).join('');
+  });
+
+  // "Add new name" option — shown when search text doesn't exactly match any player
+  const exactMatch = players.some(p => p.name.toLowerCase() === qLow);
+  const alreadySelectedElsewhere = q && Object.entries(_tjSelected)
+    .some(([s, v]) => parseInt(s) !== slot && v && v.toLowerCase() === qLow);
+  if (q && !exactMatch && !alreadySelectedElsewhere) {
+    rows.push(`<div class="tj-option tj-add-new" onclick="tjSelectMember(${slot},'${q.replace(/'/g,"\'")}')">
+      ➕ Add "<strong>${q}</strong>"
+    </div>`);
+  }
+
+  if (!rows.length) {
+    el.innerHTML = '<div class="tj-no-results">Type a name to search or add new</div>';
+    return;
+  }
+  el.innerHTML = rows.join('');
 }
 
 function tjFilterOptions(slot, val) {
