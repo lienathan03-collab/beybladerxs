@@ -1489,26 +1489,92 @@
 </div>
 
 <!-- ══════════════ 3v3 TEAM JOIN MODAL ══════════════ -->
+<style>
+  .tj-member-box { position:relative; }
+  .tj-member-selected {
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--surface); border:1px solid var(--border2); border-radius:8px;
+    padding:8px 12px; font-size:13px; color:var(--text); cursor:pointer;
+    transition:border-color .2s;
+  }
+  .tj-member-selected:hover, .tj-member-selected.open { border-color:var(--gold); }
+  .tj-member-selected .placeholder { color:var(--muted2); }
+  .tj-member-selected .chosen { color:#fff; font-weight:600; }
+  .tj-member-selected .clear-btn {
+    color:var(--muted); font-size:16px; line-height:1; cursor:pointer;
+    padding:0 2px; margin-left:6px;
+  }
+  .tj-member-selected .clear-btn:hover { color:var(--gold); }
+  .tj-dropdown {
+    display:none; position:absolute; top:calc(100% + 4px); left:0; right:0;
+    background:#1a1200; border:1px solid var(--gold); border-radius:8px;
+    z-index:200; max-height:200px; overflow-y:auto;
+    box-shadow:0 8px 24px rgba(0,0,0,0.7);
+  }
+  .tj-dropdown.open { display:block; }
+  .tj-search {
+    width:100%; box-sizing:border-box; background:transparent; border:none;
+    border-bottom:1px solid rgba(212,175,55,0.2); padding:8px 12px;
+    color:#fff; font-size:12px; outline:none; font-family:'Share Tech Mono',monospace;
+  }
+  .tj-search::placeholder { color:var(--muted2); }
+  .tj-option {
+    padding:8px 14px; font-size:13px; color:var(--text); cursor:pointer;
+    font-family:'Rajdhani',sans-serif; font-weight:600; letter-spacing:.5px;
+    transition:background .15s;
+  }
+  .tj-option:hover { background:rgba(212,175,55,0.12); color:#fff; }
+  .tj-option.taken { color:var(--muted2); pointer-events:none; font-style:italic; }
+  .tj-option.is-you { color:var(--gold); }
+  .tj-no-results { padding:10px 14px; color:var(--muted2); font-size:12px; font-family:'Share Tech Mono',monospace; }
+</style>
 <div class="modal-overlay" id="team-join-modal" onclick="if(event.target===this)closeTeamJoinModal()">
   <div class="modal" style="max-width:400px">
     <button class="modal-close" onclick="closeTeamJoinModal()">✕</button>
     <div class="modal-title">🛡️ Join as a Team</div>
-    <div class="modal-sub">Enter your team name and the names of all 3 members</div>
+    <div class="modal-sub">Enter your team name and pick your 3 members</div>
     <div class="form-group">
       <label class="form-label">Team Name</label>
       <input class="form-input" type="text" id="tj-teamname" placeholder="e.g. VG Bladers" />
     </div>
     <div class="form-group">
       <label class="form-label">Member 1</label>
-      <input class="form-input" type="text" id="tj-m1" placeholder="Name of 1st member" />
+      <div class="tj-member-box" id="tj-box-1">
+        <div class="tj-member-selected" id="tj-sel-1" onclick="tjToggleDropdown(1)">
+          <span class="placeholder" id="tj-sel-text-1">Select a player…</span>
+          <span class="clear-btn" id="tj-clear-1" style="display:none" onclick="event.stopPropagation();tjClearMember(1)">✕</span>
+        </div>
+        <div class="tj-dropdown" id="tj-drop-1">
+          <input class="tj-search" type="text" placeholder="Search player…" oninput="tjFilterOptions(1,this.value)" onclick="event.stopPropagation()" />
+          <div id="tj-options-1"></div>
+        </div>
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label">Member 2</label>
-      <input class="form-input" type="text" id="tj-m2" placeholder="Name of 2nd member" />
+      <div class="tj-member-box" id="tj-box-2">
+        <div class="tj-member-selected" id="tj-sel-2" onclick="tjToggleDropdown(2)">
+          <span class="placeholder" id="tj-sel-text-2">Select a player…</span>
+          <span class="clear-btn" id="tj-clear-2" style="display:none" onclick="event.stopPropagation();tjClearMember(2)">✕</span>
+        </div>
+        <div class="tj-dropdown" id="tj-drop-2">
+          <input class="tj-search" type="text" placeholder="Search player…" oninput="tjFilterOptions(2,this.value)" onclick="event.stopPropagation()" />
+          <div id="tj-options-2"></div>
+        </div>
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label">Member 3</label>
-      <input class="form-input" type="text" id="tj-m3" placeholder="Name of 3rd member" />
+      <div class="tj-member-box" id="tj-box-3">
+        <div class="tj-member-selected" id="tj-sel-3" onclick="tjToggleDropdown(3)">
+          <span class="placeholder" id="tj-sel-text-3">Select a player…</span>
+          <span class="clear-btn" id="tj-clear-3" style="display:none" onclick="event.stopPropagation();tjClearMember(3)">✕</span>
+        </div>
+        <div class="tj-dropdown" id="tj-drop-3">
+          <input class="tj-search" type="text" placeholder="Search player…" oninput="tjFilterOptions(3,this.value)" onclick="event.stopPropagation()" />
+          <div id="tj-options-3"></div>
+        </div>
+      </div>
     </div>
     <div class="modal-error" id="tj-error"></div>
     <div class="modal-actions">
@@ -5705,18 +5771,109 @@ function updateEvTypeUI() {
 }
 
 // ── 3v3 Team Join modal ──
+// ── Team join state ──
 let _teamJoinEventId = null;
+const _tjSelected = { 1: null, 2: null, 3: null };
+
+function tjGetTakenNames() {
+  // Names already chosen in other slots
+  return Object.values(_tjSelected).filter(Boolean);
+}
+
+function tjRenderOptions(slot, filter) {
+  const displayName = playerSession ? (playerSession.account.displayName || playerSession.username) : null;
+  const taken = tjGetTakenNames();
+  const el = document.getElementById('tj-options-' + slot);
+  const q = (filter || '').toLowerCase().trim();
+  const list = players
+    .map(p => p.name)
+    .filter(n => !q || n.toLowerCase().includes(q));
+  if (!list.length) {
+    el.innerHTML = '<div class="tj-no-results">No players found</div>';
+    return;
+  }
+  el.innerHTML = list.map(name => {
+    const isYou = name === displayName;
+    // taken = chosen in ANOTHER slot (not this slot's current value)
+    const otherSlotTaken = Object.entries(_tjSelected)
+      .some(([s, v]) => parseInt(s) !== slot && v === name);
+    const cls = otherSlotTaken ? 'taken' : isYou ? 'is-you' : '';
+    const suffix = otherSlotTaken ? ' (already added)' : isYou ? ' (you)' : '';
+    return `<div class="tj-option ${cls}" onclick="tjSelectMember(${slot},'${name.replace(/'/g,"\'")}')">
+      ${name}${suffix}
+    </div>`;
+  }).join('');
+}
+
+function tjFilterOptions(slot, val) {
+  tjRenderOptions(slot, val);
+}
+
+function tjToggleDropdown(slot) {
+  [1,2,3].forEach(s => {
+    if (s !== slot) {
+      document.getElementById('tj-drop-' + s).classList.remove('open');
+      document.getElementById('tj-sel-' + s).classList.remove('open');
+    }
+  });
+  const drop = document.getElementById('tj-drop-' + slot);
+  const sel  = document.getElementById('tj-sel-' + slot);
+  const isOpen = drop.classList.contains('open');
+  if (isOpen) {
+    drop.classList.remove('open');
+    sel.classList.remove('open');
+  } else {
+    drop.classList.add('open');
+    sel.classList.add('open');
+    const searchEl = drop.querySelector('.tj-search');
+    if (searchEl) { searchEl.value = ''; }
+    tjRenderOptions(slot, '');
+    setTimeout(() => { if (searchEl) searchEl.focus(); }, 80);
+  }
+}
+
+function tjSelectMember(slot, name) {
+  _tjSelected[slot] = name;
+  const textEl  = document.getElementById('tj-sel-text-' + slot);
+  const clearEl = document.getElementById('tj-clear-' + slot);
+  textEl.textContent = name;
+  textEl.className = 'chosen';
+  clearEl.style.display = '';
+  document.getElementById('tj-drop-' + slot).classList.remove('open');
+  document.getElementById('tj-sel-' + slot).classList.remove('open');
+  // Re-render other slots to update "already added" state
+  [1,2,3].forEach(s => { if (s !== slot) tjRenderOptions(s, ''); });
+}
+
+function tjClearMember(slot) {
+  _tjSelected[slot] = null;
+  const textEl  = document.getElementById('tj-sel-text-' + slot);
+  const clearEl = document.getElementById('tj-clear-' + slot);
+  textEl.textContent = 'Select a player…';
+  textEl.className = 'placeholder';
+  clearEl.style.display = 'none';
+  [1,2,3].forEach(s => { if (s !== slot) tjRenderOptions(s, ''); });
+}
+
 function openTeamJoinModal(eventId) {
   if (!playerSession) { openPlayerLoginModal(); return; }
   _teamJoinEventId = eventId;
+  // Reset state
+  _tjSelected[1] = null; _tjSelected[2] = null; _tjSelected[3] = null;
+  [1,2,3].forEach(slot => {
+    document.getElementById('tj-sel-text-' + slot).textContent = 'Select a player…';
+    document.getElementById('tj-sel-text-' + slot).className = 'placeholder';
+    document.getElementById('tj-clear-' + slot).style.display = 'none';
+    document.getElementById('tj-drop-' + slot).classList.remove('open');
+    document.getElementById('tj-sel-' + slot).classList.remove('open');
+  });
   document.getElementById('tj-teamname').value = '';
-  document.getElementById('tj-m1').value = '';
-  document.getElementById('tj-m2').value = '';
-  document.getElementById('tj-m3').value = '';
   document.getElementById('tj-error').textContent = '';
   document.getElementById('team-join-modal').classList.add('open');
+  // Close dropdowns on outside click
   setTimeout(() => document.getElementById('tj-teamname').focus(), 150);
 }
+
 function closeTeamJoinModal() {
   document.getElementById('team-join-modal').classList.remove('open');
   _teamJoinEventId = null;
@@ -5725,13 +5882,16 @@ function closeTeamJoinModal() {
 async function submitTeamJoin() {
   if (!playerSession || !_teamJoinEventId) return;
   const teamName = document.getElementById('tj-teamname').value.trim();
-  const m1 = document.getElementById('tj-m1').value.trim();
-  const m2 = document.getElementById('tj-m2').value.trim();
-  const m3 = document.getElementById('tj-m3').value.trim();
+  const m1 = _tjSelected[1];
+  const m2 = _tjSelected[2];
+  const m3 = _tjSelected[3];
   const errEl = document.getElementById('tj-error');
   errEl.textContent = '';
   if (!teamName) { errEl.textContent = 'Team name is required.'; return; }
-  if (!m1 || !m2 || !m3) { errEl.textContent = 'All 3 member names are required.'; return; }
+  if (!m1 || !m2 || !m3) { errEl.textContent = 'Please select all 3 members.'; return; }
+  // Prevent duplicate members (extra safety)
+  const memberSet = new Set([m1, m2, m3].map(n => n.toLowerCase()));
+  if (memberSet.size < 3) { errEl.textContent = 'All 3 members must be different players.'; return; }
 
   const btn = document.querySelector('#team-join-modal .btn.primary');
   btn.disabled = true; btn.textContent = '⏳ Saving…';
@@ -5739,7 +5899,7 @@ async function submitTeamJoin() {
   try {
     const displayName = playerSession.account.displayName || playerSession.username;
 
-    // Step 1: regular join (authenticates the user, backend creates a basic joiner entry)
+    // Step 1: authenticate join — backend records the basic joiner entry
     const joinRes = await fetch(EVENTS_API + '?action=join', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -5753,49 +5913,63 @@ async function submitTeamJoin() {
     const joinData = await joinRes.json();
     if (!joinRes.ok) throw new Error(joinData.error || 'Join failed');
 
-    // Step 2: patch the joiner entry in the returned event to replace the basic entry
-    // with a full team object, then PUT the whole event back
+    // Step 2: upgrade the joiner entry to a full team object
     const updatedEvent = joinData.event;
     const joinerIdx = updatedEvent.joiners.findIndex(j => j.username === playerSession.username);
     if (joinerIdx !== -1) {
       updatedEvent.joiners[joinerIdx] = {
         username: playerSession.username,
-        name: teamName,        // fallback display name = team name
-        type: 'team',
+        name:     teamName,
+        type:     'team',
         teamName,
-        members: [m1, m2, m3]
+        members:  [m1, m2, m3]
       };
     }
 
-    // Step 3: save the patched event back using admin credentials if available,
-    // otherwise use the full events array PUT
+    // Step 3: save the upgraded entry back — use player credentials (no admin needed)
     const allEvents = eventsData.map(e => e.id === _teamJoinEventId ? updatedEvent : e);
-    // If not yet in local array (race condition), push it
     if (!allEvents.find(e => e.id === _teamJoinEventId)) allEvents.push(updatedEvent);
 
-    const patchRes = await fetch(EVENTS_API, {
+    const patchRes = await fetch(EVENTS_API + '?action=team_patch', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        adminUsername: _acAdminUsername,
-        adminPassword: _acAdminPassword,
-        events: allEvents
+        username:     playerSession.username,
+        passwordHash: playerSession.account.password,
+        eventId:      _teamJoinEventId,
+        teamName,
+        members:      [m1, m2, m3]
       })
     });
-    // If patch fails (no admin creds), we still show team data locally from step 1
-    // and the backend at least has the join recorded
-    const patchData = patchRes.ok ? await patchRes.json() : null;
 
-    // Update local cache with team data regardless of patch result
+    // If backend supports team_patch, use its response; otherwise fall back to full PUT
+    let savedEvent = updatedEvent;
+    if (patchRes.ok) {
+      const patchData = await patchRes.json();
+      if (patchData.event) savedEvent = patchData.event;
+    } else {
+      // Fallback: PUT full events array authenticated with player credentials
+      await fetch(EVENTS_API, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username:     playerSession.username,
+          passwordHash: playerSession.account.password,
+          events:       allEvents
+        })
+      });
+    }
+
+    // Update local cache
     const idx = eventsData.findIndex(e => e.id === _teamJoinEventId);
-    if (idx !== -1) eventsData[idx] = updatedEvent;
-    else eventsData.push(updatedEvent);
+    if (idx !== -1) eventsData[idx] = savedEvent;
+    else eventsData.push(savedEvent);
 
     renderEventsList();
     if (currentEventDetail && currentEventDetail.id === _teamJoinEventId) {
-      currentEventDetail = updatedEvent;
-      renderDetailJoinArea(updatedEvent);
-      renderDetailJoinersList(updatedEvent);
+      currentEventDetail = savedEvent;
+      renderDetailJoinArea(savedEvent);
+      renderDetailJoinersList(savedEvent);
     }
     closeTeamJoinModal();
     showToast('✅ Team registered! See you there 🔥', 'success');
