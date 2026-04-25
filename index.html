@@ -5114,12 +5114,34 @@ async function loadProfileSeasonData(aliases) {
   const rankS2 = playerS2 ? playerS2.rank : null;
   const rankS3 = playerS3 ? playerS3.rank : null;
   const bestRank = (rankS2 && rankS3) ? Math.min(rankS2, rankS3) : (rankS2 || rankS3);
+
+  // Combined stats across all seasons
+  const stS2 = (dataS2 && dataS2.bladerStats && playerS2) ? (dataS2.bladerStats[playerS2.name] || {}) : {};
+  const stS3 = (dataS3 && dataS3.bladerStats && playerS3) ? (dataS3.bladerStats[playerS3.name] || {}) : {};
+
+  const totalWins    = (stS2.wins || 0) + (stS3.wins || 0);
+  const totalLosses  = (stS2.losses || 0) + (stS3.losses || 0);
+  const totalDecided = totalWins + totalLosses;
+  const overallWinRate = totalDecided > 0 ? ((totalWins / totalDecided) * 100).toFixed(1) + '%' : '—';
+
+  const totalMatchPts    = (stS2.matchPoints || 0) + (stS3.matchPoints || 0);
+  const totalMatchesPlayed = (stS2.matchesPlayed || 0) + (stS3.matchesPlayed || 0);
+  const totalEventsJoined  = evS2 + evS3;
+  const overallPPG = totalMatchesPlayed > 0 && totalMatchPts > 0
+    ? (totalMatchPts / totalMatchesPlayed).toFixed(2)
+    : totalEventsJoined > 0 ? (ptsOverall / totalEventsJoined).toFixed(2) : '0.00';
+
+  const bestRankDisplay = bestRank ? (bestRank === 1 ? '👑 1st' : bestRank === 2 ? '🥈 2nd' : bestRank === 3 ? '🥉 3rd' : '#' + bestRank) : '—';
+
   const overallRows = [
-    ['Best Season Rank', bestRank ? (bestRank === 1 ? '👑 1st' : '#' + bestRank) : '—'],
-    ['Season 2 Points',  ptsS2],
-    ['Season 3 Points',  ptsS3],
-    ['S2 Events Joined', evS2],
-    ['S3 Events Joined', evS3],
+    ['Match Win Rate',   overallWinRate],
+    ['Total Points',     ptsOverall],
+    ['Points Per Game',  overallPPG],
+    ['Best Season Rank', bestRankDisplay],
+    ['Spin Finishes',    (stS2.spinFinishes || 0) + (stS3.spinFinishes || 0)],
+    ['Burst Finishes',   (stS2.burstFinishes || 0) + (stS3.burstFinishes || 0)],
+    ['Over Finishes',    (stS2.overFinishes || 0) + (stS3.overFinishes || 0)],
+    ['Extreme Finishes', (stS2.extremeFinishes || 0) + (stS3.extremeFinishes || 0)],
   ];
   document.getElementById('pm-overall-rows').innerHTML = overallRows.map(([label, value]) =>
     `<div class="profile-stat-row"><span class="label">${label}</span><span class="value">${value}</span></div>`
