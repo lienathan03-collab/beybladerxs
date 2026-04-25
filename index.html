@@ -3989,8 +3989,8 @@ async function executeSnapshot() {
     // Re-rank (all tied at 0)
     s3Players.forEach((p, i) => { p.rank = 1; });
 
-    // Keep teamConfig & rulersCupTeams structure, reset points to 0
-    const s3RulersCupTeams = rulersCupTeams.map(t => ({ ...t, points: 0 }));
+    // Keep teamConfig & rulersCupTeams structure, reset pts to 0
+    const s3RulersCupTeams = rulersCupTeams.map(t => ({ ...t, pts: 0 }));
 
     const s3Payload = {
       photos: { 1: '', 2: '', 3: '' },
