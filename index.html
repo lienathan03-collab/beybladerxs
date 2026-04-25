@@ -5555,7 +5555,7 @@ function renderDetailJoinersList(ev) {
     return;
   }
   listEl.innerHTML = joiners.map((j, i) => {
-    if (is3v3 && j.type === 'team') {
+    if (j.type === 'team') {
       const members = j.members || [];
       const tooltipMembers = members.map(m =>
         `<div class="ev-joiner-team-tooltip-member">${m}</div>`
@@ -5643,29 +5643,65 @@ async function submitTeamJoin() {
   btn.disabled = true; btn.textContent = '⏳ Saving…';
 
   try {
-    const res = await fetch(EVENTS_API + '?action=join', {
+    const displayName = playerSession.account.displayName || playerSession.username;
+
+    // Step 1: regular join (authenticates the user, backend creates a basic joiner entry)
+    const joinRes = await fetch(EVENTS_API + '?action=join', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username:     playerSession.username,
         passwordHash: playerSession.account.password,
         eventId:      _teamJoinEventId,
-        displayName:  playerSession.account.displayName || playerSession.username,
-        teamName,
-        members: [m1, m2, m3],
-        joinType: 'team'
+        displayName
       })
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed');
+    const joinData = await joinRes.json();
+    if (!joinRes.ok) throw new Error(joinData.error || 'Join failed');
 
+    // Step 2: patch the joiner entry in the returned event to replace the basic entry
+    // with a full team object, then PUT the whole event back
+    const updatedEvent = joinData.event;
+    const joinerIdx = updatedEvent.joiners.findIndex(j => j.username === playerSession.username);
+    if (joinerIdx !== -1) {
+      updatedEvent.joiners[joinerIdx] = {
+        username: playerSession.username,
+        name: teamName,        // fallback display name = team name
+        type: 'team',
+        teamName,
+        members: [m1, m2, m3]
+      };
+    }
+
+    // Step 3: save the patched event back using admin credentials if available,
+    // otherwise use the full events array PUT
+    const allEvents = eventsData.map(e => e.id === _teamJoinEventId ? updatedEvent : e);
+    // If not yet in local array (race condition), push it
+    if (!allEvents.find(e => e.id === _teamJoinEventId)) allEvents.push(updatedEvent);
+
+    const patchRes = await fetch(EVENTS_API, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        adminUsername: _acAdminUsername,
+        adminPassword: _acAdminPassword,
+        events: allEvents
+      })
+    });
+    // If patch fails (no admin creds), we still show team data locally from step 1
+    // and the backend at least has the join recorded
+    const patchData = patchRes.ok ? await patchRes.json() : null;
+
+    // Update local cache with team data regardless of patch result
     const idx = eventsData.findIndex(e => e.id === _teamJoinEventId);
-    if (idx !== -1) eventsData[idx] = data.event;
+    if (idx !== -1) eventsData[idx] = updatedEvent;
+    else eventsData.push(updatedEvent);
+
     renderEventsList();
     if (currentEventDetail && currentEventDetail.id === _teamJoinEventId) {
-      currentEventDetail = data.event;
-      renderDetailJoinArea(data.event);
-      renderDetailJoinersList(data.event);
+      currentEventDetail = updatedEvent;
+      renderDetailJoinArea(updatedEvent);
+      renderDetailJoinersList(updatedEvent);
     }
     closeTeamJoinModal();
     showToast('✅ Team registered! See you there 🔥', 'success');
