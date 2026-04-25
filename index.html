@@ -5132,7 +5132,7 @@ async function openPlayerMenuModal() {
   // Avatar + hero bg from current active season bladerStats
   const st = getBladerStats(displayName);
   document.getElementById('pm-avatar').innerHTML = st.photo
-    ? `<img src="${st.photo}" style="width:100%;height:100%;object-fit:cover" />`
+    ? `<img src="${st.photo}" style="width:100%;height:100%;object-fit:cover;object-position:center top" />`
     : '👤';
   const heroBg = document.getElementById('pm-hero-bg');
   const DEFAULT_HERO_BG = 'https://i.imgur.com/ixgnPf6.jpeg';
@@ -6826,18 +6826,19 @@ async function deleteEvent() {
     <button class="modal-close" onclick="closePlayerMenuModal()" style="top:12px;right:12px;z-index:10">✕</button>
 
     <!-- Profile hero -->
-    <div style="position:relative;min-height:150px;background:var(--surface2);overflow:hidden">
+    <div style="position:relative;min-height:140px;background:var(--surface2);overflow:hidden">
       <div id="pm-hero-bg" style="position:absolute;inset:0;background-size:cover;background-position:center;filter:brightness(0.45)"></div>
-      <!-- Avatar centered at top -->
-      <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:20px 20px 0">
-        <div id="pm-avatar" style="width:72px;height:72px;border-radius:50%;border:3px solid var(--gold);overflow:hidden;background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:32px">👤</div>
-      </div>
-      <!-- Name bar pinned to bottom -->
-      <div style="position:absolute;bottom:0;left:0;right:0;z-index:2;background:linear-gradient(to top,rgba(0,0,0,0.82) 70%,transparent);padding:10px 16px 12px;text-align:center">
-        <div id="pm-displayname" style="font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,0.9);line-height:1.1"></div>
-        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:3px;flex-wrap:wrap">
-          <div id="pm-username" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(255,255,255,0.5)"></div>
-          <div id="pm-team-tag"></div>
+      <!-- Dark gradient overlay so text is readable -->
+      <div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0.15) 0%,rgba(0,0,0,0.6) 45%,rgba(0,0,0,0.75) 100%);z-index:1"></div>
+      <!-- Layout: big avatar left, name center-right -->
+      <div style="position:relative;z-index:2;display:flex;align-items:center;height:140px;padding:0">
+        <!-- Big avatar pinned to left, slightly overflowing top/bottom -->
+        <div id="pm-avatar" style="width:130px;height:140px;flex-shrink:0;overflow:hidden;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:48px;border-right:2px solid rgba(212,175,55,0.3)">👤</div>
+        <!-- Name block centered in remaining space -->
+        <div style="flex:1;min-width:0;padding:0 16px;text-align:center">
+          <div id="pm-displayname" style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,0.9);line-height:1.1"></div>
+          <div id="pm-username" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(255,255,255,0.5);margin-top:4px"></div>
+          <div id="pm-team-tag" style="margin-top:6px;display:flex;justify-content:center;flex-wrap:wrap;gap:4px"></div>
         </div>
       </div>
     </div>
