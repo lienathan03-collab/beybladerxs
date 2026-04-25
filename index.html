@@ -1025,6 +1025,7 @@
     <button class="btn" style="font-size:11px;padding:5px 12px;" onclick="openHeroBgModal()">🖼 Edit Background</button>
     <button class="btn danger" style="font-size:11px;padding:5px 12px;" onclick="openResetModal()">🗑 Reset Data</button>
     <button class="btn" style="font-size:11px;padding:5px 12px;background:#1a1200;border-color:var(--gold);color:var(--gold);" onclick="openSnapshotModal()">📦 Archive S2 → Start S3</button>
+    <button class="btn" style="font-size:11px;padding:5px 12px;background:#001a0d;border-color:#4caf50;color:#4caf50;" onclick="syncPhotosFromS2()" title="Copy profile photos from Season 2 into Season 3 bladerStats">📷 Sync S2 Photos → S3</button>
     <button class="btn" style="font-size:11px;padding:5px 12px;" onclick="openAccountsPanel()">👥 Accounts</button>
     <button class="btn danger" style="font-size:11px;padding:5px 12px;" onclick="adminLogout()">Logout</button>
   </div>
@@ -1305,6 +1306,9 @@
   </div>
   <div id="weekly-edit-banner" style="display:none;background:#1a1200;border:1px solid var(--gold);border-radius:8px;padding:10px 16px;margin-bottom:14px;font-size:12px;color:var(--gold);font-family:'Share Tech Mono',monospace;letter-spacing:1px;">
     ✏️ EDIT MODE — Click any score cell to change it. Press Save when done.
+  </div>
+  <div class="search-row" style="margin-bottom:14px">
+    <input class="search-input" type="text" id="weekly-search" placeholder="Search blader..." oninput="filterWeekly(this.value)" />
   </div>
   <div style="overflow-x:auto">
     <div style="max-height:520px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;">
@@ -3182,17 +3186,23 @@ function filterTag(tag,btn){
 // ═══════════════════════════════════════════════════════
 //  WEEKLY RENDER
 // ═══════════════════════════════════════════════════════
+let weeklySearch = '';
+function filterWeekly(val) { weeklySearch = val.toLowerCase().trim(); renderWeekly(); }
+
 function renderWeekly() {
   const hr=document.getElementById('weekly-header-row');
   hr.innerHTML='<th>Blader</th>'+eventLabels.map((l,i)=>{
     const labelHtml = (weeklyEditMode && isAdmin)
-      ? `<span style="cursor:pointer;color:var(--gold)" title="Rename column" onclick="renameWeeklyCol(${i},'${l.replace(/'/g,"\\'")}')">${l} ✏️</span>`
+      ? `<span style="cursor:pointer;color:var(--gold)" title="Rename column" onclick="renameWeeklyCol(${i},'${l.replace(/'/g,"\\'")}')">` + "${l} \u270F\uFE0F</span>"
       : l;
     return `<th style="text-align:center">${labelHtml}</th>`;
   }).join('')+'<th class="right">Total</th>';
   const body=document.getElementById('weekly-body');
-  const top20=players.slice(0,players.length);
-  body.innerHTML=top20.map((p,i)=>{
+  const filtered = weeklySearch
+    ? players.filter(p => p.name.toLowerCase().includes(weeklySearch))
+    : players;
+  body.innerHTML=filtered.map((p)=>{
+    const i = players.indexOf(p);
     const maxScore=Math.max(...p.scores);
     const safeName = encodeURIComponent(p.name);
     const cells=p.scores.map((s,evIdx)=>{
@@ -3209,11 +3219,11 @@ function renderWeekly() {
           oninput="previewWeeklyTotal(this)"
         /></td>`;
       }
-      if(s===0) return `<td style="text-align:center;color:var(--muted2)">—</td>`;
+      if(s===0) return `<td style="text-align:center;color:var(--muted2)">\u2014</td>`;
       const cls=s===maxScore&&s>=8?' class="ws high"':s>=6?' class="ws win"':' class="ws"';
       return `<td style="text-align:center"><span${cls}>${s}</span></td>`;
     }).join('');
-    const rd=i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`;
+    const rd=i===0?'\uD83E\uDD47':i===1?'\uD83E\uDD48':i===2?'\uD83E\uDD49':`#${i+1}`;
     return `<tr><td><span style="color:var(--muted);font-size:12px;margin-right:8px">${rd}</span><span class="blader-name">${p.name}</span>${getTagHtml(p.name)}</td>${cells}<td><span class="score${i===0?' champ':''}" style="display:block;text-align:right">${p.total}</span></td></tr>`;
   }).join('');
 }
@@ -3362,6 +3372,15 @@ function renderAchievements() {
   });
   if (topBurst && topBurstVal > 0)
     achs.push({ icon:'💥', name:'Burst Finisher', desc:'Most burst finishes', holder: topBurst.name + ' — ' + topBurstVal + ' burst finishes' });
+
+  // ── Over Finisher — most over finishes ──
+  let topOver = null, topOverVal = 0;
+  players.forEach(p => {
+    const val = Number(getBladerStats(p.name).overFinishes || 0);
+    if (val > topOverVal) { topOverVal = val; topOver = p; }
+  });
+  if (topOver && topOverVal > 0)
+    achs.push({ icon:'🔺', name:'Over Finisher', desc:'Most over finishes', holder: topOver.name + ' — ' + topOverVal + ' over finishes' });
 
   // ── Spin Finisher — most spin finishes ──
   let topSpin = null, topSpinVal = 0;
@@ -3536,11 +3555,25 @@ let bladerStats = {};
 // { "NAME": { photo:'', wins:0, spinFinishes:0, burstFinishes:0, extremeFinishes:0 } }
 
 function getBladerStats(name) {
-  return bladerStats[name] || { photo:'', wins:0, spinFinishes:0, burstFinishes:0, extremeFinishes:0 };
+  if (!name) return { photo:'', wins:0, spinFinishes:0, burstFinishes:0, overFinishes:0, extremeFinishes:0 };
+  // Exact match first
+  if (bladerStats[name]) return bladerStats[name];
+  // Case-insensitive fallback so account displayName always links to bladerStats
+  const lower = name.toLowerCase();
+  const key = Object.keys(bladerStats).find(k => k.toLowerCase() === lower);
+  return key ? bladerStats[key] : { photo:'', wins:0, spinFinishes:0, burstFinishes:0, overFinishes:0, extremeFinishes:0 };
 }
 function ensureBladerStats(name) {
-  if (!bladerStats[name]) bladerStats[name] = { photo:'', wins:0, spinFinishes:0, burstFinishes:0, extremeFinishes:0 };
+  if (!name) return {};
+  // Reuse existing key if only casing differs
+  if (!bladerStats[name]) {
+    const lower = name.toLowerCase();
+    const existing = Object.keys(bladerStats).find(k => k.toLowerCase() === lower);
+    if (existing) return bladerStats[existing];
+    bladerStats[name] = { photo:'', wins:0, spinFinishes:0, burstFinishes:0, overFinishes:0, extremeFinishes:0 };
+  }
   return bladerStats[name];
+}
 }
 
 function computeBladerProfile(name) {
@@ -3566,7 +3599,7 @@ function computeBladerProfile(name) {
   return { name, rank, total: p.total, gamesPlayed: matchesPlayed, eventsJoined, gamesTotal, attendRate, ppg, winRate, wins, losses,
            photo: st.photo||'',
            spinFinishes: st.spinFinishes||0, burstFinishes: st.burstFinishes||0,
-           extremeFinishes: st.extremeFinishes||0 };
+           overFinishes: st.overFinishes||0, extremeFinishes: st.extremeFinishes||0 };
 }
 
 function openBladerProfile(name) {
@@ -3608,6 +3641,7 @@ function openBladerProfile(name) {
   modal.querySelector('#ps-attend').textContent    = profile.eventsJoined + ' / ' + profile.gamesTotal;
   modal.querySelector('#ps-spin').textContent      = profile.spinFinishes;
   modal.querySelector('#ps-burst').textContent     = profile.burstFinishes;
+  modal.querySelector('#ps-over').textContent      = profile.overFinishes;
   modal.querySelector('#ps-extreme').textContent   = profile.extremeFinishes;
 
   // admin edit fields
@@ -3637,6 +3671,7 @@ function openBladerProfile(name) {
   }
   modal.querySelector('#pe-spin').value            = st.spinFinishes||0;
   modal.querySelector('#pe-burst').value           = st.burstFinishes||0;
+  modal.querySelector('#pe-over').value            = st.overFinishes||0;
   modal.querySelector('#pe-extreme').value         = st.extremeFinishes||0;
   modal.querySelector('#pe-wins-input').value      = st.wins||0;
   modal.querySelector('#pe-losses-input').value    = st.losses||0;
@@ -3776,9 +3811,11 @@ async function saveBladerProfile() {
   // finishes are now direct total values
   const spinVal    = document.getElementById('pe-spin').value.trim();
   const burstVal   = document.getElementById('pe-burst').value.trim();
+  const overVal    = document.getElementById('pe-over').value.trim();
   const extremeVal = document.getElementById('pe-extreme').value.trim();
   if (spinVal    !== '') st.spinFinishes    = parseInt(spinVal)    || 0;
   if (burstVal   !== '') st.burstFinishes   = parseInt(burstVal)   || 0;
+  if (overVal    !== '') st.overFinishes    = parseInt(overVal)    || 0;
   if (extremeVal !== '') st.extremeFinishes = parseInt(extremeVal) || 0;
   const addSpin = 0, addBurst = 0, addExtreme = 0; // kept for toast message compat
 
@@ -3828,6 +3865,7 @@ async function saveBladerProfile() {
   // clear inputs
   document.getElementById('pe-spin').value           = '';
   document.getElementById('pe-burst').value          = '';
+  document.getElementById('pe-over').value           = '';
   document.getElementById('pe-extreme').value        = '';
   document.getElementById('pe-wins-input').value     = '';
   document.getElementById('pe-losses-input').value   = '';
@@ -4072,6 +4110,12 @@ async function executeSnapshot() {
     // Keep teamConfig & rulersCupTeams structure, reset pts to 0
     const s3RulersCupTeams = rulersCupTeams.map(t => ({ ...t, pts: 0 }));
 
+    // Carry over profile photos from S2 bladerStats, reset all stats to 0
+    const s3BladerStats = {};
+    Object.entries(bladerStats).forEach(([name, st]) => {
+      if (st.photo) s3BladerStats[name] = { photo: st.photo, wins: 0, spinFinishes: 0, burstFinishes: 0, overFinishes: 0, extremeFinishes: 0 };
+    });
+
     const s3Payload = {
       photos: { 1: '', 2: '', 3: '' },
       heroBgUrl: heroBgUrl || '',
@@ -4079,7 +4123,7 @@ async function executeSnapshot() {
       eventLabels: [],
       importedIds: [],
       teamConfig: teamConfig,
-      bladerStats: {},
+      bladerStats: s3BladerStats,
       manualAchs: [],
       autoAchOv: {},
       homePosts: [],
@@ -4101,6 +4145,36 @@ async function executeSnapshot() {
     document.getElementById('snapshot-error').textContent = '❌ ' + e.message;
     btn.textContent = '📦 Archive & Start S3';
     btn.disabled = false;
+  }
+}
+
+async function syncPhotosFromS2() {
+  if (!isAdmin) return;
+  if (currentSeason !== 3) { showToast('⚠ Switch to Season 3 first', 'error'); return; }
+  if (!confirm('This will copy all profile photos from Season 2 into Season 3 bladerStats (without overwriting any other stats). Continue?')) return;
+
+  try {
+    // Fetch S2 data to get bladerStats with photos
+    const s2Res = await fetch(dataApiUrl(2));
+    if (!s2Res.ok) throw new Error('Could not load Season 2 data');
+    const s2Data = await s2Res.json();
+    const s2Stats = s2Data.bladerStats || {};
+
+    let synced = 0;
+    Object.entries(s2Stats).forEach(([name, st]) => {
+      if (!st.photo) return;
+      if (!bladerStats[name]) bladerStats[name] = { photo: '', wins: 0, spinFinishes: 0, burstFinishes: 0, overFinishes: 0, extremeFinishes: 0 };
+      bladerStats[name].photo = st.photo;
+      synced++;
+    });
+
+    if (synced === 0) { showToast('No photos found in Season 2 to sync.', ''); return; }
+
+    // Save updated S3 data
+    await adminManualSave();
+    showToast(`✅ Synced ${synced} profile photo${synced > 1 ? 's' : ''} from S2 → S3!`, 'success');
+  } catch(e) {
+    showToast('❌ ' + e.message, 'error');
   }
 }
 
@@ -4865,13 +4939,24 @@ function applyPlayerUI() {
   const badge = document.getElementById('nav-player-badge');
   badge.style.display = 'flex';
   document.getElementById('nav-player-name').textContent = displayName;
+  // Show profile photo in nav badge if available
+  const st = getBladerStats(displayName);
+  const avatarHtml = st.photo
+    ? `<img src="${st.photo}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0" onerror="this.replaceWith(document.createTextNode('👤'))" />`
+    : '👤';
+  badge.innerHTML = avatarHtml + ' <span id="nav-player-name">' + displayName + '</span>';
   // Mobile
   const mobHint = document.getElementById('mob-login-hint');
   const mobBadge = document.getElementById('mob-player-badge');
   const mobName = document.getElementById('mob-player-name');
   if (mobHint) mobHint.style.display = 'none';
-  if (mobBadge) { mobBadge.style.display = 'flex'; }
-  if (mobName) mobName.textContent = displayName;
+  if (mobBadge) {
+    mobBadge.style.display = 'flex';
+    const mobAvatarHtml = st.photo
+      ? `<img src="${st.photo}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;flex-shrink:0" onerror="this.replaceWith(document.createTextNode('👤'))" />`
+      : '👤';
+    mobBadge.innerHTML = mobAvatarHtml + ' <span id="mob-player-name">' + displayName + '</span>';
+  }
 }
 
 function playerLogout() {
@@ -4942,6 +5027,7 @@ function buildSeasonStatRows(player, data) {
     ['Wins / Losses',   wins + ' / ' + losses],
     ['Spin Finishes',   st.spinFinishes || 0],
     ['Burst Finishes',  st.burstFinishes || 0],
+    ['Over Finishes',   st.overFinishes || 0],
     ['Extreme Finishes',st.extremeFinishes || 0],
   ];
   return rows.map(([label, value]) =>
@@ -6091,6 +6177,7 @@ async function deleteEvent() {
       <div class="profile-stat-row"><span class="label">Events Joined</span><span class="value" id="ps-attend">—</span></div>
       <div class="profile-stat-row"><span class="label">Spin Finishes</span><span class="value" id="ps-spin">0</span></div>
       <div class="profile-stat-row"><span class="label">Burst Finishes</span><span class="value" id="ps-burst">0</span></div>
+      <div class="profile-stat-row"><span class="label">Over Finishes</span><span class="value" id="ps-over">0</span></div>
       <div class="profile-stat-row"><span class="label">Extreme Finishes</span><span class="value" id="ps-extreme">0</span></div>
 
       <!-- Admin Edit Section -->
@@ -6158,6 +6245,10 @@ async function deleteEvent() {
           <div class="profile-edit-field">
             <label>Burst Finishes</label>
             <input type="number" id="pe-burst" placeholder="0" min="0" />
+          </div>
+          <div class="profile-edit-field">
+            <label>Over Finishes</label>
+            <input type="number" id="pe-over" placeholder="0" min="0" />
           </div>
           <div class="profile-edit-field full">
             <label>Extreme Finishes</label>
