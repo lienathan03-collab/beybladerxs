@@ -6826,14 +6826,18 @@ async function deleteEvent() {
     <button class="modal-close" onclick="closePlayerMenuModal()" style="top:12px;right:12px;z-index:10">✕</button>
 
     <!-- Profile hero -->
-    <div style="position:relative;min-height:120px;background:var(--surface2);overflow:hidden">
-      <div id="pm-hero-bg" style="position:absolute;inset:0;background-size:cover;background-position:center;filter:brightness(0.5)"></div>
-      <div style="position:relative;z-index:2;display:flex;align-items:flex-end;gap:14px;padding:20px 20px 16px">
+    <div style="position:relative;min-height:150px;background:var(--surface2);overflow:hidden">
+      <div id="pm-hero-bg" style="position:absolute;inset:0;background-size:cover;background-position:center;filter:brightness(0.45)"></div>
+      <!-- Avatar centered at top -->
+      <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;padding:20px 20px 0">
         <div id="pm-avatar" style="width:72px;height:72px;border-radius:50%;border:3px solid var(--gold);overflow:hidden;background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:32px">👤</div>
-        <div style="flex:1;min-width:0">
-          <div id="pm-displayname" style="font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,0.8)"></div>
-          <div id="pm-username" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px"></div>
-          <div id="pm-team-tag" style="margin-top:4px"></div>
+      </div>
+      <!-- Name bar pinned to bottom -->
+      <div style="position:absolute;bottom:0;left:0;right:0;z-index:2;background:linear-gradient(to top,rgba(0,0,0,0.82) 70%,transparent);padding:10px 16px 12px;text-align:center">
+        <div id="pm-displayname" style="font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,0.9);line-height:1.1"></div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:3px;flex-wrap:wrap">
+          <div id="pm-username" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(255,255,255,0.5)"></div>
+          <div id="pm-team-tag"></div>
         </div>
       </div>
     </div>
