@@ -5899,77 +5899,32 @@ async function submitTeamJoin() {
   try {
     const displayName = playerSession.account.displayName || playerSession.username;
 
-    // Step 1: authenticate join — backend records the basic joiner entry
-    const joinRes = await fetch(EVENTS_API + '?action=join', {
+    // Single-step team join — backend saves full team object atomically
+    const res = await fetch(EVENTS_API + '?action=team_join', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username:     playerSession.username,
         passwordHash: playerSession.account.password,
         eventId:      _teamJoinEventId,
-        displayName
+        displayName,
+        teamName,
+        members: [m1, m2, m3]
       })
     });
-    const joinData = await joinRes.json();
-    if (!joinRes.ok) throw new Error(joinData.error || 'Join failed');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Join failed');
 
-    // Step 2: upgrade the joiner entry to a full team object
-    const updatedEvent = joinData.event;
-    const joinerIdx = updatedEvent.joiners.findIndex(j => j.username === playerSession.username);
-    if (joinerIdx !== -1) {
-      updatedEvent.joiners[joinerIdx] = {
-        username: playerSession.username,
-        name:     teamName,
-        type:     'team',
-        teamName,
-        members:  [m1, m2, m3]
-      };
-    }
-
-    // Step 3: save the upgraded entry back — use player credentials (no admin needed)
-    const allEvents = eventsData.map(e => e.id === _teamJoinEventId ? updatedEvent : e);
-    if (!allEvents.find(e => e.id === _teamJoinEventId)) allEvents.push(updatedEvent);
-
-    const patchRes = await fetch(EVENTS_API + '?action=team_patch', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username:     playerSession.username,
-        passwordHash: playerSession.account.password,
-        eventId:      _teamJoinEventId,
-        teamName,
-        members:      [m1, m2, m3]
-      })
-    });
-
-    // If backend supports team_patch, use its response; otherwise fall back to full PUT
-    let savedEvent = updatedEvent;
-    if (patchRes.ok) {
-      const patchData = await patchRes.json();
-      if (patchData.event) savedEvent = patchData.event;
-    } else {
-      // Fallback: PUT full events array authenticated with player credentials
-      await fetch(EVENTS_API, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username:     playerSession.username,
-          passwordHash: playerSession.account.password,
-          events:       allEvents
-        })
-      });
-    }
-
-    // Update local cache
+    // Update local cache with what the server saved
     const idx = eventsData.findIndex(e => e.id === _teamJoinEventId);
-    if (idx !== -1) eventsData[idx] = savedEvent;
-    else eventsData.push(savedEvent);
+    if (idx !== -1) eventsData[idx] = data.event;
+    else eventsData.push(data.event);
 
     renderEventsList();
     if (currentEventDetail && currentEventDetail.id === _teamJoinEventId) {
-      currentEventDetail = savedEvent;
-      renderDetailJoinArea(savedEvent);
-      renderDetailJoinersList(savedEvent);
+      currentEventDetail = data.event;
+      renderDetailJoinArea(data.event);
+      renderDetailJoinersList(data.event);
     }
     closeTeamJoinModal();
     showToast('✅ Team registered! See you there 🔥', 'success');
