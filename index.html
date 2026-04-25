@@ -3234,7 +3234,7 @@ function getRankDisplay(rank,i) {
   if(i===0) return `<span class="rank-num gold">🥇</span>`;
   if(i===1) return `<span class="rank-num silver">🥈</span>`;
   if(i===2) return `<span class="rank-num bronze">🥉</span>`;
-  return `<span class="rank-num">#${rank}</span>`;
+  return `<span class="rank-num">#${i+1}</span>`;
 }
 function renderLeaderboard() {
   const body=document.getElementById('lb-body');
@@ -3657,7 +3657,7 @@ function computeBladerProfile(name) {
   const eventsJoined  = p.scores.filter(s => s > 0).length;
   const gamesTotal    = eventLabels.length;
   const attendRate    = gamesTotal > 0 ? ((eventsJoined / gamesTotal) * 100).toFixed(1) + '%' : '—';
-  const rank          = players.indexOf(p) + 1;
+  const rank          = p.rank; // season rank (tied players share same rank)
   const wins           = st.wins || 0;
   const losses         = st.losses || 0;
   const matchesPlayed  = st.matchesPlayed || 0;
