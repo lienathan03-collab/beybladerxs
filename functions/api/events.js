@@ -52,14 +52,37 @@ export async function onRequest(context) {
     const url = new URL(request.url);
     const action = url.searchParams.get('action'); // 'join' | 'unjoin' | 'admin_add' | 'admin_remove'
 
-    // ── Player join / unjoin ──
-    if (action === 'join' || action === 'unjoin') {
-      const { username, passwordHash, eventId, displayName } = body;
+    // ── Player join / unjoin / team_join ──
+    if (action === 'join' || action === 'unjoin' || action === 'team_join') {
+      const { username, passwordHash, eventId, displayName, teamName, members } = body;
       if (!username || !passwordHash || !eventId) {
         return new Response(
           JSON.stringify({ error: 'Missing required fields.' }),
           { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
         );
+      }
+
+      // Extra validation for team_join
+      if (action === 'team_join') {
+        if (!teamName || !teamName.trim()) {
+          return new Response(
+            JSON.stringify({ error: 'Team name is required.' }),
+            { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+          );
+        }
+        if (!Array.isArray(members) || members.length !== 3 || members.some(m => !m || !m.trim())) {
+          return new Response(
+            JSON.stringify({ error: 'Exactly 3 member names are required.' }),
+            { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+          );
+        }
+        const uniqueMembers = new Set(members.map(m => m.trim().toLowerCase()));
+        if (uniqueMembers.size < 3) {
+          return new Response(
+            JSON.stringify({ error: 'All 3 members must be different players.' }),
+            { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+          );
+        }
       }
 
       // Verify player credentials
@@ -105,7 +128,25 @@ export async function onRequest(context) {
 
       const playerName = displayName || account.displayName || username;
 
-      if (action === 'join') {
+      if (action === 'team_join') {
+        // Prevent duplicate joins by same username
+        const alreadyJoined = event.joiners.find(j => j.username === username);
+        if (alreadyJoined) {
+          return new Response(
+            JSON.stringify({ error: 'Already joined.' }),
+            { status: 409, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+          );
+        }
+        // Save the full team object in one step — no patching needed
+        event.joiners.push({
+          username,
+          name:      teamName.trim(),
+          type:      'team',
+          teamName:  teamName.trim(),
+          members:   members.map(m => m.trim()),
+          joinedAt:  new Date().toISOString()
+        });
+      } else if (action === 'join') {
         // Prevent duplicate joins by same username
         const alreadyJoined = event.joiners.find(j => j.username === username);
         if (alreadyJoined) {
