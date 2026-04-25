@@ -6826,19 +6826,18 @@ async function deleteEvent() {
     <button class="modal-close" onclick="closePlayerMenuModal()" style="top:12px;right:12px;z-index:10">✕</button>
 
     <!-- Profile hero -->
-    <div style="position:relative;min-height:140px;background:var(--surface2);overflow:hidden">
-      <div id="pm-hero-bg" style="position:absolute;inset:0;background-size:cover;background-position:center;filter:brightness(0.45)"></div>
-      <!-- Dark gradient overlay so text is readable -->
-      <div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0.15) 0%,rgba(0,0,0,0.6) 45%,rgba(0,0,0,0.75) 100%);z-index:1"></div>
-      <!-- Layout: big avatar left, name center-right -->
-      <div style="position:relative;z-index:2;display:flex;align-items:center;height:140px;padding:0">
-        <!-- Big avatar pinned to left, slightly overflowing top/bottom -->
-        <div id="pm-avatar" style="width:130px;height:140px;flex-shrink:0;overflow:hidden;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:48px;border-right:2px solid rgba(212,175,55,0.3)">👤</div>
-        <!-- Name block centered in remaining space -->
-        <div style="flex:1;min-width:0;padding:0 16px;text-align:center">
-          <div id="pm-displayname" style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,0.9);line-height:1.1"></div>
-          <div id="pm-username" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(255,255,255,0.5);margin-top:4px"></div>
-          <div id="pm-team-tag" style="margin-top:6px;display:flex;justify-content:center;flex-wrap:wrap;gap:4px"></div>
+    <div style="position:relative;min-height:180px;background:var(--surface2);overflow:visible">
+      <div id="pm-hero-bg" style="position:absolute;inset:0;background-size:cover;background-position:center;filter:brightness(0.45);border-radius:0"></div>
+      <!-- Dark gradient overlay — stronger at bottom so name is readable -->
+      <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,0.88) 0%,rgba(0,0,0,0.3) 60%,transparent 100%);z-index:1"></div>
+      <!-- Big circle avatar — centered horizontally, vertically centered in hero -->
+      <div id="pm-avatar" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-58%);width:110px;height:110px;border-radius:50%;border:3px solid var(--gold);overflow:hidden;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:44px;z-index:3;box-shadow:0 4px 24px rgba(0,0,0,0.7)">👤</div>
+      <!-- Name pinned to bottom center -->
+      <div style="position:absolute;bottom:0;left:0;right:0;z-index:2;padding:0 16px 14px;text-align:center">
+        <div id="pm-displayname" style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,0.95);line-height:1.1"></div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:3px;flex-wrap:wrap">
+          <div id="pm-username" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(255,255,255,0.5)"></div>
+          <div id="pm-team-tag" style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center"></div>
         </div>
       </div>
     </div>
