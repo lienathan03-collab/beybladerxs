@@ -721,7 +721,8 @@
     min-width: 180px; box-shadow: 0 4px 20px rgba(0,0,0,0.7);
     pointer-events: none;
   }
-  .ev-joiner-team-wrap:hover .ev-joiner-team-tooltip { display: block; }
+  .ev-joiner-team-wrap:hover .ev-joiner-team-tooltip,
+  .ev-joiner-team-wrap.tapped .ev-joiner-team-tooltip { display: block; }
   .ev-joiner-team-tooltip-title {
     font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
     color: var(--gold); font-family: 'Share Tech Mono', monospace; margin-bottom: 6px;
@@ -964,11 +965,13 @@
     .standings-grid { grid-template-columns: 1fr 1fr; }
 
     /* Modals */
-    .modal { border-radius: 16px 16px 0 0 !important; position: fixed; bottom: 0; top: auto !important; transform: none !important; max-height: 90vh; overflow-y: auto; }
+    .modal { border-radius: 16px 16px 0 0 !important; position: fixed; bottom: 0; top: auto !important; transform: none !important; max-height: 88vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     .modal-overlay { align-items: flex-end; }
     .profile-modal { border-radius: 20px 20px 0 0; max-height: 92vh; }
 
-    /* Toast */
+    /* Inputs — 16px prevents iOS auto-zoom on focus */
+    /* Inputs — 16px prevents iOS auto-zoom on focus */
+    .form-input { font-size: 16px !important; }
     .toast { bottom: 66px; right: 14px; left: 14px; max-width: 100%; text-align: center; }
 
     /* Weekly tab */
@@ -1508,22 +1511,23 @@
   .tj-dropdown {
     display:none; position:absolute; top:calc(100% + 4px); left:0; right:0;
     background:#1a1200; border:1px solid var(--gold); border-radius:8px;
-    z-index:200; max-height:200px; overflow-y:auto;
+    z-index:1100; max-height:220px; overflow-y:auto;
     box-shadow:0 8px 24px rgba(0,0,0,0.7);
+    -webkit-overflow-scrolling:touch;
   }
   .tj-dropdown.open { display:block; }
   .tj-search {
     width:100%; box-sizing:border-box; background:transparent; border:none;
     border-bottom:1px solid rgba(212,175,55,0.2); padding:8px 12px;
-    color:#fff; font-size:12px; outline:none; font-family:'Share Tech Mono',monospace;
+    color:#fff; font-size:16px; outline:none; font-family:'Share Tech Mono',monospace;
   }
   .tj-search::placeholder { color:var(--muted2); }
   .tj-option {
-    padding:8px 14px; font-size:13px; color:var(--text); cursor:pointer;
+    padding:11px 14px; font-size:14px; color:var(--text); cursor:pointer;
     font-family:'Rajdhani',sans-serif; font-weight:600; letter-spacing:.5px;
-    transition:background .15s;
+    transition:background .15s; -webkit-tap-highlight-color:rgba(212,175,55,0.2);
   }
-  .tj-option:hover { background:rgba(212,175,55,0.12); color:#fff; }
+  .tj-option:hover, .tj-option:active { background:rgba(212,175,55,0.12); color:#fff; }
   .tj-option.taken { color:var(--muted2); pointer-events:none; font-style:italic; }
   .tj-option.is-you { color:var(--gold); }
   .tj-no-results { padding:10px 14px; color:var(--muted2); font-size:12px; font-family:'Share Tech Mono',monospace; }
@@ -1547,7 +1551,7 @@
           <span class="clear-btn" id="tj-clear-1" style="display:none" onclick="event.stopPropagation();tjClearMember(1)">✕</span>
         </div>
         <div class="tj-dropdown" id="tj-drop-1">
-          <input class="tj-search" type="text" placeholder="Search player…" oninput="tjFilterOptions(1,this.value)" onclick="event.stopPropagation()" />
+          <input class="tj-search" type="text" id="tj-search-1" placeholder="Search or type new name…" oninput="tjFilterOptions(1,this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();tjConfirmTyped(1)}" onclick="event.stopPropagation()" />
           <div id="tj-options-1"></div>
         </div>
       </div>
@@ -1560,7 +1564,7 @@
           <span class="clear-btn" id="tj-clear-2" style="display:none" onclick="event.stopPropagation();tjClearMember(2)">✕</span>
         </div>
         <div class="tj-dropdown" id="tj-drop-2">
-          <input class="tj-search" type="text" placeholder="Search player…" oninput="tjFilterOptions(2,this.value)" onclick="event.stopPropagation()" />
+          <input class="tj-search" type="text" id="tj-search-2" placeholder="Search or type new name…" oninput="tjFilterOptions(2,this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();tjConfirmTyped(2)}" onclick="event.stopPropagation()" />
           <div id="tj-options-2"></div>
         </div>
       </div>
@@ -1573,7 +1577,7 @@
           <span class="clear-btn" id="tj-clear-3" style="display:none" onclick="event.stopPropagation();tjClearMember(3)">✕</span>
         </div>
         <div class="tj-dropdown" id="tj-drop-3">
-          <input class="tj-search" type="text" placeholder="Search player…" oninput="tjFilterOptions(3,this.value)" onclick="event.stopPropagation()" />
+          <input class="tj-search" type="text" id="tj-search-3" placeholder="Search or type new name…" oninput="tjFilterOptions(3,this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();tjConfirmTyped(3)}" onclick="event.stopPropagation()" />
           <div id="tj-options-3"></div>
         </div>
       </div>
@@ -5725,7 +5729,7 @@ function renderDetailJoinersList(ev) {
       ).join('');
       return `<div class="ev-joiner-row">
         <span class="ev-joiner-num">${i + 1}.</span>
-        <div class="ev-joiner-team-wrap">
+        <div class="ev-joiner-team-wrap" onclick="this.classList.toggle('tapped')">
           <div style="display:flex;align-items:center;gap:8px">
             <span class="ev-joiner-name">${j.teamName}</span>
             <span class="ev-joiner-team-badge">TEAM</span>
@@ -5792,26 +5796,30 @@ function tjRenderOptions(slot, filter) {
     .map(p => p.name)
     .filter(n => !q || n.toLowerCase().includes(qLow));
 
-  const rows = list.map(name => {
-    const isYou = name === displayName;
-    const otherSlotTaken = Object.entries(_tjSelected)
-      .some(([s, v]) => parseInt(s) !== slot && v === name);
-    const cls = otherSlotTaken ? 'taken' : isYou ? 'is-you' : '';
-    const suffix = otherSlotTaken ? ' (already added)' : isYou ? ' (you)' : '';
-    return `<div class="tj-option ${cls}" onclick="tjSelectMember(${slot},'${name.replace(/'/g,"\'")}')">
-      ${name}${suffix}
-    </div>`;
-  });
+  const rows = [];
 
-  // "Add new name" option — shown when search text doesn't exactly match any player
+  // "Add new name" row — always at top when something is typed and not exact match
   const exactMatch = players.some(p => p.name.toLowerCase() === qLow);
   const alreadySelectedElsewhere = q && Object.entries(_tjSelected)
     .some(([s, v]) => parseInt(s) !== slot && v && v.toLowerCase() === qLow);
   if (q && !exactMatch && !alreadySelectedElsewhere) {
     rows.push(`<div class="tj-option tj-add-new" onclick="tjSelectMember(${slot},'${q.replace(/'/g,"\'")}')">
-      ➕ Add "<strong>${q}</strong>"
+      ➕ Add "<strong>${q}</strong>" as new name
+      <div style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace;margin-top:1px">or press Enter</div>
     </div>`);
   }
+
+  // Existing players
+  list.forEach(name => {
+    const isYou = name === displayName;
+    const otherSlotTaken = Object.entries(_tjSelected)
+      .some(([s, v]) => parseInt(s) !== slot && v === name);
+    const cls = otherSlotTaken ? 'taken' : isYou ? 'is-you' : '';
+    const suffix = otherSlotTaken ? ' (already added)' : isYou ? ' (you)' : '';
+    rows.push(`<div class="tj-option ${cls}" onclick="tjSelectMember(${slot},'${name.replace(/'/g,"\'")}')">
+      ${name}${suffix}
+    </div>`);
+  });
 
   if (!rows.length) {
     el.innerHTML = '<div class="tj-no-results">Type a name to search or add new</div>';
@@ -5822,6 +5830,19 @@ function tjRenderOptions(slot, filter) {
 
 function tjFilterOptions(slot, val) {
   tjRenderOptions(slot, val);
+}
+
+// Called when Enter is pressed in the search box
+function tjConfirmTyped(slot) {
+  const input = document.getElementById('tj-search-' + slot);
+  if (!input) return;
+  const val = input.value.trim();
+  if (!val) return;
+  // Check not already taken by another slot
+  const takenElsewhere = Object.entries(_tjSelected)
+    .some(([s, v]) => parseInt(s) !== slot && v && v.toLowerCase() === val.toLowerCase());
+  if (takenElsewhere) return;
+  tjSelectMember(slot, val);
 }
 
 function tjToggleDropdown(slot) {
@@ -6861,7 +6882,7 @@ async function deleteEvent() {
         <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Change Name</div>
         <div style="font-size:11px;color:var(--muted2);margin-bottom:10px">Your name will update on the leaderboard and all seasons.</div>
         <div style="display:flex;gap:8px">
-          <input class="form-input" type="text" id="pm-rename-input" placeholder="New name…" maxlength="30" style="flex:1;font-size:12px;padding:7px 10px" onkeydown="if(event.key==='Enter')playerRenameSelf()" />
+          <input class="form-input" type="text" id="pm-rename-input" placeholder="New name…" maxlength="30" style="flex:1;font-size:16px;padding:7px 10px" onkeydown="if(event.key==='Enter')playerRenameSelf()" />
           <button class="btn primary" style="font-size:11px;padding:6px 14px;white-space:nowrap" onclick="playerRenameSelf()">Rename</button>
         </div>
         <div class="modal-error" id="pm-rename-error" style="margin-top:6px"></div>
