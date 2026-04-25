@@ -5067,11 +5067,9 @@ async function openPlayerMenuModal() {
   // Reset to overall tab
   switchProfileTab('overall', document.getElementById('pm-tab-overall'));
 
-  // Aliases + display name select
-  renderPlayerAliases();
-  renderPlayerDisplayNameSelect();
-  document.getElementById('pm-alias-error').textContent = '';
-  document.getElementById('pm-new-alias').value = '';
+  // Reset rename input
+  document.getElementById('pm-rename-input').value = '';
+  document.getElementById('pm-rename-error').textContent = '';
   document.getElementById('player-menu-modal').classList.add('open');
 
   // Load season data async
@@ -5163,74 +5161,63 @@ function closePlayerMenuModal() {
   document.getElementById('player-menu-modal').classList.remove('open');
 }
 
-function renderPlayerAliases() {
-  const aliases = playerSession.account.aliases || [];
-  const el = document.getElementById('pm-aliases-list');
-  if (!aliases.length) {
-    el.innerHTML = '<span style="font-size:12px;color:var(--muted2)">No aliases yet.</span>';
-    return;
-  }
-  el.innerHTML = aliases.map((a, i) => {
-    const isDisplay = a === playerSession.account.displayName;
-    return `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--surface);border:1px solid ${isDisplay ? 'var(--gold)' : 'var(--border2)'};border-radius:20px;padding:3px 10px;font-family:'Share Tech Mono',monospace;font-size:11px;color:${isDisplay ? 'var(--gold)' : 'var(--text)'}">
-      ${a}${!isDisplay ? `<span style="cursor:pointer;color:var(--muted);margin-left:2px" onclick="playerRemoveAlias(${i})" title="Remove">✕</span>` : ''}
-    </span>`;
-  }).join('');
-}
-
-function renderPlayerDisplayNameSelect() {
-  const aliases = playerSession.account.aliases || [];
-  const current = playerSession.account.displayName || playerSession.username;
-  const sel = document.getElementById('pm-displayname-select');
-  sel.innerHTML = aliases.map(a =>
-    `<option value="${a}" ${a === current ? 'selected' : ''}>${a}</option>`
-  ).join('');
-  if (!aliases.length) sel.innerHTML = '<option disabled>No aliases yet</option>';
-}
-
-async function playerAddAlias() {
-  const alias  = document.getElementById('pm-new-alias').value.trim();
-  const errEl  = document.getElementById('pm-alias-error');
+async function playerRenameSelf() {
+  const newName = document.getElementById('pm-rename-input').value.trim();
+  const errEl   = document.getElementById('pm-rename-error');
   errEl.textContent = '';
-  if (!alias) { errEl.textContent = 'Enter an alias name.'; return; }
-  const aliases = playerSession.account.aliases || [];
-  if (aliases.map(a=>a.toLowerCase()).includes(alias.toLowerCase())) {
-    errEl.textContent = 'Alias already exists.'; return;
-  }
-  aliases.push(alias);
-  if (aliases.length === 1) playerSession.account.displayName = alias;
-  playerSession.account.aliases = aliases;
-  await savePlayerAccount();
-  document.getElementById('pm-new-alias').value = '';
-  renderPlayerAliases();
-  renderPlayerDisplayNameSelect();
-  showToast('Alias "' + alias + '" added!', 'success');
-}
 
-async function playerRemoveAlias(idx) {
-  const aliases = playerSession.account.aliases || [];
-  const removed = aliases[idx];
-  if (removed === playerSession.account.displayName) {
-    showToast('Switch display name first before removing this alias.', 'error'); return;
+  if (!newName) { errEl.textContent = 'Enter a new name.'; return; }
+  if (newName.length > 30) { errEl.textContent = 'Name too long (max 30 characters).'; return; }
+  if (!/^[a-zA-Z0-9 ._\-]+$/.test(newName)) {
+    errEl.textContent = 'Only letters, numbers, spaces, dots, dashes allowed.'; return;
   }
-  aliases.splice(idx, 1);
-  playerSession.account.aliases = aliases;
-  await savePlayerAccount();
-  renderPlayerAliases();
-  renderPlayerDisplayNameSelect();
-  showToast('Alias removed.', '');
-}
 
-async function playerSaveDisplayName() {
-  const sel = document.getElementById('pm-displayname-select');
-  const chosen = sel.value;
-  if (!chosen) return;
-  playerSession.account.displayName = chosen;
-  await savePlayerAccount();
-  document.getElementById('nav-player-name').textContent = chosen;
-  document.getElementById('pm-displayname').textContent  = chosen;
-  renderPlayerAliases();
-  showToast('Display name set to "' + chosen + '"!', 'success');
+  const displayName = playerSession.account.displayName || playerSession.username;
+  if (newName.toLowerCase() === displayName.toLowerCase()) {
+    errEl.textContent = 'That is already your name.'; return;
+  }
+
+  // Check name not taken by another player
+  const taken = players.find(p => p.name.toLowerCase() === newName.toLowerCase());
+  if (taken) { errEl.textContent = 'That name is already taken.'; return; }
+
+  const btn = document.querySelector('#player-menu-modal .btn.primary[onclick="playerRenameSelf()"]');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+
+  try {
+    // Rename across all seasons + accounts (same function admin uses)
+    await syncRenameAcrossSeasons(displayName, newName);
+
+    // Update account displayName and aliases
+    playerSession.account.displayName = newName;
+    if (Array.isArray(playerSession.account.aliases)) {
+      playerSession.account.aliases = playerSession.account.aliases.map(a =>
+        a.toLowerCase() === displayName.toLowerCase() ? newName : a
+      );
+    }
+    await savePlayerAccount();
+
+    // Update active season in memory
+    const p = players.find(pl => pl.name.toLowerCase() === displayName.toLowerCase());
+    if (p) {
+      if (bladerStats[p.name]) { bladerStats[newName] = bladerStats[p.name]; delete bladerStats[p.name]; }
+      p.name = newName;
+    }
+    await cloudSave();
+    renderLeaderboard(); renderWeekly(); updateHeroStats(); renderAchievements();
+
+    // Update UI
+    document.getElementById('pm-displayname').textContent = newName;
+    document.getElementById('nav-player-name').textContent = newName;
+    const mobName = document.getElementById('mob-player-name');
+    if (mobName) mobName.textContent = newName;
+    document.getElementById('pm-rename-input').value = '';
+    showToast('✅ Renamed to "' + newName + '"!', 'success');
+  } catch(e) {
+    errEl.textContent = 'Rename failed: ' + e.message;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Rename'; }
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -6725,22 +6712,15 @@ async function deleteEvent() {
         <div id="pm-s2-rows"></div>
       </div>
 
-      <!-- Aliases section -->
+      <!-- Rename section -->
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:4px;margin-bottom:12px">
-        <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">My Aliases</div>
-        <div id="pm-aliases-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Change Name</div>
+        <div style="font-size:11px;color:var(--muted2);margin-bottom:10px">Your name will update on the leaderboard and all seasons.</div>
         <div style="display:flex;gap:8px">
-          <input class="form-input" type="text" id="pm-new-alias" placeholder="Add alias e.g. VG.NewName" style="flex:1;font-size:12px;padding:7px 10px" onkeydown="if(event.key==='Enter')playerAddAlias()" />
-          <button class="btn primary" style="font-size:11px;padding:6px 12px;white-space:nowrap" onclick="playerAddAlias()">+ Add</button>
+          <input class="form-input" type="text" id="pm-rename-input" placeholder="New name…" maxlength="30" style="flex:1;font-size:12px;padding:7px 10px" onkeydown="if(event.key==='Enter')playerRenameSelf()" />
+          <button class="btn primary" style="font-size:11px;padding:6px 14px;white-space:nowrap" onclick="playerRenameSelf()">Rename</button>
         </div>
-        <div class="modal-error" id="pm-alias-error" style="margin-top:6px"></div>
-      </div>
-
-      <!-- Display name section -->
-      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px">
-        <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Display Name</div>
-        <select class="form-input" id="pm-displayname-select" style="font-size:13px"></select>
-        <button class="btn primary" style="width:100%;margin-top:8px;font-size:12px" onclick="playerSaveDisplayName()">Set Display Name</button>
+        <div class="modal-error" id="pm-rename-error" style="margin-top:6px"></div>
       </div>
 
       <button class="btn danger" style="width:100%;font-size:12px" onclick="playerLogout()">Logout</button>
