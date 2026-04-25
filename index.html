@@ -701,6 +701,48 @@
   }
   .admin-active .ev-joiner-remove { display: inline-block; }
 
+  /* 3v3 team joiner row */
+  .ev-joiner-team-badge {
+    font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--gold); font-family: 'Share Tech Mono', monospace;
+    background: rgba(212,175,55,0.1); border: 1px solid rgba(212,175,55,0.3);
+    border-radius: 4px; padding: 1px 5px; flex-shrink: 0;
+  }
+  .ev-joiner-team-members {
+    font-size: 11px; color: var(--muted); font-family: 'Share Tech Mono', monospace;
+    margin-top: 2px;
+  }
+  /* Team tooltip on hover */
+  .ev-joiner-team-wrap { position: relative; flex: 1; cursor: default; }
+  .ev-joiner-team-tooltip {
+    display: none; position: absolute; bottom: calc(100% + 6px); left: 0;
+    background: #1a1200; border: 1px solid var(--gold);
+    border-radius: 8px; padding: 10px 14px; z-index: 100;
+    min-width: 180px; box-shadow: 0 4px 20px rgba(0,0,0,0.7);
+    pointer-events: none;
+  }
+  .ev-joiner-team-wrap:hover .ev-joiner-team-tooltip { display: block; }
+  .ev-joiner-team-tooltip-title {
+    font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--gold); font-family: 'Share Tech Mono', monospace; margin-bottom: 6px;
+  }
+  .ev-joiner-team-tooltip-member {
+    font-size: 12px; color: #fff; font-weight: 600; padding: 2px 0;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .ev-joiner-team-tooltip-member::before {
+    content: '·'; color: var(--gold); font-size: 16px; line-height: 1;
+  }
+  /* Copy list button */
+  .ev-copy-list-btn {
+    display: none; background: var(--surface2); border: 1px solid var(--border2);
+    color: var(--gold); border-radius: 6px; padding: 4px 10px;
+    font-family: 'Share Tech Mono', monospace; font-size: 10px;
+    letter-spacing: 1px; cursor: pointer; transition: background .15s;
+  }
+  .ev-copy-list-btn:hover { background: var(--surface3, #2a2a2a); }
+  .admin-active .ev-copy-list-btn { display: inline-block; }
+
   /* Skeleton loader */
   @keyframes shimmer { 0%{background-position:-600px 0} 100%{background-position:600px 0} }
   .skel-card {
@@ -1424,6 +1466,7 @@
       <div>
         <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between">
           <span>✅ Sure Bladers <span id="evd-joiner-count" style="color:var(--gold)">0</span></span>
+          <button class="ev-copy-list-btn" id="evd-copy-list-btn" onclick="copyJoinerList()" title="Copy list for Challonge">📋 Copy List</button>
         </div>
         <!-- Admin inline add -->
         <div id="evd-admin-add-row" class="admin-only-btn" style="display:none;margin-bottom:10px">
@@ -1437,6 +1480,36 @@
         </div>
         <div id="evd-joiners-list" style="display:flex;flex-direction:column;gap:6px"></div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ 3v3 TEAM JOIN MODAL ══════════════ -->
+<div class="modal-overlay" id="team-join-modal" onclick="if(event.target===this)closeTeamJoinModal()">
+  <div class="modal" style="max-width:400px">
+    <button class="modal-close" onclick="closeTeamJoinModal()">✕</button>
+    <div class="modal-title">🛡️ Join as a Team</div>
+    <div class="modal-sub">Enter your team name and the names of all 3 members</div>
+    <div class="form-group">
+      <label class="form-label">Team Name</label>
+      <input class="form-input" type="text" id="tj-teamname" placeholder="e.g. VG Bladers" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Member 1</label>
+      <input class="form-input" type="text" id="tj-m1" placeholder="Name of 1st member" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Member 2</label>
+      <input class="form-input" type="text" id="tj-m2" placeholder="Name of 2nd member" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Member 3</label>
+      <input class="form-input" type="text" id="tj-m3" placeholder="Name of 3rd member" />
+    </div>
+    <div class="modal-error" id="tj-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" onclick="submitTeamJoin()">⚡ Join as Team</button>
+      <button class="btn" onclick="closeTeamJoinModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -1467,6 +1540,13 @@
     <div class="modal-title" id="add-event-modal-title">➕ Create Event</div>
     <input type="hidden" id="add-event-id" value="" />
 
+    <div class="form-group">
+      <label class="form-label">Event Type</label>
+      <select class="form-input" id="ev-type" style="font-size:13px" onchange="updateEvTypeUI()">
+        <option value="1v1">⚔️ 1v1 — Individual</option>
+        <option value="3v3">🛡️ 3v3 — Team</option>
+      </select>
+    </div>
     <div class="form-group">
       <label class="form-label">Title</label>
       <input class="form-input" type="text" id="ev-title" placeholder="e.g. Beyblade RXS Official Tournament Season III" />
@@ -5302,7 +5382,10 @@ function getStatusHtml(status) {
 
 function isPlayerJoined(ev) {
   if (!playerSession) return false;
-  return (ev.joiners || []).some(j => j.username === playerSession.username);
+  return (ev.joiners || []).some(j =>
+    j.username === playerSession.username ||
+    (j.type === 'team' && j.username === playerSession.username)
+  );
 }
 
 // ── Render the events list ──
@@ -5346,7 +5429,9 @@ function renderEventsList() {
         ? ''
         : joined
           ? `<button class="ev-join-btn joined" onclick="event.stopPropagation();handleJoinToggle('${ev.id}',true)">✅ Joined — Click to Unjoin</button>`
-          : `<button class="ev-join-btn" onclick="event.stopPropagation();handleJoinToggle('${ev.id}',false)">⚡ Join This Event</button>`;
+          : ev.type === '3v3'
+            ? `<button class="ev-join-btn" onclick="event.stopPropagation();openTeamJoinModal('${ev.id}')">🛡️ Join as a Team</button>`
+            : `<button class="ev-join-btn" onclick="event.stopPropagation();handleJoinToggle('${ev.id}',false)">⚡ Join This Event</button>`;
 
     return `<div class="event-card" onclick="openEventDetail('${ev.id}')">
       <div class="event-card-header">
@@ -5449,32 +5534,146 @@ function renderDetailJoinArea(ev) {
   }
   if (ev.status !== 'open') { area.innerHTML = ''; return; }
   const joined = isPlayerJoined(ev);
-  area.innerHTML = joined
-    ? `<button class="ev-join-btn joined" onclick="handleJoinToggle('${ev.id}',true)">✅ You're In — Click to Unjoin</button>`
-    : `<button class="ev-join-btn" onclick="handleJoinToggle('${ev.id}',false)">⚡ Join This Event</button>`;
+  const is3v3 = ev.type === '3v3';
+  if (joined) {
+    area.innerHTML = `<button class="ev-join-btn joined" onclick="handleJoinToggle('${ev.id}',true)">✅ You're In — Click to Unjoin</button>`;
+  } else if (is3v3) {
+    area.innerHTML = `<button class="ev-join-btn" onclick="openTeamJoinModal('${ev.id}')">🛡️ Join as a Team</button>`;
+  } else {
+    area.innerHTML = `<button class="ev-join-btn" onclick="handleJoinToggle('${ev.id}',false)">⚡ Join This Event</button>`;
+  }
 }
 
 function renderDetailJoinersList(ev) {
   const listEl = document.getElementById('evd-joiners-list');
   const countEl = document.getElementById('evd-joiner-count');
   const joiners = ev.joiners || [];
+  const is3v3 = ev.type === '3v3';
   countEl.textContent = joiners.length;
   if (!joiners.length) {
     listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted2);font-family:\'Share Tech Mono\',monospace;font-size:11px">No one has joined yet. Be the first!</div>';
     return;
   }
-  listEl.innerHTML = joiners.map((j, i) =>
-    `<div class="ev-joiner-row">
+  listEl.innerHTML = joiners.map((j, i) => {
+    if (is3v3 && j.type === 'team') {
+      const members = j.members || [];
+      const tooltipMembers = members.map(m =>
+        `<div class="ev-joiner-team-tooltip-member">${m}</div>`
+      ).join('');
+      return `<div class="ev-joiner-row">
+        <span class="ev-joiner-num">${i + 1}.</span>
+        <div class="ev-joiner-team-wrap">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="ev-joiner-name">${j.teamName}</span>
+            <span class="ev-joiner-team-badge">TEAM</span>
+          </div>
+          <div class="ev-joiner-team-tooltip">
+            <div class="ev-joiner-team-tooltip-title">🛡️ ${j.teamName}</div>
+            ${tooltipMembers}
+          </div>
+        </div>
+        ${isAdmin ? `<button class="ev-joiner-remove" onclick="adminRemoveJoiner(${i})" title="Remove">✕</button>` : ''}
+      </div>`;
+    }
+    return `<div class="ev-joiner-row">
       <span class="ev-joiner-num">${i + 1}.</span>
       <span class="ev-joiner-name">${j.name}</span>
       ${isAdmin ? `<button class="ev-joiner-remove" onclick="adminRemoveJoiner(${i})" title="Remove">✕</button>` : ''}
-    </div>`
-  ).join('');
+    </div>`;
+  }).join('');
+}
+
+function copyJoinerList() {
+  if (!currentEventDetail) return;
+  const joiners = currentEventDetail.joiners || [];
+  const is3v3 = currentEventDetail.type === '3v3';
+  let lines;
+  if (is3v3) {
+    lines = joiners.map(j => j.type === 'team' ? j.teamName : (j.name || ''));
+  } else {
+    lines = joiners.map(j => j.name || '');
+  }
+  const text = lines.filter(Boolean).join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('evd-copy-list-btn');
+    if (btn) { btn.textContent = '✅ Copied!'; setTimeout(() => { btn.textContent = '📋 Copy List'; }, 2000); }
+  }).catch(() => showToast('⚠ Could not copy to clipboard', 'error'));
 }
 
 function closeEventDetail() {
   document.getElementById('event-detail-modal').classList.remove('open');
   currentEventDetail = null;
+}
+
+// ── Event type UI toggle ──
+function updateEvTypeUI() {
+  // reserved for future UI changes based on type
+}
+
+// ── 3v3 Team Join modal ──
+let _teamJoinEventId = null;
+function openTeamJoinModal(eventId) {
+  if (!playerSession) { openPlayerLoginModal(); return; }
+  _teamJoinEventId = eventId;
+  document.getElementById('tj-teamname').value = '';
+  document.getElementById('tj-m1').value = '';
+  document.getElementById('tj-m2').value = '';
+  document.getElementById('tj-m3').value = '';
+  document.getElementById('tj-error').textContent = '';
+  document.getElementById('team-join-modal').classList.add('open');
+  setTimeout(() => document.getElementById('tj-teamname').focus(), 150);
+}
+function closeTeamJoinModal() {
+  document.getElementById('team-join-modal').classList.remove('open');
+  _teamJoinEventId = null;
+}
+
+async function submitTeamJoin() {
+  if (!playerSession || !_teamJoinEventId) return;
+  const teamName = document.getElementById('tj-teamname').value.trim();
+  const m1 = document.getElementById('tj-m1').value.trim();
+  const m2 = document.getElementById('tj-m2').value.trim();
+  const m3 = document.getElementById('tj-m3').value.trim();
+  const errEl = document.getElementById('tj-error');
+  errEl.textContent = '';
+  if (!teamName) { errEl.textContent = 'Team name is required.'; return; }
+  if (!m1 || !m2 || !m3) { errEl.textContent = 'All 3 member names are required.'; return; }
+
+  const btn = document.querySelector('#team-join-modal .btn.primary');
+  btn.disabled = true; btn.textContent = '⏳ Saving…';
+
+  try {
+    const res = await fetch(EVENTS_API + '?action=join', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username:     playerSession.username,
+        passwordHash: playerSession.account.password,
+        eventId:      _teamJoinEventId,
+        displayName:  playerSession.account.displayName || playerSession.username,
+        teamName,
+        members: [m1, m2, m3],
+        joinType: 'team'
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+
+    const idx = eventsData.findIndex(e => e.id === _teamJoinEventId);
+    if (idx !== -1) eventsData[idx] = data.event;
+    renderEventsList();
+    if (currentEventDetail && currentEventDetail.id === _teamJoinEventId) {
+      currentEventDetail = data.event;
+      renderDetailJoinArea(data.event);
+      renderDetailJoinersList(data.event);
+    }
+    closeTeamJoinModal();
+    showToast('✅ Team registered! See you there 🔥', 'success');
+  } catch(e) {
+    errEl.textContent = e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = '⚡ Join as Team';
+  }
 }
 
 // ── Join / Unjoin ──
@@ -5642,6 +5841,7 @@ function openAddEventModal() {
   if (!isAdmin) return;
   document.getElementById('add-event-modal-title').textContent = '➕ Create Event';
   document.getElementById('add-event-id').value = '';
+  document.getElementById('ev-type').value  = '1v1';
   document.getElementById('ev-title').value  = '';
   document.getElementById('ev-date').value   = '';
   document.getElementById('ev-time').value   = '';
@@ -5665,6 +5865,7 @@ function openEditEventModal(eventId) {
   if (!ev) return;
   document.getElementById('add-event-modal-title').textContent = '✏️ Edit Event';
   document.getElementById('add-event-id').value = ev.id;
+  document.getElementById('ev-type').value  = ev.type  || '1v1';
   document.getElementById('ev-title').value  = ev.title  || '';
   document.getElementById('ev-date').value   = ev.date   || '';
   document.getElementById('ev-time').value   = ev.time   || '';
@@ -5698,6 +5899,7 @@ async function saveEvent() {
   const eventObj = {
     id:      isEdit ? existingId : 'evt_' + Date.now(),
     title,
+    type:    document.getElementById('ev-type').value || '1v1',
     date:    document.getElementById('ev-date').value.trim(),
     time:    document.getElementById('ev-time').value.trim(),
     venue:   document.getElementById('ev-venue').value.trim(),
