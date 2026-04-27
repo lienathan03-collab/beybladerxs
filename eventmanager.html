@@ -816,7 +816,7 @@
       <div>
         <div class="section-label" style="margin-bottom:6px">Player 1</div>
         <input class="form-input" id="nm-p1-search" placeholder="Search player…" style="width:100%;margin-bottom:6px"
-          oninput="nmFilterPlayers(1,this.value)" onfocus="nmShowDropdown(1)" />
+          oninput="nmFilterPlayers(1,this.value)" onclick="nmShowDropdown(1)" onfocus="nmShowDropdown(1)" autocomplete="off" />
         <div id="nm-p1-dropdown" style="display:none;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;max-height:180px;overflow-y:auto"></div>
         <div id="nm-p1-selected" style="display:none;background:rgba(74,158,255,0.1);border:1px solid rgba(74,158,255,0.3);border-radius:7px;padding:8px 10px;margin-top:4px">
           <div style="display:flex;justify-content:space-between;align-items:center">
@@ -833,7 +833,7 @@
       <div>
         <div class="section-label" style="margin-bottom:6px">Player 2</div>
         <input class="form-input" id="nm-p2-search" placeholder="Search player…" style="width:100%;margin-bottom:6px"
-          oninput="nmFilterPlayers(2,this.value)" onfocus="nmShowDropdown(2)" />
+          oninput="nmFilterPlayers(2,this.value)" onclick="nmShowDropdown(2)" onfocus="nmShowDropdown(2)" autocomplete="off" />
         <div id="nm-p2-dropdown" style="display:none;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;max-height:180px;overflow-y:auto"></div>
         <div id="nm-p2-selected" style="display:none;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.3);border-radius:7px;padding:8px 10px;margin-top:4px">
           <div style="display:flex;justify-content:space-between;align-items:center">
@@ -1245,7 +1245,7 @@ function nmFilterPlayers(slot, query) {
   ddEl.innerHTML = filtered.map(p => {
     const isOther = otherSelected && otherSelected.name === p.name;
     const builds = (buildsState[playerKey(p.name)] || []).filter(Boolean);
-    return `<div class="nm-player-option ${isOther ? 'disabled' : ''}" onclick="nmSelectPlayer(${slot}, '${escJs(p.name)}')">
+    return `<div class="nm-player-option ${isOther ? 'disabled' : ''}" onmousedown="event.preventDefault();nmSelectPlayer(${slot}, '${escJs(p.name)}')">
       <div>${p.name}</div>
       <div class="nm-player-sub">${builds.length ? builds.join(' · ') : 'No builds registered'}</div>
     </div>`;
@@ -1551,16 +1551,23 @@ function closePicker() {
 
 document.addEventListener('click', (e) => {
   const picker = document.getElementById('finish-picker');
-  if (picker.style.display !== 'none' && !picker.contains(e.target)) closePicker();
-  // Close player dropdowns
-  ['nm-p1-dropdown','nm-p2-dropdown'].forEach(id => {
-    const dd = document.getElementById(id);
-    if (dd && !dd.contains(e.target) && e.target.id !== 'nm-p1-search' && e.target.id !== 'nm-p2-search') {
-      dd.style.display = 'none';
-    }
-  });
-  // Close modal on backdrop click
+  if (picker && picker.style.display !== 'none' && !picker.contains(e.target)) closePicker();
+
+  // Close player dropdowns — only if click is outside the entire player picker section
   const modal = document.getElementById('new-match-modal');
+  if (modal && modal.style.display !== 'none') {
+    ['nm-p1-dropdown','nm-p2-dropdown'].forEach((id, idx) => {
+      const dd  = document.getElementById(id);
+      const inp = document.getElementById(`nm-p${idx+1}-search`);
+      const sel = document.getElementById(`nm-p${idx+1}-selected`);
+      if (!dd) return;
+      // Keep open if click was inside dropdown, input, or selected card
+      const clickedInside = dd.contains(e.target) || (inp && inp.contains(e.target)) || (sel && sel.contains(e.target));
+      if (!clickedInside) dd.style.display = 'none';
+    });
+  }
+
+  // Close modal on backdrop click
   if (modal && e.target === modal) closeNewMatchModal();
 });
 
