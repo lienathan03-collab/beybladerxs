@@ -295,8 +295,8 @@
   .match-card-header {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 14px;
+    gap: 8px;
+    padding: 8px 12px;
     background: var(--surface2);
     border-bottom: 1px solid var(--border);
     cursor: pointer;
@@ -305,7 +305,7 @@
   .match-round-badge {
     font-family: 'Share Tech Mono', monospace;
     font-size: 10px;
-    padding: 3px 8px;
+    padding: 2px 7px;
     border-radius: 4px;
     background: rgba(212,175,55,0.12);
     border: 1px solid rgba(212,175,55,0.3);
@@ -314,7 +314,7 @@
   }
   .match-vs-label {
     font-family: 'Barlow Condensed', sans-serif;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 700;
     letter-spacing: 1px;
     flex: 1;
@@ -330,16 +330,16 @@
     gap: 0;
   }
   .match-player-side {
-    padding: 14px;
+    padding: 10px 12px;
     border-right: 1px solid var(--border);
   }
   .match-player-side:last-child { border-right: none; }
   .match-player-name {
     font-family: 'Barlow Condensed', sans-serif;
-    font-size: 17px;
+    font-size: 15px;
     font-weight: 700;
     letter-spacing: 1px;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -349,33 +349,33 @@
   .match-build-row {
     display: flex;
     flex-direction: column;
-    gap: 5px;
-    margin-bottom: 10px;
-    padding: 8px 10px;
+    gap: 4px;
+    margin-bottom: 6px;
+    padding: 6px 8px;
     background: var(--surface2);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 6px;
   }
   .match-build-name {
     font-family: 'Share Tech Mono', monospace;
-    font-size: 11px;
+    font-size: 10px;
     color: var(--blue);
-    margin-bottom: 4px;
+    margin-bottom: 2px;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
   }
   .match-pts-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-top: 10px;
+    padding-top: 8px;
     border-top: 1px solid var(--border);
-    margin-top: 4px;
+    margin-top: 2px;
   }
   .match-pts-val {
     font-family: 'Share Tech Mono', monospace;
-    font-size: 20px;
+    font-size: 16px;
     font-weight: 700;
     color: var(--muted);
   }
@@ -470,9 +470,9 @@
   }
   .finish-tag {
     font-family: 'Share Tech Mono', monospace;
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
-    padding: 2px 5px;
+    padding: 1px 4px;
     border-radius: 3px;
     letter-spacing: 0.5px;
   }
@@ -721,6 +721,17 @@
       </div>
     </div>
 
+    <!-- Draft restore banner -->
+    <div id="draft-banner" style="display:none;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.4);border-radius:10px;padding:12px 16px;margin-bottom:16px;display:none;align-items:center;gap:12px;flex-wrap:wrap">
+      <span style="font-size:18px">💾</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:14px;color:var(--gold2)">Unsaved Draft Found</div>
+        <div id="draft-banner-sub" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted);margin-top:2px"></div>
+      </div>
+      <button class="btn gold" style="font-size:11px;padding:5px 14px" onclick="restoreDraft()">↩ Restore Draft</button>
+      <button class="btn" style="font-size:11px;padding:5px 14px" onclick="discardDraft()">✕ Discard</button>
+    </div>
+
     <!-- Event Info -->
     <div id="event-info" style="display:none">
       <div class="info-row" id="event-info-chips"></div>
@@ -944,7 +955,7 @@ function loadEvent(id) {
   currentEvent = allEvents.find(e => e.id === id);
   if (!currentEvent) return;
 
-  // Load existing beyResults/builds from event
+  // Load existing beyResults/builds from server
   buildsState = JSON.parse(JSON.stringify(currentEvent.builds || {}));
   resultsState = JSON.parse(JSON.stringify(currentEvent.beyResults || []));
   matchesState = [];
@@ -953,6 +964,16 @@ function loadEvent(id) {
   loadMatchesFromResults();
   dirty = false;
   setSaveStatus('—');
+
+  // Check for unsaved local draft
+  const draft = localLoadDraft(id);
+  if (draft && draft.savedAt) {
+    const age = formatDraftAge(draft.savedAt);
+    const hasDraftData = Object.keys(draft.buildsState || {}).length > 0 || (draft.matchesState || []).length > 0;
+    if (hasDraftData) {
+      showDraftBanner(draft, age);
+    }
+  }
 
   // Show event badge
   const badge = document.getElementById('event-type-badge');
@@ -1009,6 +1030,81 @@ function markDirty() {
   dirty = true;
   document.getElementById('save-btn').disabled = false;
   setSaveStatus('Unsaved changes');
+  localAutoSave();
+}
+
+// ─────────────────────────────────────────────
+// LOCAL AUTO-SAVE (localStorage)
+// ─────────────────────────────────────────────
+function localAutoSave() {
+  if (!currentEvent) return;
+  try {
+    const draft = {
+      eventId: currentEvent.id,
+      buildsState,
+      matchesState,
+      resultsState,
+      savedAt: Date.now()
+    };
+    localStorage.setItem('rxs_em_draft_' + currentEvent.id, JSON.stringify(draft));
+  } catch(e) {
+    console.warn('Auto-save failed:', e);
+  }
+}
+
+function localLoadDraft(eventId) {
+  try {
+    const raw = localStorage.getItem('rxs_em_draft_' + eventId);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch(e) { return null; }
+}
+
+function localClearDraft(eventId) {
+  try { localStorage.removeItem('rxs_em_draft_' + eventId); } catch(e) {}
+}
+
+function formatDraftAge(ts) {
+  const mins = Math.round((Date.now() - ts) / 60000);
+  if (mins < 1)  return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  return `${hrs}h ${mins % 60}m ago`;
+}
+
+function showDraftBanner(draft, age) {
+  const banner = document.getElementById('draft-banner');
+  const sub    = document.getElementById('draft-banner-sub');
+  const matchCount = (draft.matchesState || []).length;
+  const buildCount = Object.keys(draft.buildsState || {}).length;
+  sub.textContent = `${age} · ${matchCount} match${matchCount !== 1 ? 'es' : ''} · ${buildCount} player build${buildCount !== 1 ? 's' : ''} — not yet saved to server`;
+  banner.style.display = 'flex';
+  // Store draft reference for restore
+  banner._draft = draft;
+}
+
+function restoreDraft() {
+  const banner = document.getElementById('draft-banner');
+  const draft  = banner._draft;
+  if (!draft) return;
+  buildsState    = draft.buildsState    || {};
+  resultsState   = draft.resultsState   || [];
+  matchesState   = draft.matchesState   || [];
+  _matchIdCounter = Math.max(...(matchesState.map(m => m.id || 0)), 0) + 1;
+  dirty = true;
+  document.getElementById('save-btn').disabled = false;
+  setSaveStatus('Draft restored — unsaved changes', 'saving');
+  banner.style.display = 'none';
+  renderBuilds();
+  renderResults();
+  showToast('✅ Draft restored!', 'success');
+}
+
+function discardDraft() {
+  if (!currentEvent) return;
+  localClearDraft(currentEvent.id);
+  document.getElementById('draft-banner').style.display = 'none';
+  showToast('Draft discarded.', '');
 }
 
 function setSaveStatus(msg, cls = '') {
@@ -1243,7 +1339,7 @@ function nmFilterPlayers(slot, query) {
   }
 
   ddEl.innerHTML = filtered.map(p => {
-    const isOther = otherSelected && otherSelected.name === p.name;
+    const isOther = otherSelected && otherSelected.player === p.name;
     const builds = (buildsState[playerKey(p.name)] || []).filter(Boolean);
     return `<div class="nm-player-option ${isOther ? 'disabled' : ''}" onmousedown="event.preventDefault();nmSelectPlayer(${slot}, '${escJs(p.name)}')">
       <div>${p.name}</div>
@@ -1258,7 +1354,7 @@ function nmShowDropdown(slot) {
 
 function nmSelectPlayer(slot, name) {
   const builds = (buildsState[playerKey(name)] || []).filter(Boolean);
-  const playerData = { name, builds: builds.map(b => ({ build: b, finishes: [], deployed: false })) };
+  const playerData = { player: name, builds: builds.map(b => ({ build: b, finishes: [], deployed: false })) };
 
   if (slot === 1) _nmP1 = playerData;
   else _nmP2 = playerData;
@@ -1599,6 +1695,8 @@ async function saveAll() {
     await syncBladerStats();
 
     dirty = false;
+    localClearDraft(currentEvent.id);
+    document.getElementById('draft-banner').style.display = 'none';
     setSaveStatus('Saved ✓', 'saved');
     showToast('✅ Saved! Stats updated on main page.', 'success');
 
@@ -1738,9 +1836,13 @@ function escId(s) {
   return String(s || '').replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
-// Warn on unsaved changes
+// Warn on unsaved changes + auto-save draft
 window.addEventListener('beforeunload', e => {
-  if (dirty) { e.preventDefault(); e.returnValue = ''; }
+  if (dirty) {
+    localAutoSave();
+    e.preventDefault();
+    e.returnValue = '';
+  }
 });
 </script>
 </body>
