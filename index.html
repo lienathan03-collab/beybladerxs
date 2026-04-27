@@ -1081,9 +1081,19 @@
 
     /* Modals */
     .modal { border-radius: 16px 16px 0 0 !important; position: fixed; bottom: 0; top: auto !important; transform: none !important; max-height: 92vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-    #player-menu-modal .modal { overflow: hidden; max-height: 92vh; }
+    #player-menu-modal .modal { overflow: hidden; max-height: 96vh; height: 96vh; border-radius: 20px 20px 0 0 !important; }
+    #pm-scroll-body { max-height: calc(96vh - 150px) !important; overflow-y: auto !important; -webkit-overflow-scrolling: touch; padding: 14px 16px 16px !important; }
+    #player-menu-modal .modal > div:first-of-type { min-height: 150px !important; }
+    #player-menu-modal #pm-avatar { width: 88px !important; height: 88px !important; top: 8px !important; font-size: 34px !important; }
+    #player-menu-modal #pm-displayname { font-size: 18px !important; }
+    #player-menu-modal .profile-season-tabs { gap: 4px; margin-bottom: 10px; padding-bottom: 8px; }
+    #player-menu-modal .profile-season-tab { padding: 6px 2px; font-size: 10px; }
+    #player-menu-modal .profile-season-tab .tab-pts { font-size: 14px; }
+    #player-menu-modal .profile-stat-row { padding: 7px 0; }
+    #player-menu-modal .top3-bey-card { padding: 6px 10px; margin-bottom: 4px; }
+    #player-menu-modal .top3-beys-section { margin-top: 8px; }
     .modal-overlay { align-items: flex-end; }
-    .profile-modal { border-radius: 20px 20px 0 0; max-height: 92vh; }
+    .profile-modal { border-radius: 20px 20px 0 0; max-height: 96vh; }
 
     /* Inputs — 16px prevents iOS auto-zoom on focus */
     /* Inputs — 16px prevents iOS auto-zoom on focus */
@@ -1866,7 +1876,7 @@
 
   <!-- Rankings content -->
   <div id="br-content">
-    <div style="text-align:center;padding:48px;color:var(--muted2);font-size:13px">Loading bey rankings…</div>
+    <div style="text-align:center;padding:48px;color:var(--muted2);font-size:13px">Select a season to load rankings.</div>
   </div>
 </div>
 
@@ -3176,11 +3186,19 @@ let brAllEventData = null; // cached from /api/beyresults
 async function loadBeyRankingsData() {
   if (brAllEventData) return brAllEventData;
   try {
-    const res = await fetch('/api/beyresults');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch('/api/beyresults', { signal: controller.signal });
+    clearTimeout(timeout);
     if (!res.ok) throw new Error('Failed to load bey results.');
     brAllEventData = await res.json();
   } catch(e) {
-    brAllEventData = { events: [] };
+    // Fall back to events already loaded in the events tab (eventsData)
+    if (typeof eventsData !== 'undefined' && eventsData && eventsData.length > 0) {
+      brAllEventData = { events: eventsData };
+    } else {
+      brAllEventData = { events: [] };
+    }
   }
   return brAllEventData;
 }
@@ -3257,7 +3275,7 @@ function renderGlobalBeyRankings(events, query) {
 
   if (query) rows = rows.filter(r => r.build.toLowerCase().includes(query));
 
-  if (!rows.length) return '<div style="text-align:center;padding:48px;color:var(--muted2)">No bey data yet. Add match results in the Event Manager first.</div>';
+  if (!rows.length) return '<div style="text-align:center;padding:48px;color:var(--muted2)">No bey ranking data found for this season.<br><span style="font-size:11px;opacity:0.6">Add match results in the Event Manager to see rankings here.</span></div>';
 
   const rankIcon = (i) => i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
   const rankCls  = (i) => i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
@@ -3322,7 +3340,7 @@ function renderSoloBeyRankings(events, query) {
     r.build.toLowerCase().includes(query) || r.player.toLowerCase().includes(query)
   );
 
-  if (!rows.length) return '<div style="text-align:center;padding:48px;color:var(--muted2)">No solo bey data yet.</div>';
+  if (!rows.length) return '<div style="text-align:center;padding:48px;color:var(--muted2)">No solo bey data found for this season.<br><span style="font-size:11px;opacity:0.6">Add match results in the Event Manager to see rankings here.</span></div>';
 
   const rankIcon = (i) => i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
   const rankCls  = (i) => i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
@@ -7632,7 +7650,7 @@ async function deleteEvent() {
       </div>
     </div>
 
-    <div style="padding:18px 20px 20px;overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1;">
+    <div id="pm-scroll-body" style="padding:18px 20px 20px;overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1;">
 
       <!-- Season tabs -->
       <div class="profile-season-tabs" id="pm-season-tabs">
