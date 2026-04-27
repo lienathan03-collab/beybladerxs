@@ -129,11 +129,35 @@ export async function onRequest(context) {
       const playerName = displayName || account.displayName || username;
 
       if (action === 'team_join') {
-        // Prevent duplicate joins by same username
+        // Prevent duplicate joins by same username (team captain already registered)
         const alreadyJoined = event.joiners.find(j => j.username === username);
         if (alreadyJoined) {
           return new Response(
             JSON.stringify({ error: 'Already joined.' }),
+            { status: 409, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+          );
+        }
+        // Prevent any member name from appearing in an already-registered team
+        const incomingMembers = members.map(m => m.trim().toLowerCase());
+        for (const joiner of event.joiners) {
+          if (joiner.type === 'team' && Array.isArray(joiner.members)) {
+            const existingMembers = joiner.members.map(m => m.toLowerCase());
+            const conflict = incomingMembers.find(m => existingMembers.includes(m));
+            if (conflict) {
+              return new Response(
+                JSON.stringify({ error: 'One or more members are already in another team.' }),
+                { status: 409, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+              );
+            }
+          }
+        }
+        // Also prevent duplicate team name (case-insensitive)
+        const dupTeam = event.joiners.find(j =>
+          j.type === 'team' && j.teamName && j.teamName.toLowerCase() === teamName.trim().toLowerCase()
+        );
+        if (dupTeam) {
+          return new Response(
+            JSON.stringify({ error: `Team name is already taken.` }),
             { status: 409, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
           );
         }
