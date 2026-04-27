@@ -282,8 +282,132 @@
   }
   .add-build-btn:hover { border-color: var(--blue); color: var(--blue); }
 
-  /* ── RESULTS TAB ── */
-  .results-section { margin-bottom: 32px; }
+  /* ── MATCH CARDS ── */
+  .match-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 14px;
+    overflow: hidden;
+    transition: border-color .15s;
+  }
+  .match-card:hover { border-color: var(--border2); }
+  .match-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+  }
+  .match-round-badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(212,175,55,0.12);
+    border: 1px solid rgba(212,175,55,0.3);
+    color: var(--gold);
+    flex-shrink: 0;
+  }
+  .match-vs-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    flex: 1;
+  }
+  .match-result-summary {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .match-card-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+  }
+  .match-player-side {
+    padding: 14px;
+    border-right: 1px solid var(--border);
+  }
+  .match-player-side:last-child { border-right: none; }
+  .match-player-name {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .match-player-name.p1 { color: var(--blue); }
+  .match-player-name.p2 { color: var(--gold2); }
+  .match-build-row {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .match-build-name {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--blue);
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .match-pts-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+  }
+  .match-pts-val {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .match-pts-val.has-pts { color: var(--gold2); }
+
+  /* round filter pills */
+  .round-pill {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+    color: var(--muted);
+    cursor: pointer;
+    transition: all .12s;
+  }
+  .round-pill:hover { border-color: var(--gold); color: var(--text); }
+  .round-pill.active { background: rgba(212,175,55,0.12); border-color: var(--gold); color: var(--gold); }
+
+  /* player search dropdown item */
+  .nm-player-option {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 14px;
+    border-bottom: 1px solid var(--border);
+    transition: background .1s;
+  }
+  .nm-player-option:last-child { border-bottom: none; }
+  .nm-player-option:hover { background: var(--surface3); }
+  .nm-player-option.disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }
+  .nm-player-sub { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--muted); margin-top: 2px; }
   .results-section-title {
     font-family: 'Barlow Condensed', sans-serif;
     font-size: 18px;
@@ -626,15 +750,16 @@
 
       <!-- RESULTS TAB -->
       <div class="tab-pane" id="tab-results">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <!-- Top bar -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
           <div>
             <div style="font-size:15px;font-weight:700;color:var(--text)">Match Results</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px">
-              Click <strong style="color:var(--blue)">+ Finish</strong> on a cell to add finishes. Click a finish tag to remove it. Toggle WIN/LOSS per round.
-            </div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">Add a match, pick both players, enter finishes after they report.</div>
           </div>
-          <button class="btn gold" onclick="addRound()">➕ Add Round</button>
+          <button class="btn gold" onclick="openNewMatchModal()">⚔️ New Match</button>
         </div>
+
+        <!-- Legend -->
         <div class="legend">
           <span style="font-size:11px;color:var(--muted);font-family:'Share Tech Mono',monospace">FINISH TYPES:</span>
           <span class="legend-item"><span class="finish-tag S">S</span> Spin (1pt)</span>
@@ -642,14 +767,84 @@
           <span class="legend-item"><span class="finish-tag E">E</span> Extreme (3pt)</span>
           <span class="legend-item"><span class="finish-tag B">B</span> Burst (2pt)</span>
           <span class="legend-item"><span class="finish-tag L">L</span> Loss (0pt)</span>
-          <span style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace;margin-left:4px">· empty cell = not deployed</span>
+          <span style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace;margin-left:4px">· unchecked = not deployed</span>
         </div>
+
+        <!-- Round filter pills -->
+        <div id="round-filter-row" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px"></div>
+
+        <!-- Match cards -->
         <div id="results-content">
-          <div class="empty-state"><div class="icon">📊</div>Register bey builds first, then add rounds here.</div>
+          <div class="empty-state"><div class="icon">⚔️</div>No matches yet. Click <strong style="color:var(--gold)">New Match</strong> to add one.</div>
         </div>
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- New Match Modal -->
+<div id="new-match-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:28px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;letter-spacing:2px;color:var(--gold)">⚔️ NEW MATCH</div>
+      <button class="btn" style="padding:4px 10px;font-size:12px" onclick="closeNewMatchModal()">✕</button>
+    </div>
+
+    <!-- Round selector -->
+    <div style="margin-bottom:18px">
+      <div class="section-label" style="margin-bottom:6px">Round</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select class="event-select" id="nm-round-select" style="flex:1;min-width:120px">
+          <option value="R1">R1</option>
+          <option value="R2">R2</option>
+          <option value="R3">R3</option>
+          <option value="R4">R4</option>
+          <option value="R5">R5</option>
+          <option value="QF">Quarterfinals</option>
+          <option value="SF">Semifinals</option>
+          <option value="F">Finals</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Player pickers side by side -->
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:start;margin-bottom:20px">
+      <!-- Player 1 -->
+      <div>
+        <div class="section-label" style="margin-bottom:6px">Player 1</div>
+        <input class="form-input" id="nm-p1-search" placeholder="Search player…" style="width:100%;margin-bottom:6px"
+          oninput="nmFilterPlayers(1,this.value)" onfocus="nmShowDropdown(1)" />
+        <div id="nm-p1-dropdown" style="display:none;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;max-height:180px;overflow-y:auto"></div>
+        <div id="nm-p1-selected" style="display:none;background:rgba(74,158,255,0.1);border:1px solid rgba(74,158,255,0.3);border-radius:7px;padding:8px 10px;margin-top:4px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span id="nm-p1-name" style="font-weight:700;color:var(--blue)"></span>
+            <button class="build-delete" onclick="nmClearPlayer(1)">✕</button>
+          </div>
+          <div id="nm-p1-builds-preview" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);margin-top:4px"></div>
+        </div>
+      </div>
+
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;color:var(--muted2);padding-top:28px;text-align:center">VS</div>
+
+      <!-- Player 2 -->
+      <div>
+        <div class="section-label" style="margin-bottom:6px">Player 2</div>
+        <input class="form-input" id="nm-p2-search" placeholder="Search player…" style="width:100%;margin-bottom:6px"
+          oninput="nmFilterPlayers(2,this.value)" onfocus="nmShowDropdown(2)" />
+        <div id="nm-p2-dropdown" style="display:none;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;max-height:180px;overflow-y:auto"></div>
+        <div id="nm-p2-selected" style="display:none;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.3);border-radius:7px;padding:8px 10px;margin-top:4px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span id="nm-p2-name" style="font-weight:700;color:var(--gold2)"></span>
+            <button class="build-delete" onclick="nmClearPlayer(2)">✕</button>
+          </div>
+          <div id="nm-p2-builds-preview" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);margin-top:4px"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="nm-error" style="color:var(--red);font-size:12px;margin-bottom:10px;min-height:16px"></div>
+    <button class="btn primary" style="width:100%;font-size:14px;padding:10px" onclick="createMatch()">Create Match Card</button>
   </div>
 </div>
 
@@ -750,6 +945,10 @@ function loadEvent(id) {
   // Load existing beyResults/builds from event
   buildsState = JSON.parse(JSON.stringify(currentEvent.builds || {}));
   resultsState = JSON.parse(JSON.stringify(currentEvent.beyResults || []));
+  matchesState = [];
+  _matchIdCounter = 1;
+  activeRoundFilter = 'ALL';
+  loadMatchesFromResults();
   dirty = false;
   setSaveStatus('—');
 
@@ -924,213 +1123,416 @@ function updateBuild(key, idx, val) {
 // ─────────────────────────────────────────────
 // RESULTS TAB
 // ─────────────────────────────────────────────
-function syncResultsBuilds() {
-  // Ensure resultsState has correct build lists from buildsState
-  for (const entry of resultsState) {
-    const key = playerKey(entry.player);
-    const builds = buildsState[key] || [];
-    // Re-align builds array
-    const newBuilds = builds.map((buildName, i) => {
-      const existing = (entry.builds || []).find(b => b.build === buildName);
-      return existing || { build: buildName, finishes: [], deployed: false };
-    });
-    entry.builds = newBuilds;
-  }
-}
-
-function getRounds() {
-  const rounds = new Set();
-  for (const r of resultsState) rounds.add(r.round);
-  return Array.from(rounds).sort((a, b) => {
-    const na = parseInt(a.replace(/\D/g, '')) || 0;
-    const nb = parseInt(b.replace(/\D/g, '')) || 0;
-    return na - nb;
-  });
-}
-
-function addRound() {
-  const players = getPlayers();
-  if (!players.length) { showToast('No players loaded.', 'error'); return; }
-  const rounds = getRounds();
-  const nextNum = rounds.length + 1;
-  const isFinal = nextNum > 4; // Suggest finals if many rounds
-  const roundName = 'R' + nextNum;
-  for (const p of players) {
-    const key = playerKey(p.name);
-    const builds = (buildsState[key] || []).map(b => ({ build: b, finishes: [], deployed: false }));
-    resultsState.push({ player: p.name, round: roundName, builds, pointsTotal: 0, win: false });
-  }
-  markDirty();
-  renderResults();
-}
-
+// ─────────────────────────────────────────────
+// POINTS CALC
+// ─────────────────────────────────────────────
 function calcPoints(builds) {
   let pts = 0;
-  for (const b of builds) {
+  for (const b of (builds || [])) {
     for (const f of (b.finishes || [])) {
-      if (f !== 'L') pts += FINISH_PTS[f] || 0; // L = loss, 0 points
+      if (f !== 'L') pts += FINISH_PTS[f] || 0;
     }
   }
   return pts;
 }
 
-function renderResults() {
-  const el = document.getElementById('results-content');
-  const players = getPlayers();
-  if (!players.length || Object.keys(buildsState).length === 0) {
-    el.innerHTML = '<div class="empty-state"><div class="icon">📊</div>Register bey builds first, then add rounds here.</div>';
-    return;
-  }
+// ─────────────────────────────────────────────
+// MATCHES STATE
+// matchesState: [ { id, round, p1, p2, collapsed } ]
+// p1/p2: { player, builds: [{build, finishes:[], deployed}], pointsTotal, win }
+// ─────────────────────────────────────────────
+let matchesState = [];
+let activeRoundFilter = 'ALL';
+let _matchIdCounter = 1;
 
-  const rounds = getRounds();
-  if (!rounds.length) {
-    el.innerHTML = `<div class="empty-state"><div class="icon">🎮</div>No rounds yet. Click <strong style="color:var(--blue)">Add Round</strong> to start.</div>`;
-    return;
-  }
-
-  // Build per-round tables
-  let html = '';
+function loadMatchesFromResults() {
+  // Convert old flat resultsState into matchesState pairs
+  // Group by round then pair up players 2 at a time
+  matchesState = [];
+  const rounds = [...new Set(resultsState.map(r => r.round))];
   for (const round of rounds) {
     const entries = resultsState.filter(r => r.round === round);
-    if (!entries.length) continue;
-
-    // Max builds across all players this round
-    const maxBuilds = Math.max(...entries.map(e => (e.builds || []).length), 0);
-
-    html += `<div class="results-section">
-      <div class="results-section-title">
-        ${round}
-        <button class="btn danger" style="font-size:10px;padding:3px 8px" onclick="removeRound('${round}')">✕ Remove</button>
-      </div>
-      <div class="results-table-wrap">
-      <table class="results-table">
-        <thead><tr>
-          <th class="player-col">Player</th>`;
-    for (let i = 0; i < maxBuilds; i++) html += `<th class="build-col">Build ${i+1} — Finishes</th>`;
-    html += `<th>Points</th><th>Result</th></tr></thead><tbody>`;
-
-    for (const entry of entries) {
-      const pKey = playerKey(entry.player);
-      const entryIdx = resultsState.indexOf(entry);
-      const pts = calcPoints(entry.builds || []);
-      entry.pointsTotal = pts;
-
-      html += `<tr>
-        <td class="player-cell">${entry.player}</td>`;
-
-      for (let bi = 0; bi < maxBuilds; bi++) {
-        const bEntry = (entry.builds || [])[bi];
-        if (!bEntry) { html += `<td></td>`; continue; }
-        const bIdx = bi;
-        const finishTags = (bEntry.finishes || []).map((f, fi) =>
-          `<span class="finish-tag ${f}">${f}<button class="finish-tag-remove" onclick="removeFinish(${entryIdx},${bIdx},${fi})">✕</button></span>`
-        ).join('');
-        const deployedCheck = `<input type="checkbox" class="deploy-toggle" title="Deployed?"
-          ${bEntry.deployed ? 'checked' : ''}
-          onchange="toggleDeployed(${entryIdx},${bIdx},this.checked)" />`;
-        html += `<td>
-          <div style="display:flex;flex-direction:column;gap:4px;min-width:100px">
-            <div style="display:flex;gap:4px;align-items:center;margin-bottom:2px">
-              ${deployedCheck}
-              <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--blue);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px" title="${escHtml(bEntry.build)}">${escHtml(bEntry.build) || '<em style="color:var(--muted2)">unnamed</em>'}</span>
-            </div>
-            <div class="finish-cell-inner">
-              ${finishTags}
-              ${bEntry.deployed ? `<button class="add-finish-btn" onclick="openPicker(event,${entryIdx},${bIdx})">+ Finish</button>` : `<span style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace">not deployed</span>`}
-            </div>
-          </div></td>`;
-      }
-
-      const ptsClass = pts >= 4 ? 'high' : '';
-      html += `<td class="round-pts ${ptsClass}">${pts}</td>
-        <td style="text-align:center">
-          <button class="round-win-badge ${entry.win ? 'win' : 'loss'}" onclick="toggleWin(${entryIdx})">
-            ${entry.win ? 'WIN' : 'LOSS'}
-          </button>
-        </td>
-      </tr>`;
+    for (let i = 0; i < entries.length; i += 2) {
+      const p1 = entries[i];
+      const p2 = entries[i+1];
+      if (!p1) continue;
+      matchesState.push({
+        id: _matchIdCounter++,
+        round,
+        p1: { player: p1.player, builds: p1.builds || [], pointsTotal: p1.pointsTotal || 0, win: p1.win },
+        p2: p2 ? { player: p2.player, builds: p2.builds || [], pointsTotal: p2.pointsTotal || 0, win: p2.win } : null,
+        collapsed: true
+      });
     }
-    html += `</tbody></table></div></div>`;
+  }
+}
+
+function flattenMatchesToResults() {
+  resultsState = [];
+  for (const m of matchesState) {
+    if (m.p1) {
+      const entry = { player: m.p1.player, round: m.round, builds: m.p1.builds, pointsTotal: calcPoints(m.p1.builds), win: m.p1.win };
+      resultsState.push(entry);
+    }
+    if (m.p2) {
+      const entry = { player: m.p2.player, round: m.round, builds: m.p2.builds, pointsTotal: calcPoints(m.p2.builds), win: m.p2.win };
+      resultsState.push(entry);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+// NEW MATCH MODAL
+// ─────────────────────────────────────────────
+let _nmP1 = null;
+let _nmP2 = null;
+
+function openNewMatchModal() {
+  const players = getPlayers();
+  if (!players.length) { showToast('No players in roster. Add players first.', 'error'); return; }
+
+  _nmP1 = null; _nmP2 = null;
+  document.getElementById('nm-p1-search').value = '';
+  document.getElementById('nm-p2-search').value = '';
+  document.getElementById('nm-p1-selected').style.display = 'none';
+  document.getElementById('nm-p2-selected').style.display = 'none';
+  document.getElementById('nm-p1-dropdown').style.display = 'none';
+  document.getElementById('nm-p2-dropdown').style.display = 'none';
+  document.getElementById('nm-error').textContent = '';
+
+  // Pre-select round based on existing matches
+  const rounds = [...new Set(matchesState.map(m => m.round))];
+  const sel = document.getElementById('nm-round-select');
+  if (rounds.length) {
+    // Default to last used round
+    sel.value = rounds[rounds.length - 1];
   }
 
-  el.innerHTML = html;
+  document.getElementById('new-match-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('nm-p1-search').focus(), 80);
 }
 
-function toggleDeployed(entryIdx, buildIdx, val) {
-  if (!resultsState[entryIdx]) return;
-  if (!resultsState[entryIdx].builds[buildIdx]) return;
-  resultsState[entryIdx].builds[buildIdx].deployed = val;
-  // Clear all finishes (wins and losses) when marking as not deployed
-  if (!val) resultsState[entryIdx].builds[buildIdx].finishes = [];
-  resultsState[entryIdx].pointsTotal = calcPoints(resultsState[entryIdx].builds);
+function closeNewMatchModal() {
+  document.getElementById('new-match-modal').style.display = 'none';
+}
+
+function nmFilterPlayers(slot, query) {
+  const q = query.toLowerCase().trim();
+  const players = getPlayers();
+  const ddEl = document.getElementById(`nm-p${slot}-dropdown`);
+  ddEl.style.display = '';
+
+  const otherSelected = slot === 1 ? _nmP2 : _nmP1;
+  const filtered = players.filter(p => {
+    if (p.name.toLowerCase().includes(q) || !q) return true;
+    return false;
+  });
+
+  if (!filtered.length) {
+    ddEl.innerHTML = '<div style="padding:10px;color:var(--muted2);font-size:12px">No players found</div>';
+    return;
+  }
+
+  ddEl.innerHTML = filtered.map(p => {
+    const isOther = otherSelected && otherSelected.name === p.name;
+    const builds = (buildsState[playerKey(p.name)] || []).filter(Boolean);
+    return `<div class="nm-player-option ${isOther ? 'disabled' : ''}" onclick="nmSelectPlayer(${slot}, '${escJs(p.name)}')">
+      <div>${p.name}</div>
+      <div class="nm-player-sub">${builds.length ? builds.join(' · ') : 'No builds registered'}</div>
+    </div>`;
+  }).join('');
+}
+
+function nmShowDropdown(slot) {
+  nmFilterPlayers(slot, document.getElementById(`nm-p${slot}-search`).value);
+}
+
+function nmSelectPlayer(slot, name) {
+  const builds = (buildsState[playerKey(name)] || []).filter(Boolean);
+  const playerData = { name, builds: builds.map(b => ({ build: b, finishes: [], deployed: false })) };
+
+  if (slot === 1) _nmP1 = playerData;
+  else _nmP2 = playerData;
+
+  document.getElementById(`nm-p${slot}-search`).value = '';
+  document.getElementById(`nm-p${slot}-dropdown`).style.display = 'none';
+  document.getElementById(`nm-p${slot}-selected`).style.display = '';
+  document.getElementById(`nm-p${slot}-name`).textContent = name;
+  document.getElementById(`nm-p${slot}-builds-preview`).textContent =
+    builds.length ? builds.join(' · ') : 'No builds — go to Bey Builds tab first';
+  document.getElementById('nm-error').textContent = '';
+
+  // Refresh other dropdown to grey out this player
+  const otherSearch = document.getElementById(`nm-p${slot === 1 ? 2 : 1}-search`);
+  if (otherSearch.value || document.getElementById(`nm-p${slot === 1 ? 2 : 1}-dropdown`).style.display !== 'none') {
+    nmFilterPlayers(slot === 1 ? 2 : 1, otherSearch.value);
+  }
+}
+
+function nmClearPlayer(slot) {
+  if (slot === 1) _nmP1 = null;
+  else _nmP2 = null;
+  document.getElementById(`nm-p${slot}-search`).value = '';
+  document.getElementById(`nm-p${slot}-selected`).style.display = 'none';
+  document.getElementById(`nm-p${slot}-dropdown`).style.display = 'none';
+}
+
+function createMatch() {
+  const errEl = document.getElementById('nm-error');
+  if (!_nmP1) { errEl.textContent = 'Select Player 1.'; return; }
+  if (!_nmP2) { errEl.textContent = 'Select Player 2.'; return; }
+  const round = document.getElementById('nm-round-select').value;
+
+  matchesState.push({
+    id: _matchIdCounter++,
+    round,
+    p1: JSON.parse(JSON.stringify(_nmP1)),
+    p2: JSON.parse(JSON.stringify(_nmP2)),
+    collapsed: false
+  });
+
+  flattenMatchesToResults();
+  markDirty();
+  closeNewMatchModal();
+  renderResults();
+
+  // Scroll to the new match
+  setTimeout(() => {
+    const last = document.querySelector('.match-card:last-child');
+    if (last) last.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
+}
+
+// ─────────────────────────────────────────────
+// ROUND FILTER
+// ─────────────────────────────────────────────
+function setRoundFilter(round) {
+  activeRoundFilter = round;
+  renderResults();
+}
+
+function renderRoundFilter() {
+  const rounds = ['ALL', ...[...new Set(matchesState.map(m => m.round))].sort((a,b) => {
+    const order = ['R1','R2','R3','R4','R5','QF','SF','F'];
+    return (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99);
+  })];
+  const el = document.getElementById('round-filter-row');
+  if (!el) return;
+  el.innerHTML = rounds.map(r =>
+    `<button class="round-pill ${activeRoundFilter === r ? 'active' : ''}" onclick="setRoundFilter('${r}')">${r === 'ALL' ? 'All Rounds' : r}</button>`
+  ).join('');
+}
+
+// ─────────────────────────────────────────────
+// RENDER MATCH CARDS
+// ─────────────────────────────────────────────
+function renderResults() {
+  renderRoundFilter();
+  const el = document.getElementById('results-content');
+
+  const filtered = activeRoundFilter === 'ALL'
+    ? matchesState
+    : matchesState.filter(m => m.round === activeRoundFilter);
+
+  if (!filtered.length) {
+    el.innerHTML = matchesState.length
+      ? '<div class="empty-state"><div class="icon">🔍</div>No matches in this round yet.</div>'
+      : '<div class="empty-state"><div class="icon">⚔️</div>No matches yet. Click <strong style="color:var(--gold)">New Match</strong> to add one.</div>';
+    return;
+  }
+
+  el.innerHTML = filtered.map(match => renderMatchCard(match)).join('');
+}
+
+function renderMatchCard(match) {
+  const p1pts = calcPoints(match.p1.builds);
+  const p2pts = match.p2 ? calcPoints(match.p2.builds) : 0;
+  const mid = match.id;
+
+  const summary = match.p1.win
+    ? `<span style="color:var(--green)">${match.p1.player} WIN</span>`
+    : match.p2 && match.p2.win
+      ? `<span style="color:var(--green)">${match.p2.player} WIN</span>`
+      : `<span style="color:var(--muted)">pending</span>`;
+
+  return `
+  <div class="match-card" id="match-${mid}">
+    <div class="match-card-header" onclick="toggleMatchCollapse(${mid})">
+      <span class="match-round-badge">${match.round}</span>
+      <span class="match-vs-label">
+        <span style="color:var(--blue)">${match.p1.player}</span>
+        <span style="color:var(--muted2);margin:0 8px;font-size:12px">VS</span>
+        <span style="color:var(--gold2)">${match.p2 ? match.p2.player : '?'}</span>
+      </span>
+      <span class="match-result-summary">${summary}</span>
+      <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:8px" onclick="event.stopPropagation();removeMatch(${mid})">✕</button>
+      <span style="color:var(--muted2);font-size:12px;margin-left:4px">${match.collapsed ? '▼' : '▲'}</span>
+    </div>
+    ${match.collapsed ? '' : `
+    <div class="match-card-body">
+      ${renderPlayerSide(match, 'p1', mid)}
+      ${match.p2 ? renderPlayerSide(match, 'p2', mid) : ''}
+    </div>`}
+  </div>`;
+}
+
+function renderPlayerSide(match, side, mid) {
+  const player = match[side];
+  const pts = calcPoints(player.builds);
+  const colorClass = side === 'p1' ? 'p1' : 'p2';
+
+  const buildRows = player.builds.map((b, bi) => {
+    const finishTags = b.finishes.map((f, fi) =>
+      `<span class="finish-tag ${f}">${f}<button class="finish-tag-remove" onclick="mRemoveFinish(${mid},'${side}',${bi},${fi})">✕</button></span>`
+    ).join('');
+    return `
+      <div class="match-build-row">
+        <div class="match-build-name">
+          <input type="checkbox" class="deploy-toggle" ${b.deployed ? 'checked' : ''}
+            onchange="mToggleDeploy(${mid},'${side}',${bi},this.checked)" title="Deployed?" />
+          <span title="${escHtml(b.build)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">${escHtml(b.build) || '<em style="color:var(--muted2)">unnamed</em>'}</span>
+        </div>
+        <div class="finish-cell-inner">
+          ${finishTags}
+          ${b.deployed
+            ? `<button class="add-finish-btn" onclick="openPicker(event,${mid},'${side}',${bi})">+ Finish</button>`
+            : `<span style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace">not deployed</span>`}
+        </div>
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="match-player-side">
+      <div class="match-player-name ${colorClass}">
+        ${player.player}
+        <button class="round-win-badge ${player.win ? 'win' : 'loss'}" onclick="mToggleWin(${mid},'${side}')">
+          ${player.win ? 'WIN' : 'LOSS'}
+        </button>
+      </div>
+      ${buildRows || '<div style="color:var(--muted2);font-size:12px;padding:8px 0">No builds registered</div>'}
+      <div class="match-pts-row">
+        <span style="font-family:\'Share Tech Mono\',monospace;font-size:11px;color:var(--muted)">POINTS</span>
+        <span class="match-pts-val ${pts > 0 ? 'has-pts' : ''}">${pts}</span>
+      </div>
+    </div>`;
+}
+
+// ─────────────────────────────────────────────
+// MATCH CARD INTERACTIONS
+// ─────────────────────────────────────────────
+function toggleMatchCollapse(mid) {
+  const m = matchesState.find(x => x.id === mid);
+  if (m) { m.collapsed = !m.collapsed; renderResults(); }
+}
+
+function removeMatch(mid) {
+  if (!confirm('Remove this match?')) return;
+  matchesState = matchesState.filter(m => m.id !== mid);
+  flattenMatchesToResults();
   markDirty();
   renderResults();
 }
 
-function toggleWin(entryIdx) {
-  if (!resultsState[entryIdx]) return;
-  resultsState[entryIdx].win = !resultsState[entryIdx].win;
+function mToggleWin(mid, side) {
+  const m = matchesState.find(x => x.id === mid);
+  if (!m) return;
+  // Toggle this side, auto-set other side opposite
+  m[side].win = !m[side].win;
+  const other = side === 'p1' ? 'p2' : 'p1';
+  if (m[other]) m[other].win = !m[side].win;
+  flattenMatchesToResults();
   markDirty();
   renderResults();
 }
 
-function removeFinish(entryIdx, buildIdx, finishIdx) {
-  resultsState[entryIdx].builds[buildIdx].finishes.splice(finishIdx, 1);
-  resultsState[entryIdx].pointsTotal = calcPoints(resultsState[entryIdx].builds);
+function mToggleDeploy(mid, side, buildIdx, val) {
+  const m = matchesState.find(x => x.id === mid);
+  if (!m || !m[side]) return;
+  m[side].builds[buildIdx].deployed = val;
+  if (!val) m[side].builds[buildIdx].finishes = [];
+  flattenMatchesToResults();
   markDirty();
   renderResults();
 }
 
-function removeRound(round) {
-  if (!confirm(`Remove round ${round} and all its results?`)) return;
-  resultsState = resultsState.filter(r => r.round !== round);
+function mRemoveFinish(mid, side, buildIdx, finishIdx) {
+  const m = matchesState.find(x => x.id === mid);
+  if (!m || !m[side]) return;
+  m[side].builds[buildIdx].finishes.splice(finishIdx, 1);
+  flattenMatchesToResults();
   markDirty();
   renderResults();
 }
 
 // ─────────────────────────────────────────────
-// FINISH PICKER
+// FINISH PICKER (updated for match system)
 // ─────────────────────────────────────────────
-function openPicker(event, entryIdx, buildIdx) {
+// _pickerTarget = { mid, side, buildIdx }
+
+function openPicker(event, mid, side, buildIdx) {
   event.stopPropagation();
-  _pickerTarget = { entryIdx, buildIdx };
+  _pickerTarget = { mid, side, buildIdx };
   const picker = document.getElementById('finish-picker');
   picker.style.display = 'flex';
   const rect = event.target.getBoundingClientRect();
   let top = rect.bottom + 6 + window.scrollY;
   let left = rect.left + window.scrollX;
-  if (left + 220 > window.innerWidth) left = window.innerWidth - 230;
+  if (left + 170 > window.innerWidth) left = window.innerWidth - 180;
   picker.style.top = top + 'px';
   picker.style.left = left + 'px';
 }
 
 function pickFinish(type) {
   if (!_pickerTarget) return;
-  const { entryIdx, buildIdx } = _pickerTarget;
-  if (!resultsState[entryIdx]) return;
-  if (!resultsState[entryIdx].builds[buildIdx]) return;
+  const { mid, side, buildIdx } = _pickerTarget;
 
-  const bEntry = resultsState[entryIdx].builds[buildIdx];
+  const m = matchesState.find(x => x.id === mid);
+  if (!m || !m[side]) { closePicker(); return; }
 
-  // L is a special case — one L per bey per round max, and clears other finishes
-  // (a bey can only lose once in a round)
+  const bEntry = m[side].builds[buildIdx];
+  if (!bEntry) { closePicker(); return; }
+
   if (type === 'L') {
-    // If already has an L, don't add another
     if (bEntry.finishes.includes('L')) { closePicker(); return; }
-    // A bey that lost shouldn't also have wins — keep wins if present, just add L
-    // Actually in this game it's possible to score then lose with another bey
-    // so we just add L as a finish entry
     bEntry.finishes.push('L');
   } else {
     bEntry.finishes.push(type);
   }
 
-  // Auto-mark as deployed when any finish is added
   bEntry.deployed = true;
-  resultsState[entryIdx].pointsTotal = calcPoints(resultsState[entryIdx].builds);
+  flattenMatchesToResults();
   markDirty();
   closePicker();
   renderResults();
+}
+
+// ─────────────────────────────────────────────
+// SYNC BUILDS → MATCHES (when builds change)
+// ─────────────────────────────────────────────
+function syncResultsBuilds() {
+  // Sync both matchesState and legacy resultsState
+  for (const m of matchesState) {
+    for (const side of ['p1','p2']) {
+      if (!m[side]) continue;
+      const key = playerKey(m[side].player);
+      const builds = (buildsState[key] || []).filter(Boolean);
+      const newBuilds = builds.map(buildName => {
+        const existing = m[side].builds.find(b => b.build === buildName);
+        return existing || { build: buildName, finishes: [], deployed: false };
+      });
+      m[side].builds = newBuilds;
+    }
+  }
+  flattenMatchesToResults();
+}
+
+// ─────────────────────────────────────────────
+// OLD STUBS (kept so existing save/load still works)
+// ─────────────────────────────────────────────
+function addRound() {} // no-op, replaced by createMatch
+function removeRound() {}
+function getRounds() {
+  return [...new Set(resultsState.map(r => r.round))];
 }
 
 function closePicker() {
@@ -1141,6 +1543,16 @@ function closePicker() {
 document.addEventListener('click', (e) => {
   const picker = document.getElementById('finish-picker');
   if (picker.style.display !== 'none' && !picker.contains(e.target)) closePicker();
+  // Close player dropdowns
+  ['nm-p1-dropdown','nm-p2-dropdown'].forEach(id => {
+    const dd = document.getElementById(id);
+    if (dd && !dd.contains(e.target) && e.target.id !== 'nm-p1-search' && e.target.id !== 'nm-p2-search') {
+      dd.style.display = 'none';
+    }
+  });
+  // Close modal on backdrop click
+  const modal = document.getElementById('new-match-modal');
+  if (modal && e.target === modal) closeNewMatchModal();
 });
 
 // ─────────────────────────────────────────────
