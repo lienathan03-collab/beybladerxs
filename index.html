@@ -5525,17 +5525,24 @@ function buildSeasonStatRows(player, data) {
     ['Events Joined',   eventsJoined + ' / ' + totalEvents],
     ['Match Win Rate',  winRate],
     ['Wins / Losses',   wins + ' / ' + losses],
-    ['Spin Finishes',   st.spinFinishes || 0],
-    ['Burst Finishes',  st.burstFinishes || 0],
-    ['Over Finishes',   st.overFinishes || 0],
-    ['Extreme Finishes',st.extremeFinishes || 0],
   ];
-  return rows.map(([label, value]) =>
+  const finishes = [
+    ['Spin Finishes',    st.spinFinishes || 0],
+    ['Over Finishes',    st.overFinishes || 0],
+    ['Burst Finishes',   st.burstFinishes || 0],
+    ['Extreme Finishes', st.extremeFinishes || 0],
+  ];
+  const mainHtml = rows.map(([label, value]) =>
     `<div class="profile-stat-row">
       <span class="label">${label}</span>
       <span class="value">${value}</span>
     </div>`
   ).join('');
+  const finishHtml = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 8px">` +
+    finishes.map(([label, value]) =>
+      `<div class="profile-stat-row"><span class="label">${label}</span><span class="value">${value}</span></div>`
+    ).join('') + `</div>`;
+  return mainHtml + finishHtml;
 }
 
 async function openPlayerMenuModal() {
@@ -5643,18 +5650,64 @@ async function loadProfileSeasonData(aliases) {
     ['Total Points',     ptsOverall],
     ['Points Per Game',  overallPPG],
     ['Best Season Rank', bestRankDisplay],
+  ];
+  const overallFinishes = [
     ['Spin Finishes',    (stS2.spinFinishes || 0) + (stS3.spinFinishes || 0)],
-    ['Burst Finishes',   (stS2.burstFinishes || 0) + (stS3.burstFinishes || 0)],
     ['Over Finishes',    (stS2.overFinishes || 0) + (stS3.overFinishes || 0)],
+    ['Burst Finishes',   (stS2.burstFinishes || 0) + (stS3.burstFinishes || 0)],
     ['Extreme Finishes', (stS2.extremeFinishes || 0) + (stS3.extremeFinishes || 0)],
   ];
-  document.getElementById('pm-overall-rows').innerHTML = overallRows.map(([label, value]) =>
-    `<div class="profile-stat-row"><span class="label">${label}</span><span class="value">${value}</span></div>`
-  ).join('');
+  document.getElementById('pm-overall-rows').innerHTML =
+    overallRows.map(([label, value]) =>
+      `<div class="profile-stat-row"><span class="label">${label}</span><span class="value">${value}</span></div>`
+    ).join('') +
+    `<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 8px">` +
+    overallFinishes.map(([label, value]) =>
+      `<div class="profile-stat-row"><span class="label">${label}</span><span class="value">${value}</span></div>`
+    ).join('') + `</div>`;
 
   // Season panes
   document.getElementById('pm-s3-rows').innerHTML = buildSeasonStatRows(playerS3, dataS3 || {});
   document.getElementById('pm-s2-rows').innerHTML = buildSeasonStatRows(playerS2, dataS2 || {});
+
+  // Top 3 Beys per pane
+  function renderPmTop3(sectionId, listId, playerObj, dataObj) {
+    const section = document.getElementById(sectionId);
+    const list    = document.getElementById(listId);
+    if (!playerObj || !dataObj) { section.style.display = 'none'; return; }
+    const top3 = getPlayerTop3Beys(playerObj.name, dataObj);
+    if (!top3.length) { section.style.display = 'none'; return; }
+    section.style.display = '';
+    list.innerHTML = top3.map((b, i) => `
+      <div class="top3-bey-card">
+        <span class="top3-bey-rank">${i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>
+        <div style="flex:1;min-width:0">
+          <div class="top3-bey-name">${escHtml(b.build)}</div>
+        </div>
+        <span class="top3-bey-wr">${b.winRate.toFixed(1)}%</span>
+        <span class="top3-bey-wl">${b.wins}W ${b.losses}L</span>
+      </div>`).join('');
+  }
+  // Combined overall: merge events from both seasons into one data object
+  const overallName  = (playerS3 || playerS2 || {}).name;
+  const overallSec   = document.getElementById('pm-top3-beys-overall');
+  const overallList  = document.getElementById('pm-top3-beys-overall-list');
+  if (overallName) {
+    const mergedData = { events: [...((dataS2 || {}).events || []), ...((dataS3 || {}).events || [])] };
+    const top3all = getPlayerTop3Beys(overallName, mergedData);
+    if (top3all.length) {
+      overallSec.style.display = '';
+      overallList.innerHTML = top3all.map((b, i) => `
+        <div class="top3-bey-card">
+          <span class="top3-bey-rank">${i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>
+          <div style="flex:1;min-width:0"><div class="top3-bey-name">${escHtml(b.build)}</div></div>
+          <span class="top3-bey-wr">${b.winRate.toFixed(1)}%</span>
+          <span class="top3-bey-wl">${b.wins}W ${b.losses}L</span>
+        </div>`).join('');
+    } else { overallSec.style.display = 'none'; }
+  } else { overallSec.style.display = 'none'; }
+  renderPmTop3('pm-top3-beys-s3', 'pm-top3-beys-s3-list', playerS3, dataS3);
+  renderPmTop3('pm-top3-beys-s2', 'pm-top3-beys-s2-list', playerS2, dataS2);
 }
 
 function switchProfileTab(tab, el) {
@@ -6886,10 +6939,12 @@ async function deleteEvent() {
       <div class="profile-stat-row"><span class="label">Points Per Game (PPG)</span><span class="value" id="ps-ppg">0</span></div>
       <div class="profile-stat-row"><span class="label">Total Matches</span><span class="value" id="ps-games">0</span></div>
       <div class="profile-stat-row"><span class="label">Events Joined</span><span class="value" id="ps-attend">—</span></div>
-      <div class="profile-stat-row"><span class="label">Spin Finishes</span><span class="value" id="ps-spin">0</span></div>
-      <div class="profile-stat-row"><span class="label">Burst Finishes</span><span class="value" id="ps-burst">0</span></div>
-      <div class="profile-stat-row"><span class="label">Over Finishes</span><span class="value" id="ps-over">0</span></div>
-      <div class="profile-stat-row"><span class="label">Extreme Finishes</span><span class="value" id="ps-extreme">0</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 8px">
+        <div class="profile-stat-row"><span class="label">Spin Finishes</span><span class="value" id="ps-spin">0</span></div>
+        <div class="profile-stat-row"><span class="label">Over Finishes</span><span class="value" id="ps-over">0</span></div>
+        <div class="profile-stat-row"><span class="label">Burst Finishes</span><span class="value" id="ps-burst">0</span></div>
+        <div class="profile-stat-row"><span class="label">Extreme Finishes</span><span class="value" id="ps-extreme">0</span></div>
+      </div>
 
       <!-- Top 3 Beys -->
       <div class="top3-beys-section" id="profile-top3-beys" style="display:none">
@@ -7402,27 +7457,29 @@ async function deleteEvent() {
 
       <!-- Overall pane -->
       <div class="profile-season-pane active" id="pm-pane-overall">
-        <div class="profile-overall-banner">
-          <div>
-            <div class="ob-label">Total Points</div>
-            <div class="ob-pts" id="pm-ob-total">—</div>
-          </div>
-          <div style="flex:1;text-align:right">
-            <div class="ob-label">Combined Events</div>
-            <div class="ob-rank" id="pm-ob-events">—</div>
-          </div>
-        </div>
         <div id="pm-overall-rows"></div>
+        <div class="top3-beys-section" id="pm-top3-beys-overall" style="display:none">
+          <div class="top3-beys-title">🪀 Top Bey Builds</div>
+          <div id="pm-top3-beys-overall-list"></div>
+        </div>
       </div>
 
       <!-- Season 3 pane -->
       <div class="profile-season-pane" id="pm-pane-s3">
         <div id="pm-s3-rows"></div>
+        <div class="top3-beys-section" id="pm-top3-beys-s3" style="display:none">
+          <div class="top3-beys-title">🪀 Top Bey Builds</div>
+          <div id="pm-top3-beys-s3-list"></div>
+        </div>
       </div>
 
       <!-- Season 2 pane -->
       <div class="profile-season-pane" id="pm-pane-s2">
         <div id="pm-s2-rows"></div>
+        <div class="top3-beys-section" id="pm-top3-beys-s2" style="display:none">
+          <div class="top3-beys-title">🪀 Top Bey Builds</div>
+          <div id="pm-top3-beys-s2-list"></div>
+        </div>
       </div>
 
       <!-- Action pill row -->
