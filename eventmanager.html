@@ -558,6 +558,7 @@
   }
   .round-win-badge.win  { background: rgba(76,175,80,0.2);  color: var(--green); border-color: rgba(76,175,80,0.3); }
   .round-win-badge.loss { background: rgba(229,57,53,0.2);  color: var(--red);   border-color: rgba(229,57,53,0.3); }
+  .round-win-badge.pending { background: rgba(136,136,136,0.1); color: var(--muted); border-color: rgba(136,136,136,0.25); cursor: default; }
 
   /* round points display */
   .round-pts {
@@ -1297,6 +1298,10 @@ function loadMatchesFromResults() {
 }
 
 function flattenMatchesToResults() {
+  // Auto-assign wins based on point thresholds before flattening
+  for (const m of matchesState) {
+    autoCheckWin(m);
+  }
   resultsState = [];
   for (const m of matchesState) {
     if (m.p1) {
@@ -1307,6 +1312,36 @@ function flattenMatchesToResults() {
       const entry = { player: m.p2.player, round: m.round, builds: m.p2.builds, pointsTotal: calcPoints(m.p2.builds), win: m.p2.win };
       resultsState.push(entry);
     }
+  }
+}
+
+// ─────────────────────────────────────────────
+// AUTO WIN — Finals: 7+ pts, all other rounds: 4+ pts
+// ─────────────────────────────────────────────
+function autoCheckWin(m) {
+  if (!m.p1 || !m.p2) return;
+  const isFinals = (m.round === 'F');
+  const threshold = isFinals ? 7 : 4;
+
+  const p1pts = calcPoints(m.p1.builds);
+  const p2pts = calcPoints(m.p2.builds);
+
+  if (p1pts >= threshold && p2pts < threshold) {
+    // P1 reached threshold, P2 hasn't
+    m.p1.win = true;
+    m.p2.win = false;
+  } else if (p2pts >= threshold && p1pts < threshold) {
+    // P2 reached threshold, P1 hasn't
+    m.p2.win = true;
+    m.p1.win = false;
+  } else if (p1pts >= threshold && p2pts >= threshold) {
+    // Both reached threshold — higher score wins; tie keeps current state
+    if (p1pts > p2pts) { m.p1.win = true; m.p2.win = false; }
+    else if (p2pts > p1pts) { m.p2.win = true; m.p1.win = false; }
+  } else {
+    // Neither has reached threshold yet — clear auto wins (pending state)
+    m.p1.win = false;
+    m.p2.win = false;
   }
 }
 
@@ -1535,12 +1570,22 @@ function renderPlayerSide(match, side, mid) {
       </div>`;
   }).join('');
 
+  const isFinals = match.round === 'F';
+  const threshold = isFinals ? 7 : 4;
+  const p1pts_check = calcPoints(match.p1.builds);
+  const p2pts_check = match.p2 ? calcPoints(match.p2.builds) : 0;
+  const autoActive = p1pts_check >= threshold || p2pts_check >= threshold;
+  const myPts = calcPoints(player.builds);
+  const isPending = !autoActive && !player.win;
+
   return `
     <div class="match-player-side">
       <div class="match-player-name ${colorClass}">
         ${player.player}
-        <button class="round-win-badge ${player.win ? 'win' : 'loss'}" onclick="mToggleWin(${mid},'${side}')">
-          ${player.win ? 'WIN' : 'LOSS'}
+        <button class="round-win-badge ${player.win ? 'win' : isPending ? 'pending' : 'loss'}"
+          onclick="mToggleWin(${mid},'${side}')"
+          title="${autoActive ? 'Auto-determined by points' : 'Click to manually set winner'}">
+          ${player.win ? 'WIN' : isPending ? `${myPts}/${threshold}` : 'LOSS'}
         </button>
       </div>
       ${buildRows || '<div style="color:var(--muted2);font-size:12px;padding:8px 0">No builds registered</div>'}
@@ -1570,7 +1615,17 @@ function removeMatch(mid) {
 function mToggleWin(mid, side) {
   const m = matchesState.find(x => x.id === mid);
   if (!m) return;
-  // Toggle this side, auto-set other side opposite
+  const isFinals = (m.round === 'F');
+  const threshold = isFinals ? 7 : 4;
+  const p1pts = calcPoints(m.p1.builds);
+  const p2pts = m.p2 ? calcPoints(m.p2.builds) : 0;
+  // Block manual toggle if auto-win threshold already determines the winner
+  const autoWinnerExists = p1pts >= threshold || p2pts >= threshold;
+  if (autoWinnerExists) {
+    showToast('⚡ Winner is auto-determined by points. Remove finishes to override.', '');
+    return;
+  }
+  // Manual toggle — flip this side, set other side opposite
   m[side].win = !m[side].win;
   const other = side === 'p1' ? 'p2' : 'p1';
   if (m[other]) m[other].win = !m[side].win;
