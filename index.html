@@ -3185,21 +3185,40 @@ let brAllEventData = null; // cached from /api/beyresults
 
 async function loadBeyRankingsData() {
   if (brAllEventData) return brAllEventData;
+
+  // 1. Use already-loaded eventsData if available (fastest)
+  if (typeof eventsData !== 'undefined' && eventsData && eventsData.length > 0) {
+    brAllEventData = { events: eventsData };
+    return brAllEventData;
+  }
+
+  // 2. Fetch from /api/events (same source as Events tab) with timeout
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch('/api/beyresults', { signal: controller.signal });
-    clearTimeout(timeout);
-    if (!res.ok) throw new Error('Failed to load bey results.');
-    brAllEventData = await res.json();
-  } catch(e) {
-    // Fall back to events already loaded in the events tab (eventsData)
-    if (typeof eventsData !== 'undefined' && eventsData && eventsData.length > 0) {
-      brAllEventData = { events: eventsData };
-    } else {
-      brAllEventData = { events: [] };
+    const tid = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(EVENTS_API, { signal: controller.signal });
+    clearTimeout(tid);
+    if (res.ok) {
+      const data = await res.json();
+      brAllEventData = { events: data.events || [] };
+      if (!eventsData || eventsData.length === 0) eventsData = data.events || [];
+      return brAllEventData;
     }
-  }
+  } catch(e) { /* fall through */ }
+
+  // 3. Try /api/beyresults as last resort
+  try {
+    const controller2 = new AbortController();
+    const tid2 = setTimeout(() => controller2.abort(), 6000);
+    const res2 = await fetch('/api/beyresults', { signal: controller2.signal });
+    clearTimeout(tid2);
+    if (res2.ok) {
+      brAllEventData = await res2.json();
+      return brAllEventData;
+    }
+  } catch(e) { /* fall through */ }
+
+  brAllEventData = { events: [] };
   return brAllEventData;
 }
 
@@ -3222,7 +3241,13 @@ async function renderBeyRankings() {
   if (!el) return;
   el.innerHTML = '<div style="text-align:center;padding:48px;color:var(--muted2);font-size:13px">Loading…</div>';
 
-  const data = await loadBeyRankingsData();
+  let data;
+  try {
+    data = await loadBeyRankingsData();
+  } catch(e) {
+    el.innerHTML = '<div style="text-align:center;padding:48px;color:var(--muted2)">Could not load bey data.<br><span style="font-size:11px;opacity:0.6">' + e.message + '</span></div>';
+    return;
+  }
   const query = (document.getElementById('br-search')?.value || '').toLowerCase().trim();
 
   // Filter events by season
