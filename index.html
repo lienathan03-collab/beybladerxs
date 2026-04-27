@@ -4417,6 +4417,8 @@ function renderCarousel() {
   }
   empty.style.display  = 'none';
   slider.style.display = 'block';
+  // Force a layout recalc so offsetWidth is correct after display:none -> block
+  void slider.offsetWidth;
   track.innerHTML = homePosts.map((p, i) => {
     const editBtn = `<button onclick="openEditPostModal(${i})" style="position:absolute;top:10px;left:10px;z-index:5;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:4px 10px;font-size:11px;color:#fff;cursor:pointer;display:none" class="carousel-edit-btn admin-only-btn">✏️ Edit</button>`;
     const noImg = `<div style="width:100%;height:260px;display:flex;align-items:center;justify-content:center;font-size:48px;background:var(--surface2)">📢</div>`;
@@ -4499,6 +4501,8 @@ function renderCarousel2() {
   }
   if (section) section.style.display = '';
   slider.style.display = 'block';
+  // Force a layout recalc so offsetWidth is correct after display:none -> block
+  void slider.offsetWidth;
   track.innerHTML = homePosts2.map((p, i) => {
     const editBtn = `<button onclick="openEditPostModal2(${i})" style="position:absolute;top:10px;left:10px;z-index:5;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:4px 10px;font-size:11px;color:#fff;cursor:pointer;display:none" class="carousel2-edit-btn admin-only-btn">✏️ Edit</button>`;
     const noImg = `<div style="width:100%;height:260px;display:flex;align-items:center;justify-content:center;font-size:48px;background:var(--surface2)">📢</div>`;
