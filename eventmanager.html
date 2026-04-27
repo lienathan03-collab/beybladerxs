@@ -1609,9 +1609,13 @@ function openPicker(event, mid, side, buildIdx) {
   const picker = document.getElementById('finish-picker');
   picker.style.display = 'flex';
   const rect = event.target.getBoundingClientRect();
-  let top = rect.bottom + 6 + window.scrollY;
-  let left = rect.left + window.scrollX;
-  if (left + 170 > window.innerWidth) left = window.innerWidth - 180;
+  const pickerW = 170;
+  const pickerH = 180;
+  let top = rect.bottom + 6;
+  let left = rect.left;
+  if (top + pickerH > window.innerHeight) top = rect.top - pickerH - 6;
+  if (left + pickerW > window.innerWidth) left = window.innerWidth - pickerW - 8;
+  if (left < 8) left = 8;
   picker.style.top = top + 'px';
   picker.style.left = left + 'px';
 }
