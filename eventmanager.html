@@ -293,13 +293,20 @@
   }
   .match-card:hover { border-color: var(--border2); }
   .match-cards-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
     gap: 10px;
-    align-items: start;
+    align-items: flex-start;
+  }
+  .match-cards-col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1 1 0;
+    min-width: 0;
   }
   @media (max-width: 900px) {
-    .match-cards-grid { grid-template-columns: 1fr; }
+    .match-cards-grid { flex-direction: column; }
+    .match-cards-col { flex: none; width: 100%; }
   }
   .match-card-header {
     display: flex;
@@ -1462,8 +1469,12 @@ function renderResults() {
     return;
   }
 
-  const allCards = filtered.map(m => renderMatchCard(m)).join('');
-  el.innerHTML = `<div class="match-cards-grid">${allCards}</div>`;
+  const col1 = filtered.filter((_,i) => i % 2 === 0).map(m => renderMatchCard(m)).join('');
+  const col2 = filtered.filter((_,i) => i % 2 === 1).map(m => renderMatchCard(m)).join('');
+  el.innerHTML = `<div class="match-cards-grid">
+    <div class="match-cards-col">${col1}</div>
+    <div class="match-cards-col">${col2}</div>
+  </div>`;
 }
 
 function renderMatchCard(match) {
