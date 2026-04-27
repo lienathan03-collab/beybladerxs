@@ -409,6 +409,19 @@
   .profile-season-tab.active .tab-pts { color: var(--gold2); }
   .profile-season-pane { display: none; }
   .profile-season-pane.active { display: block; }
+
+  /* Profile action pills */
+  .pm-action-pill {
+    background: var(--surface2); border: 1px solid var(--border2);
+    color: var(--muted); font-family: 'Rajdhani', sans-serif;
+    font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase; padding: 6px 12px; border-radius: 20px;
+    cursor: pointer; transition: all .15s; white-space: nowrap;
+  }
+  .pm-action-pill:hover { border-color: var(--gold); color: var(--text); }
+  .pm-action-pill.active { background: #1a1200; border-color: var(--gold); color: var(--gold2); }
+  .pm-action-pill.danger { border-color: #5a1a1a; color: #f06464; }
+  .pm-action-pill.danger:hover { background: #1f0a0a; border-color: var(--red); }
   .profile-overall-banner {
     background: linear-gradient(135deg, #1a1200, #0d0d0d);
     border: 1px solid var(--gold); border-radius: 10px;
@@ -5204,6 +5217,12 @@ async function openPlayerMenuModal() {
   // Reset rename input
   document.getElementById('pm-rename-input').value = '';
   document.getElementById('pm-rename-error').textContent = '';
+  // Reset password fields
+  ['pm-pw-current','pm-pw-new','pm-pw-confirm'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('pm-pw-error').textContent = '';
+  document.getElementById('pm-pw-success').style.display = 'none';
+  // Always open on the profile panel
+  pmSwitchPanel('profile');
   document.getElementById('player-menu-modal').classList.add('open');
 
   // Load season data async
@@ -5295,6 +5314,39 @@ function closePlayerMenuModal() {
   document.getElementById('player-menu-modal').classList.remove('open');
 }
 
+function pmSwitchPanel(panel) {
+  // Update pill active state (skip the logout pill which has no id)
+  ['profile','rename','password'].forEach(p => {
+    const pill = document.getElementById('pm-pill-' + p);
+    if (pill) pill.classList.toggle('active', p === panel);
+  });
+  // Show/hide panels
+  const renamePanel   = document.getElementById('pm-panel-rename');
+  const passwordPanel = document.getElementById('pm-panel-password');
+  // Stats panes are always visible when "profile" is active; hide them otherwise
+  const statsArea = document.getElementById('pm-season-tabs');
+  const panes = ['overall','s3','s2'].map(s => document.getElementById('pm-pane-' + s));
+  if (panel === 'profile') {
+    if (statsArea) statsArea.style.display = '';
+    panes.forEach(p => { if (p) p.style.removeProperty('display'); });
+    // Re-apply active pane visibility via class (don't override active class logic)
+    if (renamePanel)   renamePanel.style.display   = 'none';
+    if (passwordPanel) passwordPanel.style.display = 'none';
+  } else if (panel === 'rename') {
+    if (statsArea) statsArea.style.display = 'none';
+    panes.forEach(p => { if (p) p.style.display = 'none'; });
+    if (renamePanel)   renamePanel.style.display   = '';
+    if (passwordPanel) passwordPanel.style.display = 'none';
+    setTimeout(() => document.getElementById('pm-rename-input').focus(), 80);
+  } else if (panel === 'password') {
+    if (statsArea) statsArea.style.display = 'none';
+    panes.forEach(p => { if (p) p.style.display = 'none'; });
+    if (renamePanel)   renamePanel.style.display   = 'none';
+    if (passwordPanel) passwordPanel.style.display = '';
+    setTimeout(() => document.getElementById('pm-pw-current').focus(), 80);
+  }
+}
+
 async function playerRenameSelf() {
   const newName = document.getElementById('pm-rename-input').value.trim();
   const errEl   = document.getElementById('pm-rename-error');
@@ -5352,6 +5404,7 @@ async function playerRenameSelf() {
     if (mobName) mobName.textContent = newName;
     document.getElementById('pm-rename-input').value = '';
     showToast('✅ Renamed to "' + newName + '"!', 'success');
+    pmSwitchPanel('profile');
 
     // Reload season stats with updated aliases so S2 + S3 both reflect the new name
     profileSeasonCache = {}; // bust cache so renamed data is fetched fresh
@@ -7009,32 +7062,41 @@ async function deleteEvent() {
         <div id="pm-s2-rows"></div>
       </div>
 
-      <!-- Rename section -->
-      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:4px;margin-bottom:12px">
-        <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Change Name</div>
-        <div style="font-size:11px;color:var(--muted2);margin-bottom:10px">Your name will update on the leaderboard and all seasons.</div>
-        <div style="display:flex;gap:8px">
-          <input class="form-input" type="text" id="pm-rename-input" placeholder="New name…" maxlength="30" style="flex:1;font-size:16px;padding:7px 10px" onkeydown="if(event.key==='Enter')playerRenameSelf()" />
-          <button class="btn primary" style="font-size:11px;padding:6px 14px;white-space:nowrap" onclick="playerRenameSelf()">Rename</button>
-        </div>
-        <div class="modal-error" id="pm-rename-error" style="margin-top:6px"></div>
+      <!-- Action pill row -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px;margin-bottom:4px">
+        <button class="pm-action-pill active" id="pm-pill-profile"   onclick="pmSwitchPanel('profile')"  >👤 My Profile</button>
+        <button class="pm-action-pill"        id="pm-pill-rename"    onclick="pmSwitchPanel('rename')"   >✏️ Change Name</button>
+        <button class="pm-action-pill"        id="pm-pill-password"  onclick="pmSwitchPanel('password')" >🔒 Change Password</button>
+        <button class="pm-action-pill danger"                        onclick="playerLogout()"            >⏏ Logout</button>
       </div>
 
-      <!-- Change Password section -->
-      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:4px;margin-bottom:12px">
-        <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Change Password</div>
-        <div style="font-size:11px;color:var(--muted2);margin-bottom:10px">Enter your current password, then choose a new one.</div>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          <input class="form-input" type="password" id="pm-pw-current" placeholder="Current password…" style="font-size:15px;padding:7px 10px" onkeydown="if(event.key==='Enter')playerChangePassword()" />
-          <input class="form-input" type="password" id="pm-pw-new" placeholder="New password…" style="font-size:15px;padding:7px 10px" onkeydown="if(event.key==='Enter')playerChangePassword()" />
-          <input class="form-input" type="password" id="pm-pw-confirm" placeholder="Confirm new password…" style="font-size:15px;padding:7px 10px" onkeydown="if(event.key==='Enter')playerChangePassword()" />
-          <button class="btn primary" style="font-size:11px;padding:6px 14px" onclick="playerChangePassword()">Update Password</button>
+      <!-- Panel: Change Name (hidden by default) -->
+      <div id="pm-panel-rename" style="display:none">
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:4px">
+          <div style="font-size:11px;color:var(--muted2);margin-bottom:10px">Your name will update on the leaderboard and all seasons.</div>
+          <div style="display:flex;gap:8px">
+            <input class="form-input" type="text" id="pm-rename-input" placeholder="New name…" maxlength="30" style="flex:1;font-size:16px;padding:7px 10px" onkeydown="if(event.key==='Enter')playerRenameSelf()" />
+            <button class="btn primary" style="font-size:11px;padding:6px 14px;white-space:nowrap" onclick="playerRenameSelf()">Rename</button>
+          </div>
+          <div class="modal-error" id="pm-rename-error" style="margin-top:6px"></div>
         </div>
-        <div class="modal-error" id="pm-pw-error" style="margin-top:6px"></div>
-        <div id="pm-pw-success" style="margin-top:6px;font-size:12px;color:var(--green);display:none">✅ Password updated!</div>
       </div>
 
-      <button class="btn danger" style="width:100%;font-size:12px" onclick="playerLogout()">Logout</button>
+      <!-- Panel: Change Password (hidden by default) -->
+      <div id="pm-panel-password" style="display:none">
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:4px">
+          <div style="font-size:11px;color:var(--muted2);margin-bottom:10px">Enter your current password, then choose a new one.</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <input class="form-input" type="password" id="pm-pw-current" placeholder="Current password…" style="font-size:15px;padding:7px 10px" onkeydown="if(event.key==='Enter')playerChangePassword()" />
+            <input class="form-input" type="password" id="pm-pw-new" placeholder="New password…" style="font-size:15px;padding:7px 10px" onkeydown="if(event.key==='Enter')playerChangePassword()" />
+            <input class="form-input" type="password" id="pm-pw-confirm" placeholder="Confirm new password…" style="font-size:15px;padding:7px 10px" onkeydown="if(event.key==='Enter')playerChangePassword()" />
+            <button class="btn primary" style="font-size:11px;padding:6px 14px" onclick="playerChangePassword()">Update Password</button>
+          </div>
+          <div class="modal-error" id="pm-pw-error" style="margin-top:6px"></div>
+          <div id="pm-pw-success" style="margin-top:6px;font-size:12px;color:var(--green);display:none">✅ Password updated!</div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
