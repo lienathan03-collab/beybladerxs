@@ -433,6 +433,8 @@
     padding: 9px 0; border-bottom: 1px solid var(--border);
   }
   .profile-stat-row:last-child { border-bottom: none; }
+  /* In the 2-col finishes grid, remove border from both cells in the last row */
+  .finishes-grid .profile-stat-row:nth-last-child(-n+2) { border-bottom: none; }
   .profile-stat-row .label { font-size: 13px; color: var(--muted); }
   .profile-stat-row .value {
     font-family: 'Share Tech Mono', monospace; font-size: 14px;
@@ -4055,7 +4057,7 @@ function openBladerProfile(name) {
   // season stats rows
   modal.querySelector('#ps-total').textContent     = profile.total;
   modal.querySelector('#ps-ppg').textContent       = profile.ppg;
-  modal.querySelector('#ps-games').textContent     = profile.wins + profile.losses;
+  modal.querySelector('#ps-games').textContent     = profile.wins + ' / ' + profile.losses;
   modal.querySelector('#ps-attend').textContent    = profile.eventsJoined + ' / ' + profile.gamesTotal;
   modal.querySelector('#ps-spin').textContent      = profile.spinFinishes;
   modal.querySelector('#ps-burst').textContent     = profile.burstFinishes;
@@ -5538,7 +5540,7 @@ function buildSeasonStatRows(player, data) {
       <span class="value">${value}</span>
     </div>`
   ).join('');
-  const finishHtml = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 8px">` +
+  const finishHtml = `<div class="finishes-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:0 8px">` +
     finishes.map(([label, value]) =>
       `<div class="profile-stat-row"><span class="label">${label}</span><span class="value">${value}</span></div>`
     ).join('') + `</div>`;
@@ -5650,6 +5652,7 @@ async function loadProfileSeasonData(aliases) {
     ['Total Points',     ptsOverall],
     ['Points Per Game',  overallPPG],
     ['Best Season Rank', bestRankDisplay],
+    ['Wins / Losses',    totalWins + ' / ' + totalLosses],
   ];
   const overallFinishes = [
     ['Spin Finishes',    (stS2.spinFinishes || 0) + (stS3.spinFinishes || 0)],
@@ -5661,7 +5664,7 @@ async function loadProfileSeasonData(aliases) {
     overallRows.map(([label, value]) =>
       `<div class="profile-stat-row"><span class="label">${label}</span><span class="value">${value}</span></div>`
     ).join('') +
-    `<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 8px">` +
+    `<div class="finishes-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:0 8px">` +
     overallFinishes.map(([label, value]) =>
       `<div class="profile-stat-row"><span class="label">${label}</span><span class="value">${value}</span></div>`
     ).join('') + `</div>`;
@@ -6937,9 +6940,9 @@ async function deleteEvent() {
       <div class="profile-section-title">Season Statistics</div>
       <div class="profile-stat-row"><span class="label">Total Points</span><span class="value" id="ps-total">0</span></div>
       <div class="profile-stat-row"><span class="label">Points Per Game (PPG)</span><span class="value" id="ps-ppg">0</span></div>
-      <div class="profile-stat-row"><span class="label">Total Matches</span><span class="value" id="ps-games">0</span></div>
+      <div class="profile-stat-row"><span class="label">Wins / Losses</span><span class="value" id="ps-games">0</span></div>
       <div class="profile-stat-row"><span class="label">Events Joined</span><span class="value" id="ps-attend">—</span></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 8px">
+      <div class="finishes-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:0 8px">
         <div class="profile-stat-row"><span class="label">Spin Finishes</span><span class="value" id="ps-spin">0</span></div>
         <div class="profile-stat-row"><span class="label">Over Finishes</span><span class="value" id="ps-over">0</span></div>
         <div class="profile-stat-row"><span class="label">Burst Finishes</span><span class="value" id="ps-burst">0</span></div>
