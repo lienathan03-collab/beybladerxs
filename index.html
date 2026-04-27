@@ -5668,12 +5668,18 @@ async function loadProfileSeasonData(aliases) {
   document.getElementById('pm-s3-rows').innerHTML = buildSeasonStatRows(playerS3, dataS3 || {});
   document.getElementById('pm-s2-rows').innerHTML = buildSeasonStatRows(playerS2, dataS2 || {});
 
-  // Top 3 Beys per pane
-  function renderPmTop3(sectionId, listId, playerObj, dataObj) {
+  // Top 3 Beys — use the same bey results source as the leaderboard
+  const beyData = await loadBeyRankingsData();
+  const allBeyEvents   = beyData.events || [];
+  const s3BeyEvents    = allBeyEvents.filter(e => e.season === 's3');
+  const s2BeyEvents    = allBeyEvents.filter(e => e.season === 's2' || e.season !== 's3');
+  const overallName    = (playerS3 || playerS2 || {}).name;
+
+  function renderPmTop3(sectionId, listId, playerName, events) {
     const section = document.getElementById(sectionId);
     const list    = document.getElementById(listId);
-    if (!playerObj || !dataObj) { section.style.display = 'none'; return; }
-    const top3 = getPlayerTop3Beys(playerObj.name, dataObj);
+    if (!playerName || !events.length) { section.style.display = 'none'; return; }
+    const top3 = getPlayerTop3Beys(playerName, { events });
     if (!top3.length) { section.style.display = 'none'; return; }
     section.style.display = '';
     list.innerHTML = top3.map((b, i) => `
@@ -5681,31 +5687,16 @@ async function loadProfileSeasonData(aliases) {
         <span class="top3-bey-rank">${i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>
         <div style="flex:1;min-width:0">
           <div class="top3-bey-name">${escHtml(b.build)}</div>
+          <div class="br-winrate-bar" style="margin-top:4px"><div class="br-winrate-fill" style="width:${b.winRate.toFixed(1)}%"></div></div>
         </div>
         <span class="top3-bey-wr">${b.winRate.toFixed(1)}%</span>
         <span class="top3-bey-wl">${b.wins}W ${b.losses}L</span>
       </div>`).join('');
   }
-  // Combined overall: merge events from both seasons into one data object
-  const overallName  = (playerS3 || playerS2 || {}).name;
-  const overallSec   = document.getElementById('pm-top3-beys-overall');
-  const overallList  = document.getElementById('pm-top3-beys-overall-list');
-  if (overallName) {
-    const mergedData = { events: [...((dataS2 || {}).events || []), ...((dataS3 || {}).events || [])] };
-    const top3all = getPlayerTop3Beys(overallName, mergedData);
-    if (top3all.length) {
-      overallSec.style.display = '';
-      overallList.innerHTML = top3all.map((b, i) => `
-        <div class="top3-bey-card">
-          <span class="top3-bey-rank">${i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>
-          <div style="flex:1;min-width:0"><div class="top3-bey-name">${escHtml(b.build)}</div></div>
-          <span class="top3-bey-wr">${b.winRate.toFixed(1)}%</span>
-          <span class="top3-bey-wl">${b.wins}W ${b.losses}L</span>
-        </div>`).join('');
-    } else { overallSec.style.display = 'none'; }
-  } else { overallSec.style.display = 'none'; }
-  renderPmTop3('pm-top3-beys-s3', 'pm-top3-beys-s3-list', playerS3, dataS3);
-  renderPmTop3('pm-top3-beys-s2', 'pm-top3-beys-s2-list', playerS2, dataS2);
+
+  renderPmTop3('pm-top3-beys-overall', 'pm-top3-beys-overall-list', overallName, allBeyEvents);
+  renderPmTop3('pm-top3-beys-s3',      'pm-top3-beys-s3-list',      playerS3 ? playerS3.name : null, s3BeyEvents);
+  renderPmTop3('pm-top3-beys-s2',      'pm-top3-beys-s2-list',      playerS2 ? playerS2.name : null, s2BeyEvents);
 }
 
 function switchProfileTab(tab, el) {
