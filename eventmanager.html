@@ -1564,6 +1564,7 @@ async function saveAll() {
   document.getElementById('save-btn').disabled = true;
 
   try {
+    // 1. Save bey results to events KV
     const res = await fetch('/api/beyresults', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -1577,9 +1578,14 @@ async function saveAll() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Save failed.');
+
+    // 2. Sync bladerStats to gamedata_s3
+    await syncBladerStats();
+
     dirty = false;
     setSaveStatus('Saved ✓', 'saved');
-    showToast('✅ Saved successfully!', 'success');
+    showToast('✅ Saved! Stats updated on main page.', 'success');
+
     // Update local cache
     const idx = allEvents.findIndex(e => e.id === currentEvent.id);
     if (idx !== -1) {
@@ -1593,6 +1599,102 @@ async function saveAll() {
     showToast('❌ ' + e.message, 'error');
     document.getElementById('save-btn').disabled = false;
   }
+}
+
+// ─────────────────────────────────────────────
+// SYNC BLADER STATS → gamedata_s3
+// ─────────────────────────────────────────────
+async function syncBladerStats() {
+  // Load current gamedata_s3
+  const season = currentEvent.season || 'gamedata_s3';
+  const dataKey = season === 's3' ? 'gamedata_s3'
+                : season === 's2' ? 'gamedata_s2'
+                : 'gamedata_s3';
+
+  const gdRes = await fetch(`/api/data?key=${dataKey}`);
+  if (!gdRes.ok) throw new Error('Could not load season data.');
+  const gdData = await gdRes.json();
+  const bladerStats = gdData.bladerStats || {};
+
+  // Calculate per-player stats from ALL matches in this event
+  // We recalculate from scratch for this event to avoid double-counting on re-save
+  // Strategy: load existing stats, subtract this event's previous contribution, add new
+  const eventId = currentEvent.id;
+
+  // Build per-player totals from current resultsState
+  const perPlayer = {};
+  for (const entry of resultsState) {
+    const name = entry.player;
+    if (!perPlayer[name]) {
+      perPlayer[name] = {
+        matchPoints: 0,
+        wins: 0,
+        losses: 0,
+        matchesPlayed: 0,
+        spinFinishes: 0,
+        overFinishes: 0,
+        extremeFinishes: 0,
+        burstFinishes: 0
+      };
+    }
+    const p = perPlayer[name];
+
+    // Count this round
+    p.matchesPlayed++;
+    if (entry.win) p.wins++;
+    else p.losses++;
+
+    // Count finishes from all builds
+    for (const b of (entry.builds || [])) {
+      for (const f of (b.finishes || [])) {
+        if (f === 'S') { p.spinFinishes++;    p.matchPoints += 1; }
+        else if (f === 'O') { p.overFinishes++;   p.matchPoints += 2; }
+        else if (f === 'E') { p.extremeFinishes++; p.matchPoints += 3; }
+        else if (f === 'B') { p.burstFinishes++;   p.matchPoints += 2; }
+        // L = 0 points, not counted
+      }
+    }
+  }
+
+  // Merge into bladerStats
+  // We store a snapshot of this event's contribution so re-saves don't double-count
+  const prevSnapshots = gdData.eventSnapshots || {};
+  const prevSnap = prevSnapshots[eventId] || {};
+
+  for (const [name, stats] of Object.entries(perPlayer)) {
+    if (!bladerStats[name]) {
+      bladerStats[name] = {
+        photo: '', wins: 0, losses: 0, matchesPlayed: 0,
+        matchPoints: 0, spinFinishes: 0, overFinishes: 0,
+        extremeFinishes: 0, burstFinishes: 0
+      };
+    }
+    const st = bladerStats[name];
+    const prev = (prevSnap[name]) || {};
+
+    // Subtract previous contribution from this event, add new
+    st.wins           = Math.max(0, (st.wins           || 0) - (prev.wins           || 0) + stats.wins);
+    st.losses         = Math.max(0, (st.losses         || 0) - (prev.losses         || 0) + stats.losses);
+    st.matchesPlayed  = Math.max(0, (st.matchesPlayed  || 0) - (prev.matchesPlayed  || 0) + stats.matchesPlayed);
+    st.matchPoints    = Math.max(0, (st.matchPoints    || 0) - (prev.matchPoints    || 0) + stats.matchPoints);
+    st.spinFinishes   = Math.max(0, (st.spinFinishes   || 0) - (prev.spinFinishes   || 0) + stats.spinFinishes);
+    st.overFinishes   = Math.max(0, (st.overFinishes   || 0) - (prev.overFinishes   || 0) + stats.overFinishes);
+    st.extremeFinishes= Math.max(0, (st.extremeFinishes|| 0) - (prev.extremeFinishes|| 0) + stats.extremeFinishes);
+    st.burstFinishes  = Math.max(0, (st.burstFinishes  || 0) - (prev.burstFinishes  || 0) + stats.burstFinishes);
+  }
+
+  // Save the new snapshot for this event
+  prevSnapshots[eventId] = perPlayer;
+  gdData.bladerStats    = bladerStats;
+  gdData.eventSnapshots = prevSnapshots;
+
+  // PUT back to gamedata_s3
+  const putRes = await fetch(`/api/data?key=${dataKey}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(gdData)
+  });
+  if (!putRes.ok) throw new Error('Could not save stats to season data.');
 }
 
 // ─────────────────────────────────────────────
