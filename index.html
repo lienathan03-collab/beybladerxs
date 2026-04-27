@@ -1829,14 +1829,13 @@
   <!-- Season filter tabs -->
   <div style="display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap" id="br-season-tabs">
     <button class="br-season-btn active" onclick="setBrSeason('s3',this)">Season 3</button>
-    <button class="br-season-btn" onclick="setBrSeason('overall_s3',this)">Overall S3</button>
     <button class="br-season-btn" onclick="setBrSeason('overall',this)">Overall</button>
   </div>
 
-  <!-- View toggle: Global vs Solo -->
+  <!-- View toggle: Solo vs Global -->
   <div style="display:flex;gap:6px;margin-bottom:20px;align-items:center;flex-wrap:wrap">
-    <button class="br-view-btn active" id="br-view-global" onclick="setBrView('global',this)">🌐 Global Bey Rankings</button>
-    <button class="br-view-btn" id="br-view-solo" onclick="setBrView('solo',this)">👤 Solo Build Rankings</button>
+    <button class="br-view-btn active" id="br-view-solo" onclick="setBrView('solo',this)">👤 Solo Build Rankings</button>
+    <button class="br-view-btn" id="br-view-global" onclick="setBrView('global',this)">🌐 Global Bey Rankings</button>
     <input class="br-search-input" id="br-search" placeholder="🔍 Search bey build or player…" oninput="renderBeyRankings()" />
   </div>
 
@@ -3146,7 +3145,7 @@ async function confirmImport(labelEnc, resultsEnc, tournamentId, tournamentUrl) 
 //  BEY RANKINGS
 // ═══════════════════════════════════════════════════════
 let brSeason = 's3';
-let brView   = 'global'; // 'global' | 'solo'
+let brView   = 'solo'; // 'global' | 'solo'
 let brAllEventData = null; // cached from /api/beyresults
 
 async function loadBeyRankingsData() {
