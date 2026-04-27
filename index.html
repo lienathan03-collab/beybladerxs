@@ -226,6 +226,89 @@
 
 
   /* ── RULERS CUP ── */
+  /* ── BEY RANKINGS ── */
+  .br-season-btn {
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 20px; color: var(--muted);
+    font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase;
+    padding: 6px 16px; cursor: pointer; transition: all .15s;
+  }
+  .br-season-btn:hover { border-color: var(--gold); color: var(--text); }
+  .br-season-btn.active { background: #1a1200; border-color: var(--gold); color: var(--gold2); }
+
+  .br-view-btn {
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 8px; color: var(--muted);
+    font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase;
+    padding: 7px 16px; cursor: pointer; transition: all .15s;
+  }
+  .br-view-btn:hover { border-color: var(--blue); color: var(--text); }
+  .br-view-btn.active { background: rgba(74,158,255,0.1); border-color: var(--blue); color: var(--blue); }
+
+  .br-search-input {
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 8px; color: var(--text);
+    font-family: 'Rajdhani', sans-serif; font-size: 14px;
+    padding: 7px 14px; outline: none; transition: border-color .15s;
+    flex: 1; min-width: 200px;
+  }
+  .br-search-input:focus { border-color: var(--blue); }
+
+  .br-row {
+    display: grid;
+    grid-template-columns: 40px 1fr 80px 80px 80px 90px;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    transition: background .1s;
+    font-size: 13px;
+  }
+  .br-row:hover { background: var(--surface2); }
+  .br-row.header {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; letter-spacing: 1.5px;
+    color: var(--muted); background: var(--surface2);
+    border-radius: 8px 8px 0 0; border-bottom: 1px solid var(--border2);
+    padding: 8px 14px;
+  }
+  .br-rank { font-family: 'Share Tech Mono', monospace; font-size: 13px; color: var(--muted); text-align: center; }
+  .br-rank.gold   { color: var(--gold2); font-size: 16px; }
+  .br-rank.silver { color: #aaa; font-size: 15px; }
+  .br-rank.bronze { color: #cd7f32; font-size: 14px; }
+  .br-build { font-weight: 700; color: var(--text); }
+  .br-build-sub { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .br-val { text-align: right; font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--muted); }
+  .br-val.highlight { color: var(--gold2); font-weight: 700; font-size: 13px; }
+  .br-winrate-bar {
+    height: 4px; border-radius: 2px;
+    background: var(--border); margin-top: 3px; overflow: hidden;
+  }
+  .br-winrate-fill { height: 100%; border-radius: 2px; background: var(--gold); transition: width .4s; }
+  .br-table-wrap {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+  }
+
+  /* Top 3 beys on profile */
+  .top3-beys-section { margin-top: 14px; }
+  .top3-beys-title {
+    font-family: 'Share Tech Mono', monospace; font-size: 10px;
+    letter-spacing: 2px; color: var(--muted2); text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .top3-bey-card {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .top3-bey-rank { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--muted2); width: 18px; flex-shrink: 0; }
+  .top3-bey-name { font-weight: 700; font-size: 13px; flex: 1; color: var(--text); }
+  .top3-bey-wr   { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--gold2); }
+  .top3-bey-wl   { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--muted); margin-left: 6px; }
+
   .rc-card {
     display: flex; align-items: center; gap: 14px;
     background: var(--surface); border: 1px solid var(--border);
@@ -1064,6 +1147,7 @@
         <button onclick="showLeaderboardSub('leaderboard', event)">🏅 Bladers</button>
         <button onclick="showLeaderboardSub('rulerscup', event)">🏆 Rulers Cup</button>
         <button onclick="showLeaderboardSub('weekly', event)">📅 Weekly</button>
+        <button onclick="showLeaderboardSub('beyrankings', event)">🪀 Bey Rankings</button>
       </div>
     </div>
     <button onclick="showTab('achievements', this)">Achievements</button>
@@ -1139,6 +1223,7 @@
     <button onclick="showLeaderboardSub('leaderboard', event); closeMobLbMenu()">🏅 Bladers</button>
     <button onclick="showLeaderboardSub('rulerscup', event); closeMobLbMenu()">🏆 Rulers Cup</button>
     <button onclick="showLeaderboardSub('weekly', event); closeMobLbMenu()">📅 Weekly</button>
+    <button onclick="showLeaderboardSub('beyrankings', event); closeMobLbMenu()">🪀 Bey Rankings</button>
   </div>
 </nav>
 
@@ -1722,6 +1807,33 @@
     <button class="btn admin-only-btn" id="rc-add-btn" style="font-size:11px;padding:5px 12px;display:none" onclick="openRCModal()">➕ Add Team</button>
   </div>
   <div id="rc-list" style="display:flex;flex-direction:column;gap:10px;margin-top:8px"></div>
+</div>
+
+<!-- ══════════════ BEY RANKINGS ══════════════ -->
+<div id="tab-beyrankings" class="section">
+  <div class="section-header">
+    <span class="section-title">🪀 Bey Rankings</span>
+    <div class="section-line"></div>
+  </div>
+
+  <!-- Season filter tabs -->
+  <div style="display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap" id="br-season-tabs">
+    <button class="br-season-btn active" onclick="setBrSeason('s3',this)">Season 3</button>
+    <button class="br-season-btn" onclick="setBrSeason('overall_s3',this)">Overall S3</button>
+    <button class="br-season-btn" onclick="setBrSeason('overall',this)">Overall</button>
+  </div>
+
+  <!-- View toggle: Global vs Solo -->
+  <div style="display:flex;gap:6px;margin-bottom:20px;align-items:center;flex-wrap:wrap">
+    <button class="br-view-btn active" id="br-view-global" onclick="setBrView('global',this)">🌐 Global Bey Rankings</button>
+    <button class="br-view-btn" id="br-view-solo" onclick="setBrView('solo',this)">👤 Solo Build Rankings</button>
+    <input class="br-search-input" id="br-search" placeholder="🔍 Search bey build or player…" oninput="renderBeyRankings()" />
+  </div>
+
+  <!-- Rankings content -->
+  <div id="br-content">
+    <div style="text-align:center;padding:48px;color:var(--muted2);font-size:13px">Loading bey rankings…</div>
+  </div>
 </div>
 
 <!-- ══════════════ RULERS CUP MODAL ══════════════ -->
@@ -3021,6 +3133,215 @@ async function confirmImport(labelEnc, resultsEnc, tournamentId, tournamentUrl) 
 //  TAB SWITCHING
 // ═══════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════
+//  BEY RANKINGS
+// ═══════════════════════════════════════════════════════
+let brSeason = 's3';
+let brView   = 'global'; // 'global' | 'solo'
+let brAllEventData = null; // cached from /api/beyresults
+
+async function loadBeyRankingsData() {
+  if (brAllEventData) return brAllEventData;
+  try {
+    const res = await fetch('/api/beyresults');
+    if (!res.ok) throw new Error('Failed to load bey results.');
+    brAllEventData = await res.json();
+  } catch(e) {
+    brAllEventData = { events: [] };
+  }
+  return brAllEventData;
+}
+
+function setBrSeason(season, btn) {
+  brSeason = season;
+  document.querySelectorAll('.br-season-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderBeyRankings();
+}
+
+function setBrView(view, btn) {
+  brView = view;
+  document.querySelectorAll('.br-view-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderBeyRankings();
+}
+
+async function renderBeyRankings() {
+  const el = document.getElementById('br-content');
+  if (!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:48px;color:var(--muted2);font-size:13px">Loading…</div>';
+
+  const data = await loadBeyRankingsData();
+  const query = (document.getElementById('br-search')?.value || '').toLowerCase().trim();
+
+  // Filter events by season
+  let events = data.events || [];
+  if (brSeason === 's3') {
+    events = events.filter(e => e.season === 's3');
+  } else if (brSeason === 'overall_s3') {
+    events = events.filter(e => e.season === 's3');
+    // overall_s3 = all s3 events combined (same as s3 for now, expands when more seasons added)
+  }
+  // 'overall' = all seasons, no filter
+
+  if (brView === 'global') {
+    el.innerHTML = renderGlobalBeyRankings(events, query);
+  } else {
+    el.innerHTML = renderSoloBeyRankings(events, query);
+  }
+}
+
+// ── GLOBAL BEY RANKINGS ──
+// Pool all players' results for the same build name together
+function renderGlobalBeyRankings(events, query) {
+  const buildMap = {}; // buildName → { wins, losses, played, players: Set }
+
+  for (const ev of events) {
+    for (const entry of (ev.beyResults || [])) {
+      for (const b of (entry.builds || [])) {
+        if (!b.build || !b.deployed) continue;
+        const key = b.build.trim();
+        if (!buildMap[key]) buildMap[key] = { wins: 0, losses: 0, played: 0, players: new Set() };
+        const bm = buildMap[key];
+        bm.players.add(entry.player);
+        for (const f of (b.finishes || [])) {
+          if (f === 'L') { bm.losses++; bm.played++; }
+          else if (f && f !== 'L') { bm.wins++; bm.played++; }
+        }
+      }
+    }
+  }
+
+  let rows = Object.entries(buildMap)
+    .map(([build, s]) => ({
+      build,
+      wins: s.wins, losses: s.losses, played: s.played,
+      players: s.players.size,
+      winRate: s.played > 0 ? (s.wins / s.played * 100) : 0
+    }))
+    .filter(r => r.played > 0)
+    .sort((a, b) => b.winRate - a.winRate || b.wins - a.wins);
+
+  if (query) rows = rows.filter(r => r.build.toLowerCase().includes(query));
+
+  if (!rows.length) return '<div style="text-align:center;padding:48px;color:var(--muted2)">No bey data yet. Add match results in the Event Manager first.</div>';
+
+  const rankIcon = (i) => i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
+  const rankCls  = (i) => i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+
+  return `
+  <div class="br-table-wrap">
+    <div class="br-row header">
+      <div>#</div><div>BUILD</div>
+      <div style="text-align:right">WINS</div>
+      <div style="text-align:right">LOSSES</div>
+      <div style="text-align:right">PLAYED</div>
+      <div style="text-align:right">WIN RATE</div>
+    </div>
+    ${rows.map((r, i) => `
+    <div class="br-row">
+      <div class="br-rank ${rankCls(i)}">${rankIcon(i)}</div>
+      <div>
+        <div class="br-build">${escHtml(r.build)}</div>
+        <div class="br-build-sub">${r.players} blader${r.players !== 1 ? 's' : ''}</div>
+        <div class="br-winrate-bar"><div class="br-winrate-fill" style="width:${r.winRate.toFixed(1)}%"></div></div>
+      </div>
+      <div class="br-val">${r.wins}</div>
+      <div class="br-val">${r.losses}</div>
+      <div class="br-val">${r.played}</div>
+      <div class="br-val highlight">${r.winRate.toFixed(1)}%</div>
+    </div>`).join('')}
+  </div>`;
+}
+
+// ── SOLO BEY RANKINGS ──
+// Per player per build
+function renderSoloBeyRankings(events, query) {
+  const soloMap = {}; // "player::build" → { player, build, wins, losses, played }
+
+  for (const ev of events) {
+    for (const entry of (ev.beyResults || [])) {
+      for (const b of (entry.builds || [])) {
+        if (!b.build || !b.deployed) continue;
+        const key = entry.player + '::' + b.build.trim();
+        if (!soloMap[key]) soloMap[key] = { player: entry.player, build: b.build.trim(), wins: 0, losses: 0, played: 0 };
+        const sm = soloMap[key];
+        for (const f of (b.finishes || [])) {
+          if (f === 'L') { sm.losses++; sm.played++; }
+          else if (f && f !== 'L') { sm.wins++; sm.played++; }
+        }
+      }
+    }
+  }
+
+  let rows = Object.values(soloMap)
+    .filter(r => r.played > 0)
+    .map(r => ({ ...r, winRate: r.played > 0 ? (r.wins / r.played * 100) : 0 }))
+    .sort((a, b) => b.winRate - a.winRate || b.wins - a.wins);
+
+  if (query) rows = rows.filter(r =>
+    r.build.toLowerCase().includes(query) || r.player.toLowerCase().includes(query)
+  );
+
+  if (!rows.length) return '<div style="text-align:center;padding:48px;color:var(--muted2)">No solo bey data yet.</div>';
+
+  const rankIcon = (i) => i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
+  const rankCls  = (i) => i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+
+  return `
+  <div class="br-table-wrap">
+    <div class="br-row header">
+      <div>#</div><div>BUILD / BLADER</div>
+      <div style="text-align:right">WINS</div>
+      <div style="text-align:right">LOSSES</div>
+      <div style="text-align:right">PLAYED</div>
+      <div style="text-align:right">WIN RATE</div>
+    </div>
+    ${rows.map((r, i) => `
+    <div class="br-row">
+      <div class="br-rank ${rankCls(i)}">${rankIcon(i)}</div>
+      <div>
+        <div class="br-build">${escHtml(r.build)}</div>
+        <div class="br-build-sub">${escHtml(r.player)}</div>
+        <div class="br-winrate-bar"><div class="br-winrate-fill" style="width:${r.winRate.toFixed(1)}%"></div></div>
+      </div>
+      <div class="br-val">${r.wins}</div>
+      <div class="br-val">${r.losses}</div>
+      <div class="br-val">${r.played}</div>
+      <div class="br-val highlight">${r.winRate.toFixed(1)}%</div>
+    </div>`).join('')}
+  </div>`;
+}
+
+// ── TOP 3 BEYS for a player (used in profile) ──
+function getPlayerTop3Beys(playerName, allEventData) {
+  const events = (allEventData?.events || []);
+  const buildMap = {};
+  for (const ev of events) {
+    for (const entry of (ev.beyResults || [])) {
+      if (entry.player !== playerName) continue;
+      for (const b of (entry.builds || [])) {
+        if (!b.build || !b.deployed) continue;
+        const key = b.build.trim();
+        if (!buildMap[key]) buildMap[key] = { wins: 0, losses: 0, played: 0 };
+        for (const f of (b.finishes || [])) {
+          if (f === 'L') { buildMap[key].losses++; buildMap[key].played++; }
+          else if (f && f !== 'L') { buildMap[key].wins++; buildMap[key].played++; }
+        }
+      }
+    }
+  }
+  return Object.entries(buildMap)
+    .filter(([,s]) => s.played > 0)
+    .map(([build, s]) => ({ build, ...s, winRate: s.wins / s.played * 100 }))
+    .sort((a, b) => b.winRate - a.winRate || b.wins - a.wins)
+    .slice(0, 3);
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─────────────────────────────────────────────
 //  RULERS CUP
 // ═══════════════════════════════════════════════════════
 let rcEditIndex = -1;
@@ -3152,6 +3473,11 @@ function showLeaderboardSub(tab, e) {
   if (mobBtn) mobBtn.classList.add('active');
   history.replaceState(null, '', '#' + tab);
   stopCarouselTimer();
+  // Load bey rankings data when that tab is opened
+  if (tab === 'beyrankings') {
+    brAllEventData = null;
+    renderBeyRankings();
+  }
 }
 
 // ── MOBILE RANKS SUB-MENU ──
@@ -3777,6 +4103,27 @@ function openBladerProfile(name) {
   }
 
   document.getElementById('blader-profile-modal').classList.add('open');
+
+  // Load Top 3 Beys async
+  const top3Section = document.getElementById('profile-top3-beys');
+  const top3List    = document.getElementById('profile-top3-beys-list');
+  top3Section.style.display = 'none';
+  top3List.innerHTML = '';
+  loadBeyRankingsData().then(data => {
+    const top3 = getPlayerTop3Beys(name, data);
+    if (!top3.length) return;
+    top3Section.style.display = '';
+    top3List.innerHTML = top3.map((b, i) => `
+      <div class="top3-bey-card">
+        <span class="top3-bey-rank">${i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>
+        <div style="flex:1">
+          <div class="top3-bey-name">${escHtml(b.build)}</div>
+          <div class="br-winrate-bar" style="margin-top:4px"><div class="br-winrate-fill" style="width:${b.winRate.toFixed(1)}%"></div></div>
+        </div>
+        <span class="top3-bey-wr">${b.winRate.toFixed(1)}%</span>
+        <span class="top3-bey-wl">${b.wins}W ${b.losses}L</span>
+      </div>`).join('');
+  });
 }
 
 function openBladerProfileByIndex(idx) {
@@ -6532,6 +6879,12 @@ async function deleteEvent() {
       <div class="profile-stat-row"><span class="label">Burst Finishes</span><span class="value" id="ps-burst">0</span></div>
       <div class="profile-stat-row"><span class="label">Over Finishes</span><span class="value" id="ps-over">0</span></div>
       <div class="profile-stat-row"><span class="label">Extreme Finishes</span><span class="value" id="ps-extreme">0</span></div>
+
+      <!-- Top 3 Beys -->
+      <div class="top3-beys-section" id="profile-top3-beys" style="display:none">
+        <div class="top3-beys-title">🪀 Top Bey Builds</div>
+        <div id="profile-top3-beys-list"></div>
+      </div>
 
       <!-- Admin Edit Section -->
       <div class="profile-edit-section">
