@@ -291,6 +291,23 @@
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 10px; overflow: hidden;
   }
+  .br-row-actions {
+    display: none;
+    gap: 4px;
+    justify-content: flex-end;
+    align-items: center;
+  }
+  .admin-active .br-row:hover .br-row-actions { display: flex; }
+  .br-edit-btn, .br-delete-btn {
+    background: none; border: 1px solid var(--border2);
+    border-radius: 5px; padding: 3px 7px;
+    font-size: 10px; font-family: 'Share Tech Mono', monospace;
+    cursor: pointer; letter-spacing: 1px; transition: all .15s;
+  }
+  .br-edit-btn   { color: var(--blue);  border-color: rgba(74,158,255,0.3); }
+  .br-edit-btn:hover   { background: rgba(74,158,255,0.1); }
+  .br-delete-btn { color: var(--red);   border-color: rgba(229,57,53,0.3); }
+  .br-delete-btn:hover { background: rgba(229,57,53,0.1); }
 
   /* Top 3 beys on profile */
   .top3-beys-section { margin-top: 14px; }
@@ -3257,7 +3274,13 @@ function renderGlobalBeyRankings(events, query) {
       <div class="br-val">${r.wins}</div>
       <div class="br-val">${r.losses}</div>
       <div class="br-val">${r.played}</div>
-      <div class="br-val highlight">${r.winRate.toFixed(1)}%</div>
+      <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px">
+        <span class="br-val highlight">${r.winRate.toFixed(1)}%</span>
+        <div class="br-row-actions">
+          <button class="br-edit-btn"   onclick="openBeyEditModal('rename','${escJs(r.build)}',null)">✏️ RENAME</button>
+          <button class="br-delete-btn" onclick="openBeyEditModal('delete','${escJs(r.build)}',null)">🗑 DELETE</button>
+        </div>
+      </div>
     </div>`).join('')}
   </div>`;
 }
@@ -3316,7 +3339,13 @@ function renderSoloBeyRankings(events, query) {
       <div class="br-val">${r.wins}</div>
       <div class="br-val">${r.losses}</div>
       <div class="br-val">${r.played}</div>
-      <div class="br-val highlight">${r.winRate.toFixed(1)}%</div>
+      <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px">
+        <span class="br-val highlight">${r.winRate.toFixed(1)}%</span>
+        <div class="br-row-actions">
+          <button class="br-edit-btn"   onclick="openBeyEditModal('rename','${escJs(r.build)}','${escJs(r.player)}')">✏️ RENAME</button>
+          <button class="br-delete-btn" onclick="openBeyEditModal('delete','${escJs(r.build)}','${escJs(r.player)}')">🗑 DELETE</button>
+        </div>
+      </div>
     </div>`).join('')}
   </div>`;
 }
@@ -3348,6 +3377,145 @@ function getPlayerTop3Beys(playerName, allEventData) {
 
 function escHtml(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─────────────────────────────────────────────
+// BEY RANKING EDIT / DELETE (admin only)
+// ─────────────────────────────────────────────
+let _beyEditAction = null; // 'rename' | 'delete'
+let _beyEditBuild  = null; // original build name
+let _beyEditPlayer = null; // null = all players (global), string = specific player (solo)
+
+function openBeyEditModal(action, build, player) {
+  if (!isAdmin) return;
+  _beyEditAction = action;
+  _beyEditBuild  = build;
+  _beyEditPlayer = player || null;
+
+  const scope = player ? `for <b>${escHtml(player)}</b>` : 'across all bladers';
+  document.getElementById('bey-edit-error').textContent = '';
+
+  if (action === 'rename') {
+    document.getElementById('bey-edit-modal-title').textContent = '✏️ Rename Build';
+    document.getElementById('bey-edit-modal-sub').innerHTML =
+      `Renaming <b>${escHtml(build)}</b> ${scope}. This updates all match records.`;
+    document.getElementById('bey-edit-name-group').style.display = '';
+    document.getElementById('bey-edit-confirm-btn').textContent = '✅ Rename';
+    document.getElementById('bey-edit-name-input').value = build;
+    setTimeout(() => {
+      const inp = document.getElementById('bey-edit-name-input');
+      inp.focus(); inp.select();
+    }, 80);
+  } else {
+    document.getElementById('bey-edit-modal-title').textContent = '🗑 Delete Build';
+    document.getElementById('bey-edit-modal-sub').innerHTML =
+      `Delete all records for <b>${escHtml(build)}</b> ${scope}? This cannot be undone.`;
+    document.getElementById('bey-edit-name-group').style.display = 'none';
+    document.getElementById('bey-edit-confirm-btn').textContent = '🗑 Delete';
+  }
+  document.getElementById('bey-edit-modal').classList.add('open');
+}
+
+function closeBeyEditModal() {
+  document.getElementById('bey-edit-modal').classList.remove('open');
+}
+
+async function confirmBeyEdit() {
+  if (!isAdmin || !_beyEditAction) return;
+  const errEl = document.getElementById('bey-edit-error');
+  errEl.textContent = '';
+
+  const oldBuild  = _beyEditBuild;
+  const player    = _beyEditPlayer;
+  const action    = _beyEditAction;
+  const newBuild  = action === 'rename'
+    ? document.getElementById('bey-edit-name-input').value.trim()
+    : null;
+
+  if (action === 'rename' && (!newBuild || newBuild === oldBuild)) {
+    errEl.textContent = 'Enter a different build name.'; return;
+  }
+
+  const btn = document.getElementById('bey-edit-confirm-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    // Load full data, mutate, save each affected event
+    const data = await loadBeyRankingsData();
+    const affectedEventIds = new Set();
+
+    for (const ev of (data.events || [])) {
+      let changed = false;
+      for (const entry of (ev.beyResults || [])) {
+        // For solo: only touch the specific player; for global: touch all
+        if (player && entry.player !== player) continue;
+        for (let i = entry.builds.length - 1; i >= 0; i--) {
+          const b = entry.builds[i];
+          if (b.build.trim() !== oldBuild) continue;
+          if (action === 'delete') {
+            entry.builds.splice(i, 1);
+          } else {
+            b.build = newBuild;
+          }
+          changed = true;
+        }
+      }
+      // Also update buildsState (the registered build list per player)
+      if (ev.builds) {
+        for (const [pName, buildList] of Object.entries(ev.builds)) {
+          if (player && pName !== player) continue;
+          const idx = buildList.indexOf(oldBuild);
+          if (idx !== -1) {
+            if (action === 'delete') buildList.splice(idx, 1);
+            else buildList[idx] = newBuild;
+            changed = true;
+          }
+        }
+      }
+      if (changed) affectedEventIds.add(ev.id);
+    }
+
+    if (!affectedEventIds.size) {
+      errEl.textContent = 'No matching records found.';
+      btn.disabled = false;
+      btn.textContent = action === 'rename' ? '✅ Rename' : '🗑 Delete';
+      return;
+    }
+
+    // Save each affected event
+    for (const eventId of affectedEventIds) {
+      const ev = data.events.find(e => e.id === eventId);
+      if (!ev) continue;
+      const res = await fetch('/api/beyresults', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminUsername: _acAdminUsername,
+          adminPassword: _acAdminPassword,
+          eventId,
+          builds:     ev.builds     || {},
+          beyResults: ev.beyResults || []
+        })
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Save failed for event ' + eventId);
+      }
+    }
+
+    // Bust cache and re-render
+    brAllEventData = null;
+    closeBeyEditModal();
+    renderBeyRankings();
+    showToast(action === 'rename'
+      ? `✅ Renamed "${oldBuild}" → "${newBuild}"`
+      : `🗑 Deleted all records for "${oldBuild}"`, 'success');
+  } catch(e) {
+    errEl.textContent = '❌ ' + e.message;
+    btn.disabled = false;
+    btn.textContent = action === 'rename' ? '✅ Rename' : '🗑 Delete';
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -7516,6 +7684,25 @@ async function deleteEvent() {
         </div>
       </div>
 
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ BEY EDIT MODAL ══════════════ -->
+<div class="modal-overlay" id="bey-edit-modal" onclick="if(event.target===this)closeBeyEditModal()">
+  <div class="modal" style="max-width:380px">
+    <button class="modal-close" onclick="closeBeyEditModal()">✕</button>
+    <div class="modal-title" id="bey-edit-modal-title">✏️ Rename Build</div>
+    <div class="modal-sub" id="bey-edit-modal-sub"></div>
+    <div class="form-group" id="bey-edit-name-group">
+      <label class="form-label">New Build Name</label>
+      <input class="form-input" id="bey-edit-name-input" placeholder="e.g. Hover 7-60 K" style="font-size:15px"
+        onkeydown="if(event.key==='Enter')confirmBeyEdit()" />
+    </div>
+    <div class="modal-error" id="bey-edit-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" id="bey-edit-confirm-btn" onclick="confirmBeyEdit()">✅ Confirm</button>
+      <button class="btn" onclick="closeBeyEditModal()">Cancel</button>
     </div>
   </div>
 </div>
