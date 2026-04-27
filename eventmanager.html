@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RXS Event Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111;
+    --surface2: #181818;
+    --surface3: #1e1e1e;
+    --border: #2a2a2a;
+    --border2: #333;
+    --gold: #d4af37;
+    --gold2: #f0c040;
+    --blue: #4a9eff;
+    --green: #4caf50;
+    --red: #e53935;
+    --text: #e8e8e8;
+    --muted: #888;
+    --muted2: #555;
+    --finish-s: #4a9eff;
+    --finish-o: #ff9800;
+    --finish-e: #e91e63;
+    --finish-b: #9c27b0;
+    --finish-l: #607d8b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    background: #0d0d0d;
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .topbar-logo {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 800;
+    font-size: 20px;
+    color: var(--gold);
+    letter-spacing: 2px;
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+  .topbar-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .topbar-sep { color: var(--border2); }
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  #save-status {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--muted2);
+    transition: color .3s;
+  }
+  #save-status.saving { color: var(--gold); }
+  #save-status.saved  { color: var(--green); }
+  #save-status.error  { color: var(--red); }
+
+  /* ── AUTH GATE ── */
+  #auth-gate {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 52px);
+  }
+  .auth-card {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 14px;
+    padding: 36px 40px;
+    width: 340px;
+    text-align: center;
+  }
+  .auth-card h2 {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    color: var(--gold);
+    margin-bottom: 6px;
+  }
+  .auth-card p { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+  .auth-error { color: var(--red); font-size: 12px; margin-top: 10px; min-height: 18px; }
+
+  /* ── MAIN LAYOUT ── */
+  #app { display: none; }
+  .workspace {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 20px;
+  }
+
+  /* ── EVENT PICKER ── */
+  .section-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted2);
+    margin-bottom: 6px;
+  }
+  .event-picker-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+  }
+  .event-select {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 15px;
+    padding: 8px 14px;
+    flex: 1;
+    min-width: 260px;
+    cursor: pointer;
+    outline: none;
+  }
+  .event-select:focus { border-color: var(--blue); }
+  .event-badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(74,158,255,0.12);
+    border: 1px solid rgba(74,158,255,0.3);
+    color: var(--blue);
+  }
+  .event-badge.s3 { background: rgba(212,175,55,0.12); border-color: rgba(212,175,55,0.3); color: var(--gold); }
+
+  /* ── TABS ── */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  .tab-btn {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 10px 18px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all .15s;
+    margin-bottom: -1px;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
+  /* ── FORM INPUTS ── */
+  .form-input {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 7px;
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    padding: 7px 11px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .form-input:focus { border-color: var(--blue); }
+  .form-input::placeholder { color: var(--muted2); }
+
+  /* ── BUTTONS ── */
+  .btn {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 7px;
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 7px 14px;
+    cursor: pointer;
+    transition: all .15s;
+    text-transform: uppercase;
+  }
+  .btn:hover { border-color: var(--blue); color: var(--blue); }
+  .btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .btn.primary:hover { background: #6ab0ff; }
+  .btn.success { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn.success:hover { background: #66bb6a; }
+  .btn.danger { border-color: #5a1a1a; color: var(--red); }
+  .btn.danger:hover { background: #1f0a0a; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.gold { background:#1a1200; border-color:var(--gold); color:var(--gold); }
+  .btn.gold:hover { background:#241900; }
+
+  /* ── BUILDS TAB ── */
+  .builds-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+  }
+  .player-build-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .player-build-card-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--gold2);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .build-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .build-num {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--muted2);
+    width: 16px;
+    flex-shrink: 0;
+  }
+  .build-delete {
+    background: none;
+    border: none;
+    color: var(--muted2);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 4px;
+    flex-shrink: 0;
+    transition: color .15s;
+  }
+  .build-delete:hover { color: var(--red); }
+  .add-build-btn {
+    background: none;
+    border: 1px dashed var(--border2);
+    border-radius: 6px;
+    color: var(--muted);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 10px;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 4px;
+    transition: all .15s;
+  }
+  .add-build-btn:hover { border-color: var(--blue); color: var(--blue); }
+
+  /* ── RESULTS TAB ── */
+  .results-section { margin-bottom: 32px; }
+  .results-section-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--gold);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .results-table-wrap { overflow-x: auto; }
+  .results-table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 600px;
+    font-size: 13px;
+  }
+  .results-table th {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    text-align: center;
+    white-space: nowrap;
+  }
+  .results-table th.player-col { text-align: left; min-width: 130px; }
+  .results-table th.build-col { text-align: left; min-width: 160px; }
+  .results-table td {
+    border: 1px solid var(--border);
+    padding: 5px 8px;
+    vertical-align: middle;
+    background: var(--surface);
+  }
+  .results-table tr:hover td { background: var(--surface2); }
+  .results-table td.player-cell {
+    font-weight: 700;
+    color: var(--gold2);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .results-table td.build-cell {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--blue);
+    white-space: nowrap;
+  }
+
+  /* Finish cell */
+  .finish-cell-inner {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    min-width: 70px;
+  }
+  .finish-tag {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 5px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+  }
+  .finish-tag.S { background: rgba(74,158,255,0.2); color: var(--finish-s); border: 1px solid rgba(74,158,255,0.4); }
+  .finish-tag.O { background: rgba(255,152,0,0.2);  color: var(--finish-o); border: 1px solid rgba(255,152,0,0.4); }
+  .finish-tag.E { background: rgba(233,30,99,0.2);  color: var(--finish-e); border: 1px solid rgba(233,30,99,0.4); }
+  .finish-tag.B { background: rgba(156,39,176,0.2); color: var(--finish-b); border: 1px solid rgba(156,39,176,0.4); }
+  .finish-tag.L { background: rgba(96,125,139,0.2); color: var(--finish-l); border: 1px solid rgba(96,125,139,0.4); }
+  .finish-tag-remove {
+    background: none; border: none; color: var(--muted2);
+    cursor: pointer; font-size: 9px; padding: 0 1px; line-height: 1;
+  }
+  .finish-tag-remove:hover { color: var(--red); }
+  .add-finish-btn {
+    background: none;
+    border: 1px dashed var(--border2);
+    border-radius: 3px;
+    color: var(--muted2);
+    font-size: 10px;
+    padding: 1px 5px;
+    cursor: pointer;
+    transition: all .12s;
+    white-space: nowrap;
+  }
+  .add-finish-btn:hover { border-color: var(--blue); color: var(--blue); }
+
+  /* deployed toggle */
+  .deploy-toggle {
+    appearance: none;
+    width: 14px; height: 14px;
+    border: 1px solid var(--border2);
+    border-radius: 3px;
+    background: var(--surface2);
+    cursor: pointer;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .deploy-toggle:checked {
+    background: var(--blue);
+    border-color: var(--blue);
+  }
+  .deploy-toggle:checked::after {
+    content: '✓';
+    position: absolute;
+    top: -1px; left: 1px;
+    font-size: 10px;
+    color: #fff;
+  }
+
+  /* win/loss badge */
+  .round-win-badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all .12s;
+    border: 1px solid transparent;
+  }
+  .round-win-badge.win  { background: rgba(76,175,80,0.2);  color: var(--green); border-color: rgba(76,175,80,0.3); }
+  .round-win-badge.loss { background: rgba(229,57,53,0.2);  color: var(--red);   border-color: rgba(229,57,53,0.3); }
+
+  /* round points display */
+  .round-pts {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+  }
+  .round-pts.high { color: var(--gold2); font-weight: 700; }
+
+  /* finish picker popup */
+  .finish-picker {
+    position: fixed;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    z-index: 200;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    min-width: 150px;
+  }
+  .finish-picker-btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 12px;
+    border-radius: 5px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all .12s;
+  }
+  .finish-picker-btn.S { background: rgba(74,158,255,0.15);  color: var(--finish-s); border-color: rgba(74,158,255,0.4); }
+  .finish-picker-btn.S:hover { background: rgba(74,158,255,0.3); }
+  .finish-picker-btn.O { background: rgba(255,152,0,0.15);  color: var(--finish-o); border-color: rgba(255,152,0,0.4); }
+  .finish-picker-btn.O:hover { background: rgba(255,152,0,0.3); }
+  .finish-picker-btn.E { background: rgba(233,30,99,0.15);  color: var(--finish-e); border-color: rgba(233,30,99,0.4); }
+  .finish-picker-btn.E:hover { background: rgba(233,30,99,0.3); }
+  .finish-picker-btn.B { background: rgba(156,39,176,0.15); color: var(--finish-b); border-color: rgba(156,39,176,0.4); }
+  .finish-picker-btn.B:hover { background: rgba(156,39,176,0.3); }
+  .finish-picker-btn.L { background: rgba(96,125,139,0.15); color: var(--finish-l); border-color: rgba(96,125,139,0.4); }
+  .finish-picker-btn.L:hover { background: rgba(96,125,139,0.3); }
+
+  /* add round button */
+  .add-round-row td {
+    background: var(--surface) !important;
+    text-align: center;
+    padding: 10px;
+  }
+
+  /* roster tab */
+  .roster-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+  }
+  .roster-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .roster-avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #1a1200, #2a2200);
+    border: 1px solid var(--gold);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 13px; color: var(--gold2);
+    flex-shrink: 0;
+  }
+  .roster-name { font-weight: 700; font-size: 14px; }
+  .roster-sub  { font-size: 11px; color: var(--muted); font-family: 'Share Tech Mono', monospace; }
+  .team-roster-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .team-name-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--gold2);
+    margin-bottom: 8px;
+  }
+
+  /* toast */
+  #toast {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-size: 13px;
+    z-index: 999;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all .3s;
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.success { border-color: var(--green); color: var(--green); }
+  #toast.error   { border-color: var(--red);   color: var(--red); }
+
+  /* misc */
+  .empty-state {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--muted2);
+    font-size: 13px;
+  }
+  .empty-state .icon { font-size: 36px; margin-bottom: 10px; }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+  .info-row {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px;
+  }
+  .info-chip {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .info-chip span { color: var(--text); }
+
+  /* legend */
+  .legend {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 14px; align-items: center;
+  }
+  .legend-item {
+    display: flex; gap: 5px; align-items: center;
+    font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <a href="index.html" class="topbar-logo">RXS</a>
+  <span class="topbar-sep">|</span>
+  <span class="topbar-title">Event Manager</span>
+  <div class="topbar-right">
+    <span id="save-status">—</span>
+    <button class="btn success" id="save-btn" onclick="saveAll()" disabled>💾 Save</button>
+    <button class="btn gold" onclick="window.location.href='index.html'">← Back</button>
+  </div>
+</div>
+
+<!-- AUTH GATE -->
+<div id="auth-gate">
+  <div class="auth-card">
+    <div style="font-size:32px;margin-bottom:10px">👑</div>
+    <h2>ADMIN LOGIN</h2>
+    <p>Enter admin credentials to access the Event Manager.</p>
+    <input class="form-input" type="text" id="auth-user" placeholder="Username" style="width:100%;margin-bottom:8px" onkeydown="if(event.key==='Enter')tryAuth()" />
+    <input class="form-input" type="password" id="auth-pass" placeholder="Password" style="width:100%" onkeydown="if(event.key==='Enter')tryAuth()" />
+    <div class="auth-error" id="auth-error"></div>
+    <button class="btn primary" style="width:100%;margin-top:14px;font-size:13px" onclick="tryAuth()">Enter</button>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <div class="workspace">
+
+    <!-- Event Picker -->
+    <div>
+      <div class="section-label">Select Event</div>
+      <div class="event-picker-row">
+        <select class="event-select" id="event-select" onchange="loadEvent(this.value)">
+          <option value="">— choose an event —</option>
+        </select>
+        <span id="event-type-badge" class="event-badge" style="display:none"></span>
+      </div>
+    </div>
+
+    <!-- Event Info -->
+    <div id="event-info" style="display:none">
+      <div class="info-row" id="event-info-chips"></div>
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('roster',this)">👥 Roster</button>
+        <button class="tab-btn" onclick="switchTab('builds',this)">🔩 Bey Builds</button>
+        <button class="tab-btn" onclick="switchTab('results',this)">📊 Match Results</button>
+      </div>
+
+      <!-- ROSTER TAB -->
+      <div class="tab-pane active" id="tab-roster">
+        <div id="roster-content"><div class="empty-state"><div class="icon">👥</div>Select an event to see the roster.</div></div>
+      </div>
+
+      <!-- BUILDS TAB -->
+      <div class="tab-pane" id="tab-builds">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:15px;font-weight:700;color:var(--text)">Register Bey Builds</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">Each player can have up to 3 builds per event. These are used for match result tracking.</div>
+          </div>
+        </div>
+        <div class="builds-grid" id="builds-grid">
+          <div class="empty-state"><div class="icon">🔩</div>No players loaded yet.</div>
+        </div>
+      </div>
+
+      <!-- RESULTS TAB -->
+      <div class="tab-pane" id="tab-results">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:15px;font-weight:700;color:var(--text)">Match Results</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">
+              Click <strong style="color:var(--blue)">+ Finish</strong> on a cell to add finishes. Click a finish tag to remove it. Toggle WIN/LOSS per round.
+            </div>
+          </div>
+          <button class="btn gold" onclick="addRound()">➕ Add Round</button>
+        </div>
+        <div class="legend">
+          <span style="font-size:11px;color:var(--muted);font-family:'Share Tech Mono',monospace">FINISH TYPES:</span>
+          <span class="legend-item"><span class="finish-tag S">S</span> Spin (1pt)</span>
+          <span class="legend-item"><span class="finish-tag O">O</span> Over (2pt)</span>
+          <span class="legend-item"><span class="finish-tag E">E</span> Extreme (3pt)</span>
+          <span class="legend-item"><span class="finish-tag B">B</span> Burst (2pt)</span>
+          <span class="legend-item"><span class="finish-tag L">L</span> Loss (0pt)</span>
+          <span style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace;margin-left:4px">· empty cell = not deployed</span>
+        </div>
+        <div id="results-content">
+          <div class="empty-state"><div class="icon">📊</div>Register bey builds first, then add rounds here.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Finish Picker Popup -->
+<div class="finish-picker" id="finish-picker" style="display:none">
+  <button class="finish-picker-btn S" onclick="pickFinish('S')">S — Spin</button>
+  <button class="finish-picker-btn O" onclick="pickFinish('O')">O — Over</button>
+  <button class="finish-picker-btn E" onclick="pickFinish('E')">E — Extreme</button>
+  <button class="finish-picker-btn B" onclick="pickFinish('B')">B — Burst</button>
+  <button class="finish-picker-btn L" onclick="pickFinish('L')">L — Loss</button>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+let adminUser = '';
+let adminPass = '';
+let allEvents = [];
+let currentEvent = null;
+
+// builds: { playerKey: ['Build 1', 'Build 2', 'Build 3'] }
+let buildsState = {};
+
+// beyResults: [ { player, round, builds: [{build,finishes:[],deployed}], pointsTotal, win } ]
+let resultsState = [];
+
+let dirty = false;
+let _pickerTarget = null; // { playerKey, buildIdx, roundIdx }
+
+const FINISH_PTS = { S: 1, O: 2, E: 3, B: 2, L: 0 };
+
+// ─────────────────────────────────────────────
+// AUTH
+// ─────────────────────────────────────────────
+async function tryAuth() {
+  const u = document.getElementById('auth-user').value.trim();
+  const p = document.getElementById('auth-pass').value;
+  const errEl = document.getElementById('auth-error');
+  errEl.textContent = '';
+  if (!u || !p) { errEl.textContent = 'Enter username and password.'; return; }
+
+  // Verify by trying to load events — if we get data we're probably fine,
+  // real auth is checked server-side on save. We'll do a lightweight ping.
+  try {
+    const res = await fetch('/api/events');
+    if (!res.ok) throw new Error('Could not reach server.');
+    adminUser = u;
+    adminPass = p;
+    document.getElementById('auth-gate').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    loadEventList();
+  } catch (e) {
+    errEl.textContent = e.message;
+  }
+}
+
+// ─────────────────────────────────────────────
+// EVENTS
+// ─────────────────────────────────────────────
+async function loadEventList() {
+  try {
+    const res = await fetch('/api/events');
+    const data = await res.json();
+    allEvents = (data.events || []).sort((a,b) => {
+      // Active/upcoming first
+      const now = Date.now();
+      const da = new Date(a.date).getTime() || 0;
+      const db = new Date(b.date).getTime() || 0;
+      return db - da;
+    });
+    const sel = document.getElementById('event-select');
+    sel.innerHTML = '<option value="">— choose an event —</option>';
+    allEvents.forEach(ev => {
+      const opt = document.createElement('option');
+      opt.value = ev.id;
+      const season = ev.season ? ` [${ev.season.toUpperCase()}]` : '';
+      opt.textContent = `${ev.title}${season} — ${ev.date || ''}`;
+      sel.appendChild(opt);
+    });
+  } catch (e) {
+    showToast('Could not load events: ' + e.message, 'error');
+  }
+}
+
+function loadEvent(id) {
+  if (!id) {
+    currentEvent = null;
+    document.getElementById('event-info').style.display = 'none';
+    return;
+  }
+  currentEvent = allEvents.find(e => e.id === id);
+  if (!currentEvent) return;
+
+  // Load existing beyResults/builds from event
+  buildsState = JSON.parse(JSON.stringify(currentEvent.builds || {}));
+  resultsState = JSON.parse(JSON.stringify(currentEvent.beyResults || []));
+  dirty = false;
+  setSaveStatus('—');
+
+  // Show event badge
+  const badge = document.getElementById('event-type-badge');
+  badge.style.display = '';
+  badge.textContent = (currentEvent.season || 'unknown').toUpperCase();
+  badge.className = 'event-badge ' + (currentEvent.season || '');
+
+  // Info chips
+  const chips = document.getElementById('event-info-chips');
+  chips.innerHTML = [
+    ['TYPE', currentEvent.type || 'solo'],
+    ['DATE', currentEvent.date || '—'],
+    ['VENUE', currentEvent.venue || '—'],
+    ['SEASON', (currentEvent.season || '—').toUpperCase()],
+  ].map(([k,v]) => `<span class="info-chip">${k}: <span>${v}</span></span>`).join('');
+
+  document.getElementById('event-info').style.display = 'block';
+  renderRoster();
+  renderBuilds();
+  renderResults();
+}
+
+// ─────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────
+function getPlayers() {
+  if (!currentEvent) return [];
+  const players = [];
+  const seen = new Set();
+  for (const j of (currentEvent.joiners || [])) {
+    if (j.type === 'team' && Array.isArray(j.members)) {
+      for (const m of j.members) {
+        const name = typeof m === 'object' ? m.displayName : m;
+        if (name && !seen.has(name)) { seen.add(name); players.push({ name, team: j.teamName }); }
+      }
+    } else {
+      const name = j.displayName || j.name || j.username;
+      if (name && !seen.has(name)) { seen.add(name); players.push({ name, team: null }); }
+    }
+  }
+  return players;
+}
+
+function playerKey(name) { return name; }
+
+function markDirty() {
+  dirty = true;
+  document.getElementById('save-btn').disabled = false;
+  setSaveStatus('Unsaved changes');
+}
+
+function setSaveStatus(msg, cls = '') {
+  const el = document.getElementById('save-status');
+  el.textContent = msg;
+  el.className = cls;
+}
+
+// ─────────────────────────────────────────────
+// TABS
+// ─────────────────────────────────────────────
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+}
+
+// ─────────────────────────────────────────────
+// ROSTER TAB
+// ─────────────────────────────────────────────
+function renderRoster() {
+  const el = document.getElementById('roster-content');
+  const players = getPlayers();
+  if (!players.length) {
+    el.innerHTML = '<div class="empty-state"><div class="icon">👥</div>No players registered for this event yet.</div>';
+    return;
+  }
+  const isTeam = currentEvent.type === '3v3';
+  if (isTeam) {
+    const teams = {};
+    for (const p of players) {
+      const t = p.team || 'Solo';
+      if (!teams[t]) teams[t] = [];
+      teams[t].push(p);
+    }
+    el.innerHTML = Object.entries(teams).map(([team, members]) => `
+      <div class="team-roster-card">
+        <div class="team-name-label">🏆 ${team}</div>
+        <div class="roster-grid">
+          ${members.map(p => `
+            <div class="roster-card">
+              <div class="roster-avatar">${p.name[0].toUpperCase()}</div>
+              <div><div class="roster-name">${p.name}</div></div>
+            </div>`).join('')}
+        </div>
+      </div>`).join('');
+  } else {
+    el.innerHTML = `<div class="roster-grid">${players.map(p => `
+      <div class="roster-card">
+        <div class="roster-avatar">${p.name[0].toUpperCase()}</div>
+        <div>
+          <div class="roster-name">${p.name}</div>
+          <div class="roster-sub">${p.team ? 'Team: ' + p.team : 'Solo'}</div>
+        </div>
+      </div>`).join('')}</div>`;
+  }
+}
+
+// ─────────────────────────────────────────────
+// BUILDS TAB
+// ─────────────────────────────────────────────
+function renderBuilds() {
+  const el = document.getElementById('builds-grid');
+  const players = getPlayers();
+  if (!players.length) {
+    el.innerHTML = '<div class="empty-state"><div class="icon">🔩</div>No players registered yet.</div>';
+    return;
+  }
+  el.innerHTML = players.map(p => {
+    const key = playerKey(p.name);
+    if (!buildsState[key]) buildsState[key] = [];
+    const builds = buildsState[key];
+    const rows = builds.map((b, i) => `
+      <div class="build-row">
+        <span class="build-num">${i+1}.</span>
+        <input class="form-input" style="flex:1;font-size:13px;padding:5px 8px;font-family:'Share Tech Mono',monospace"
+          value="${escHtml(b)}" placeholder="e.g. Wiro 1-60 H"
+          oninput="updateBuild('${escJs(key)}', ${i}, this.value)" />
+        <button class="build-delete" onclick="removeBuild('${escJs(key)}', ${i})">✕</button>
+      </div>`).join('');
+    const canAdd = builds.length < 3;
+    return `
+      <div class="player-build-card">
+        <div class="player-build-card-name">
+          <span style="width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#1a1200,#2a2200);
+            border:1px solid var(--gold);display:inline-flex;align-items:center;justify-content:center;
+            font-size:11px;color:var(--gold2)">${p.name[0].toUpperCase()}</span>
+          ${p.name}
+        </div>
+        <div id="builds-rows-${escId(key)}">${rows}</div>
+        ${canAdd ? `<button class="add-build-btn" onclick="addBuild('${escJs(key)}')">+ Add Build</button>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function addBuild(key) {
+  if (!buildsState[key]) buildsState[key] = [];
+  if (buildsState[key].length >= 3) return;
+  buildsState[key].push('');
+  markDirty();
+  renderBuilds();
+}
+
+function removeBuild(key, idx) {
+  if (!buildsState[key]) return;
+  buildsState[key].splice(idx, 1);
+  // Also clean up results referencing this build
+  syncResultsBuilds();
+  markDirty();
+  renderBuilds();
+  renderResults();
+}
+
+function updateBuild(key, idx, val) {
+  if (!buildsState[key]) return;
+  buildsState[key][idx] = val;
+  markDirty();
+}
+
+// ─────────────────────────────────────────────
+// RESULTS TAB
+// ─────────────────────────────────────────────
+function syncResultsBuilds() {
+  // Ensure resultsState has correct build lists from buildsState
+  for (const entry of resultsState) {
+    const key = playerKey(entry.player);
+    const builds = buildsState[key] || [];
+    // Re-align builds array
+    const newBuilds = builds.map((buildName, i) => {
+      const existing = (entry.builds || []).find(b => b.build === buildName);
+      return existing || { build: buildName, finishes: [], deployed: false };
+    });
+    entry.builds = newBuilds;
+  }
+}
+
+function getRounds() {
+  const rounds = new Set();
+  for (const r of resultsState) rounds.add(r.round);
+  return Array.from(rounds).sort((a, b) => {
+    const na = parseInt(a.replace(/\D/g, '')) || 0;
+    const nb = parseInt(b.replace(/\D/g, '')) || 0;
+    return na - nb;
+  });
+}
+
+function addRound() {
+  const players = getPlayers();
+  if (!players.length) { showToast('No players loaded.', 'error'); return; }
+  const rounds = getRounds();
+  const nextNum = rounds.length + 1;
+  const isFinal = nextNum > 4; // Suggest finals if many rounds
+  const roundName = 'R' + nextNum;
+  for (const p of players) {
+    const key = playerKey(p.name);
+    const builds = (buildsState[key] || []).map(b => ({ build: b, finishes: [], deployed: false }));
+    resultsState.push({ player: p.name, round: roundName, builds, pointsTotal: 0, win: false });
+  }
+  markDirty();
+  renderResults();
+}
+
+function calcPoints(builds) {
+  let pts = 0;
+  for (const b of builds) {
+    for (const f of (b.finishes || [])) {
+      if (f !== 'L') pts += FINISH_PTS[f] || 0; // L = loss, 0 points
+    }
+  }
+  return pts;
+}
+
+function renderResults() {
+  const el = document.getElementById('results-content');
+  const players = getPlayers();
+  if (!players.length || Object.keys(buildsState).length === 0) {
+    el.innerHTML = '<div class="empty-state"><div class="icon">📊</div>Register bey builds first, then add rounds here.</div>';
+    return;
+  }
+
+  const rounds = getRounds();
+  if (!rounds.length) {
+    el.innerHTML = `<div class="empty-state"><div class="icon">🎮</div>No rounds yet. Click <strong style="color:var(--blue)">Add Round</strong> to start.</div>`;
+    return;
+  }
+
+  // Build per-round tables
+  let html = '';
+  for (const round of rounds) {
+    const entries = resultsState.filter(r => r.round === round);
+    if (!entries.length) continue;
+
+    // Max builds across all players this round
+    const maxBuilds = Math.max(...entries.map(e => (e.builds || []).length), 0);
+
+    html += `<div class="results-section">
+      <div class="results-section-title">
+        ${round}
+        <button class="btn danger" style="font-size:10px;padding:3px 8px" onclick="removeRound('${round}')">✕ Remove</button>
+      </div>
+      <div class="results-table-wrap">
+      <table class="results-table">
+        <thead><tr>
+          <th class="player-col">Player</th>`;
+    for (let i = 0; i < maxBuilds; i++) html += `<th class="build-col">Build ${i+1} — Finishes</th>`;
+    html += `<th>Points</th><th>Result</th></tr></thead><tbody>`;
+
+    for (const entry of entries) {
+      const pKey = playerKey(entry.player);
+      const entryIdx = resultsState.indexOf(entry);
+      const pts = calcPoints(entry.builds || []);
+      entry.pointsTotal = pts;
+
+      html += `<tr>
+        <td class="player-cell">${entry.player}</td>`;
+
+      for (let bi = 0; bi < maxBuilds; bi++) {
+        const bEntry = (entry.builds || [])[bi];
+        if (!bEntry) { html += `<td></td>`; continue; }
+        const bIdx = bi;
+        const finishTags = (bEntry.finishes || []).map((f, fi) =>
+          `<span class="finish-tag ${f}">${f}<button class="finish-tag-remove" onclick="removeFinish(${entryIdx},${bIdx},${fi})">✕</button></span>`
+        ).join('');
+        const deployedCheck = `<input type="checkbox" class="deploy-toggle" title="Deployed?"
+          ${bEntry.deployed ? 'checked' : ''}
+          onchange="toggleDeployed(${entryIdx},${bIdx},this.checked)" />`;
+        html += `<td>
+          <div style="display:flex;flex-direction:column;gap:4px;min-width:100px">
+            <div style="display:flex;gap:4px;align-items:center;margin-bottom:2px">
+              ${deployedCheck}
+              <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--blue);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px" title="${escHtml(bEntry.build)}">${escHtml(bEntry.build) || '<em style="color:var(--muted2)">unnamed</em>'}</span>
+            </div>
+            <div class="finish-cell-inner">
+              ${finishTags}
+              ${bEntry.deployed ? `<button class="add-finish-btn" onclick="openPicker(event,${entryIdx},${bIdx})">+ Finish</button>` : `<span style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace">not deployed</span>`}
+            </div>
+          </div></td>`;
+      }
+
+      const ptsClass = pts >= 4 ? 'high' : '';
+      html += `<td class="round-pts ${ptsClass}">${pts}</td>
+        <td style="text-align:center">
+          <button class="round-win-badge ${entry.win ? 'win' : 'loss'}" onclick="toggleWin(${entryIdx})">
+            ${entry.win ? 'WIN' : 'LOSS'}
+          </button>
+        </td>
+      </tr>`;
+    }
+    html += `</tbody></table></div></div>`;
+  }
+
+  el.innerHTML = html;
+}
+
+function toggleDeployed(entryIdx, buildIdx, val) {
+  if (!resultsState[entryIdx]) return;
+  if (!resultsState[entryIdx].builds[buildIdx]) return;
+  resultsState[entryIdx].builds[buildIdx].deployed = val;
+  // Clear all finishes (wins and losses) when marking as not deployed
+  if (!val) resultsState[entryIdx].builds[buildIdx].finishes = [];
+  resultsState[entryIdx].pointsTotal = calcPoints(resultsState[entryIdx].builds);
+  markDirty();
+  renderResults();
+}
+
+function toggleWin(entryIdx) {
+  if (!resultsState[entryIdx]) return;
+  resultsState[entryIdx].win = !resultsState[entryIdx].win;
+  markDirty();
+  renderResults();
+}
+
+function removeFinish(entryIdx, buildIdx, finishIdx) {
+  resultsState[entryIdx].builds[buildIdx].finishes.splice(finishIdx, 1);
+  resultsState[entryIdx].pointsTotal = calcPoints(resultsState[entryIdx].builds);
+  markDirty();
+  renderResults();
+}
+
+function removeRound(round) {
+  if (!confirm(`Remove round ${round} and all its results?`)) return;
+  resultsState = resultsState.filter(r => r.round !== round);
+  markDirty();
+  renderResults();
+}
+
+// ─────────────────────────────────────────────
+// FINISH PICKER
+// ─────────────────────────────────────────────
+function openPicker(event, entryIdx, buildIdx) {
+  event.stopPropagation();
+  _pickerTarget = { entryIdx, buildIdx };
+  const picker = document.getElementById('finish-picker');
+  picker.style.display = 'flex';
+  const rect = event.target.getBoundingClientRect();
+  let top = rect.bottom + 6 + window.scrollY;
+  let left = rect.left + window.scrollX;
+  if (left + 220 > window.innerWidth) left = window.innerWidth - 230;
+  picker.style.top = top + 'px';
+  picker.style.left = left + 'px';
+}
+
+function pickFinish(type) {
+  if (!_pickerTarget) return;
+  const { entryIdx, buildIdx } = _pickerTarget;
+  if (!resultsState[entryIdx]) return;
+  if (!resultsState[entryIdx].builds[buildIdx]) return;
+
+  const bEntry = resultsState[entryIdx].builds[buildIdx];
+
+  // L is a special case — one L per bey per round max, and clears other finishes
+  // (a bey can only lose once in a round)
+  if (type === 'L') {
+    // If already has an L, don't add another
+    if (bEntry.finishes.includes('L')) { closePicker(); return; }
+    // A bey that lost shouldn't also have wins — keep wins if present, just add L
+    // Actually in this game it's possible to score then lose with another bey
+    // so we just add L as a finish entry
+    bEntry.finishes.push('L');
+  } else {
+    bEntry.finishes.push(type);
+  }
+
+  // Auto-mark as deployed when any finish is added
+  bEntry.deployed = true;
+  resultsState[entryIdx].pointsTotal = calcPoints(resultsState[entryIdx].builds);
+  markDirty();
+  closePicker();
+  renderResults();
+}
+
+function closePicker() {
+  document.getElementById('finish-picker').style.display = 'none';
+  _pickerTarget = null;
+}
+
+document.addEventListener('click', (e) => {
+  const picker = document.getElementById('finish-picker');
+  if (picker.style.display !== 'none' && !picker.contains(e.target)) closePicker();
+});
+
+// ─────────────────────────────────────────────
+// SAVE
+// ─────────────────────────────────────────────
+async function saveAll() {
+  if (!currentEvent) return;
+  setSaveStatus('Saving...', 'saving');
+  document.getElementById('save-btn').disabled = true;
+
+  try {
+    const res = await fetch('/api/beyresults', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        adminUsername: adminUser,
+        adminPassword: adminPass,
+        eventId: currentEvent.id,
+        builds: buildsState,
+        beyResults: resultsState
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Save failed.');
+    dirty = false;
+    setSaveStatus('Saved ✓', 'saved');
+    showToast('✅ Saved successfully!', 'success');
+    // Update local cache
+    const idx = allEvents.findIndex(e => e.id === currentEvent.id);
+    if (idx !== -1) {
+      allEvents[idx].builds = buildsState;
+      allEvents[idx].beyResults = resultsState;
+      currentEvent = allEvents[idx];
+    }
+    setTimeout(() => { if (!dirty) setSaveStatus('—'); }, 3000);
+  } catch (e) {
+    setSaveStatus('Save failed', 'error');
+    showToast('❌ ' + e.message, 'error');
+    document.getElementById('save-btn').disabled = false;
+  }
+}
+
+// ─────────────────────────────────────────────
+// TOAST
+// ─────────────────────────────────────────────
+let _toastTimer;
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show ' + type;
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { t.className = ''; }, 3000);
+}
+
+// ─────────────────────────────────────────────
+// UTILS
+// ─────────────────────────────────────────────
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escJs(s) {
+  return String(s || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+}
+function escId(s) {
+  return String(s || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+// Warn on unsaved changes
+window.addEventListener('beforeunload', e => {
+  if (dirty) { e.preventDefault(); e.returnValue = ''; }
+});
+</script>
+</body>
+</html>
