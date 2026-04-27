@@ -293,13 +293,20 @@
   }
   .match-card:hover { border-color: var(--border2); }
   .match-cards-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
     gap: 10px;
-    align-items: start;
+    align-items: flex-start;
+  }
+  .match-cards-col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
   }
   @media (max-width: 900px) {
-    .match-cards-grid { grid-template-columns: 1fr; }
+    .match-cards-grid { flex-direction: column; }
+    .match-cards-col { flex: none; width: 100%; }
   }
   .match-card-header {
     display: flex;
@@ -357,9 +364,10 @@
   .match-player-name.p2 { color: var(--gold2); }
   .match-build-row {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin-bottom: 5px;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
     padding: 5px 7px;
     background: var(--surface2);
     border: 1px solid var(--border);
@@ -367,11 +375,19 @@
   }
   .match-build-name {
     font-family: 'Share Tech Mono', monospace;
-    font-size: 11px;
+    font-size: 12px;
     color: var(--blue);
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
+    flex-shrink: 0;
+  }
+  .match-build-finishes {
+    display: flex;
+    gap: 3px;
+    flex-wrap: wrap;
+    align-items: center;
+    flex: 1;
   }
   .match-pts-row {
     display: flex;
@@ -477,9 +493,9 @@
   }
   .finish-tag {
     font-family: 'Share Tech Mono', monospace;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 700;
-    padding: 2px 5px;
+    padding: 2px 6px;
     border-radius: 3px;
     letter-spacing: 0.5px;
   }
@@ -1453,7 +1469,12 @@ function renderResults() {
     return;
   }
 
-  el.innerHTML = `<div class="match-cards-grid">${filtered.map(match => renderMatchCard(match)).join('')}</div>`;
+  const col1 = filtered.filter((_,i) => i % 2 === 0).map(m => renderMatchCard(m)).join('');
+  const col2 = filtered.filter((_,i) => i % 2 === 1).map(m => renderMatchCard(m)).join('');
+  el.innerHTML = `<div class="match-cards-grid">
+    <div class="match-cards-col">${col1}</div>
+    <div class="match-cards-col">${col2}</div>
+  </div>`;
 }
 
 function renderMatchCard(match) {
@@ -1502,13 +1523,13 @@ function renderPlayerSide(match, side, mid) {
         <div class="match-build-name">
           <input type="checkbox" class="deploy-toggle" ${b.deployed ? 'checked' : ''}
             onchange="mToggleDeploy(${mid},'${side}',${bi},this.checked)" title="Deployed?" />
-          <span title="${escHtml(b.build)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">${escHtml(b.build) || '<em style="color:var(--muted2)">unnamed</em>'}</span>
+          <span title="${escHtml(b.build)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px">${escHtml(b.build) || '<em style="color:var(--muted2)">unnamed</em>'}</span>
         </div>
-        <div class="finish-cell-inner">
+        <div class="match-build-finishes">
           ${finishTags}
           ${b.deployed
             ? `<button class="add-finish-btn" onclick="openPicker(event,${mid},'${side}',${bi})">+ Finish</button>`
-            : `<span style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace">not deployed</span>`}
+            : `<span style="font-size:9px;color:var(--muted2);font-family:'Share Tech Mono',monospace">not deployed</span>`}
         </div>
       </div>`;
   }).join('');
