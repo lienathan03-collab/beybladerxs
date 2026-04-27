@@ -62,7 +62,7 @@ export async function onRequest(context) {
         );
       }
 
-      // Extra validation for team_join
+      // Basic team_join early validation
       if (action === 'team_join') {
         if (!teamName || !teamName.trim()) {
           return new Response(
@@ -70,16 +70,9 @@ export async function onRequest(context) {
             { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
           );
         }
-        if (!Array.isArray(members) || members.length !== 3 || members.some(m => !m || !m.trim())) {
+        if (!Array.isArray(members) || members.length !== 3) {
           return new Response(
-            JSON.stringify({ error: 'Exactly 3 member names are required.' }),
-            { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
-          );
-        }
-        const uniqueMembers = new Set(members.map(m => m.trim().toLowerCase()));
-        if (uniqueMembers.size < 3) {
-          return new Response(
-            JSON.stringify({ error: 'All 3 members must be different players.' }),
+            JSON.stringify({ error: 'Exactly 3 members are required.' }),
             { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
           );
         }
@@ -137,37 +130,74 @@ export async function onRequest(context) {
             { status: 409, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
           );
         }
-        // Prevent any member name from appearing in an already-registered team
-        const incomingMembers = members.map(m => m.trim().toLowerCase());
+
+        // members is now an array of {username, displayName} objects
+        // Validate structure
+        if (!Array.isArray(members) || members.length !== 3 ||
+            members.some(m => !m || typeof m !== 'object' || !m.username || !m.displayName)) {
+          return new Response(
+            JSON.stringify({ error: 'Invalid members format. Each member must have username and displayName.' }),
+            { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Verify all member usernames exist in accounts
+        for (const m of members) {
+          if (!accounts[m.username]) {
+            return new Response(
+              JSON.stringify({ error: `Player "@${m.username}" does not have an account.` }),
+              { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+            );
+          }
+        }
+
+        // Prevent duplicate member usernames within the team
+        const memberUsernames = members.map(m => m.username.toLowerCase());
+        if (new Set(memberUsernames).size < 3) {
+          return new Response(
+            JSON.stringify({ error: 'All 3 members must be different players.' }),
+            { status: 409, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Prevent any member username from appearing in an already-registered team
         for (const joiner of event.joiners) {
           if (joiner.type === 'team' && Array.isArray(joiner.members)) {
-            const existingMembers = joiner.members.map(m => m.toLowerCase());
-            const conflict = incomingMembers.find(m => existingMembers.includes(m));
-            if (conflict) {
-              return new Response(
-                JSON.stringify({ error: 'One or more members are already in another team.' }),
-                { status: 409, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
-              );
+            for (const existingMember of joiner.members) {
+              const existingUsername = (typeof existingMember === 'object'
+                ? existingMember.username
+                : existingMember // backwards compat with old string format
+              ).toLowerCase();
+              const conflict = memberUsernames.find(u => u === existingUsername);
+              if (conflict) {
+                const conflictMember = members.find(m => m.username.toLowerCase() === conflict);
+                return new Response(
+                  JSON.stringify({ error: `${conflictMember.displayName} is already registered in team "${joiner.teamName}".` }),
+                  { status: 409, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+                );
+              }
             }
           }
         }
-        // Also prevent duplicate team name (case-insensitive)
+
+        // Prevent duplicate team name (case-insensitive)
         const dupTeam = event.joiners.find(j =>
           j.type === 'team' && j.teamName && j.teamName.toLowerCase() === teamName.trim().toLowerCase()
         );
         if (dupTeam) {
           return new Response(
-            JSON.stringify({ error: `Team name is already taken.` }),
+            JSON.stringify({ error: `Team name "${teamName.trim()}" is already taken.` }),
             { status: 409, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
           );
         }
-        // Save the full team object in one step — no patching needed
+
+        // Save the full team object — members stored as [{username, displayName}]
         event.joiners.push({
           username,
           name:      teamName.trim(),
           type:      'team',
           teamName:  teamName.trim(),
-          members:   members.map(m => m.trim()),
+          members:   members.map(m => ({ username: m.username, displayName: m.displayName })),
           joinedAt:  new Date().toISOString()
         });
       } else if (action === 'join') {
