@@ -1174,7 +1174,15 @@
     <button onclick="showTab('challonge', this)">⚡ Challonge</button>
     <button onclick="showTab('points', this)">Points</button>
     <span class="nav-player-login-hint" id="nav-player-login-hint" onclick="openPlayerLoginModal()" title="Player Login" style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--muted);padding:6px 10px;letter-spacing:1px;cursor:pointer;border-radius:6px;transition:color .15s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted)'">👤 Login</span>
-    <button class="nav-player-badge" id="nav-player-badge" style="display:none;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px;font-size:12px;padding:6px 12px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px;" onclick="openPlayerMenuModal()">👤 <span id="nav-player-name"></span></button>
+    <div class="nav-player-dropdown" id="nav-player-dropdown" style="display:none;position:relative;">
+      <button class="nav-player-badge" id="nav-player-badge" style="display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px;font-size:12px;padding:6px 12px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px;" onclick="togglePlayerDropdown(event)">👤 <span id="nav-player-name"></span> <span style="font-size:10px;opacity:0.6">▾</span></button>
+      <div class="player-dropdown-menu" id="nav-player-dropdown-menu" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--surface);border:1px solid var(--border2);border-radius:10px;min-width:170px;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.6);overflow:hidden;">
+        <button onclick="openPlayerMenuModal();closePlayerDropdown()" style="display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;border-bottom:1px solid var(--border);color:var(--text);font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:11px 16px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='none'">👤 My Profile</button>
+        <button onclick="openPlayerMenuModal();pmSwitchPanel('rename');closePlayerDropdown()" style="display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;border-bottom:1px solid var(--border);color:var(--text);font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:11px 16px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='none'">✏️ Change Name</button>
+        <button onclick="openPlayerMenuModal();pmSwitchPanel('password');closePlayerDropdown()" style="display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;border-bottom:1px solid var(--border);color:var(--text);font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:11px 16px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='none'">🔒 Change Password</button>
+        <button onclick="playerLogout();closePlayerDropdown()" style="display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;color:#f06464;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:11px 16px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background='#1f0a0a'" onmouseout="this.style.background='none'">⏏ Logout</button>
+      </div>
+    </div>
     <div class="season-switcher" id="season-switcher">
       <div class="season-dropdown" id="season-dropdown">
         <button class="season-dropdown-btn" id="season-dropdown-btn" onclick="toggleSeasonDropdown(event)">
@@ -3630,7 +3638,21 @@ function toggleLbDropdown(e) {
 document.addEventListener('click', function() {
   const m = document.getElementById('nav-lb-menu');
   if (m) m.classList.remove('open');
+  closePlayerDropdown();
 });
+
+function togglePlayerDropdown(e) {
+  e.stopPropagation();
+  const menu = document.getElementById('nav-player-dropdown-menu');
+  if (!menu) return;
+  const isOpen = menu.style.display === 'block';
+  menu.style.display = isOpen ? 'none' : 'block';
+}
+
+function closePlayerDropdown() {
+  const menu = document.getElementById('nav-player-dropdown-menu');
+  if (menu) menu.style.display = 'none';
+}
 
 function showLeaderboardSub(tab, e) {
   if (e) e.stopPropagation();
@@ -5546,14 +5568,15 @@ function applyPlayerUI() {
   const displayName = playerSession.account.displayName || playerSession.username;
   document.getElementById('nav-player-login-hint').style.display = 'none';
   const badge = document.getElementById('nav-player-badge');
+  const dropdownWrapper = document.getElementById('nav-player-dropdown');
+  if (dropdownWrapper) dropdownWrapper.style.display = 'block';
   badge.style.display = 'flex';
-  document.getElementById('nav-player-name').textContent = displayName;
   // Show profile photo in nav badge if available
   const st = getBladerStats(displayName);
   const avatarHtml = st.photo
     ? `<img src="${st.photo}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0" onerror="this.replaceWith(document.createTextNode('👤'))" />`
     : '👤';
-  badge.innerHTML = avatarHtml + ' <span id="nav-player-name">' + displayName + '</span>';
+  badge.innerHTML = avatarHtml + ' <span id="nav-player-name">' + displayName + '</span> <span style="font-size:10px;opacity:0.6">▾</span>';
   // Mobile
   const mobHint = document.getElementById('mob-login-hint');
   const mobBadge = document.getElementById('mob-player-badge');
@@ -5572,6 +5595,8 @@ function playerLogout() {
   playerSession = null;
   try { localStorage.removeItem('rxs_player_session'); } catch(e) {}
   document.getElementById('nav-player-badge').style.display = 'none';
+  const dropdownWrapper = document.getElementById('nav-player-dropdown');
+  if (dropdownWrapper) dropdownWrapper.style.display = 'none';
   document.getElementById('nav-player-login-hint').style.display = '';
   // Mobile
   const mobHint = document.getElementById('mob-login-hint');
@@ -7649,13 +7674,7 @@ async function deleteEvent() {
         </div>
       </div>
 
-      <!-- Action pill row -->
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px;margin-bottom:4px">
-        <button class="pm-action-pill active" id="pm-pill-profile"   onclick="pmSwitchPanel('profile')"  >👤 My Profile</button>
-        <button class="pm-action-pill"        id="pm-pill-rename"    onclick="pmSwitchPanel('rename')"   >✏️ Change Name</button>
-        <button class="pm-action-pill"        id="pm-pill-password"  onclick="pmSwitchPanel('password')" >🔒 Change Password</button>
-        <button class="pm-action-pill danger"                        onclick="playerLogout()"            >⏏ Logout</button>
-      </div>
+      <!-- Action pill row removed — actions moved to nav dropdown -->
 
       <!-- Panel: Change Name (hidden by default) -->
       <div id="pm-panel-rename" style="display:none">
