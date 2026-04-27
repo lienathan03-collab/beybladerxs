@@ -2164,14 +2164,12 @@ async function cloudLoadHomePosts() {
     if (!res.ok) { console.warn('[Cloud] Home posts load failed:', res.status); return; }
     const data = await res.json();
     console.log('[Cloud] homedata raw:', JSON.stringify(data).slice(0, 200));
-    // Only overwrite if cloud actually has posts — don't replace with empty arrays
-    if (data.homePosts  && data.homePosts.length  > 0) homePosts  = data.homePosts;
-    if (data.homePosts2 && data.homePosts2.length > 0) homePosts2 = data.homePosts2;
+    // Always trust cloud data — including empty arrays (admin may have deleted all posts)
+    if (Array.isArray(data.homePosts))  homePosts  = data.homePosts;
+    if (Array.isArray(data.homePosts2)) homePosts2 = data.homePosts2;
     renderCarousel(); renderCarousel2();
-    // Cache locally only if we got real data
-    if ((homePosts && homePosts.length) || (homePosts2 && homePosts2.length)) {
-      try { localStorage.setItem('beyblade_rxs_homeposts', JSON.stringify({ homePosts, homePosts2 })); } catch(e) {}
-    }
+    // Always sync local cache to match cloud (including empty state)
+    try { localStorage.setItem('beyblade_rxs_homeposts', JSON.stringify({ homePosts, homePosts2 })); } catch(e) {}
   } catch(e) { console.error('[Cloud] Home posts load error:', e); }
 }
 
