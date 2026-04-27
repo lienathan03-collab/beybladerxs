@@ -1539,7 +1539,7 @@
   <div class="modal" style="max-width:400px">
     <button class="modal-close" onclick="closeTeamJoinModal()">✕</button>
     <div class="modal-title">🛡️ Join as a Team</div>
-    <div class="modal-sub">Enter your team name and pick your 3 members</div>
+    <div class="modal-sub">Enter your team name and pick your 3 members (must have accounts)</div>
     <div class="form-group">
       <label class="form-label">Team Name</label>
       <input class="form-input" type="text" id="tj-teamname" placeholder="e.g. VG Bladers" />
@@ -1552,7 +1552,7 @@
           <span class="clear-btn" id="tj-clear-1" style="display:none" onclick="event.stopPropagation();tjClearMember(1)">✕</span>
         </div>
         <div class="tj-dropdown" id="tj-drop-1">
-          <input class="tj-search" type="text" id="tj-search-1" placeholder="Search or type new name…" oninput="tjFilterOptions(1,this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();tjConfirmTyped(1)}" onclick="event.stopPropagation()" />
+          <input class="tj-search" type="text" id="tj-search-1" placeholder="Search by name or @username…" oninput="tjFilterOptions(1,this.value)" onclick="event.stopPropagation()" />
           <div id="tj-options-1"></div>
         </div>
       </div>
@@ -1565,7 +1565,7 @@
           <span class="clear-btn" id="tj-clear-2" style="display:none" onclick="event.stopPropagation();tjClearMember(2)">✕</span>
         </div>
         <div class="tj-dropdown" id="tj-drop-2">
-          <input class="tj-search" type="text" id="tj-search-2" placeholder="Search or type new name…" oninput="tjFilterOptions(2,this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();tjConfirmTyped(2)}" onclick="event.stopPropagation()" />
+          <input class="tj-search" type="text" id="tj-search-2" placeholder="Search by name or @username…" oninput="tjFilterOptions(2,this.value)" onclick="event.stopPropagation()" />
           <div id="tj-options-2"></div>
         </div>
       </div>
@@ -1578,7 +1578,7 @@
           <span class="clear-btn" id="tj-clear-3" style="display:none" onclick="event.stopPropagation();tjClearMember(3)">✕</span>
         </div>
         <div class="tj-dropdown" id="tj-drop-3">
-          <input class="tj-search" type="text" id="tj-search-3" placeholder="Search or type new name…" oninput="tjFilterOptions(3,this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();tjConfirmTyped(3)}" onclick="event.stopPropagation()" />
+          <input class="tj-search" type="text" id="tj-search-3" placeholder="Search by name or @username…" oninput="tjFilterOptions(3,this.value)" onclick="event.stopPropagation()" />
           <div id="tj-options-3"></div>
         </div>
       </div>
@@ -5558,13 +5558,15 @@ function getStatusHtml(status) {
 
 function isPlayerJoined(ev) {
   if (!playerSession) return false;
-  const displayName = (playerSession.account.displayName || playerSession.username).toLowerCase();
+  const myUsername = playerSession.username;
   return (ev.joiners || []).some(j => {
-    // Check if this player submitted the join (captain or solo)
-    if (j.username === playerSession.username) return true;
-    // Check if this player's name appears as a member in any team
+    // Solo join or team captain
+    if (j.username === myUsername) return true;
+    // Check if this player is listed as a member in any team (by username)
     if (j.type === 'team' && Array.isArray(j.members)) {
-      return j.members.some(m => m.toLowerCase() === displayName);
+      return j.members.some(m =>
+        typeof m === 'object' ? m.username === myUsername : false
+      );
     }
     return false;
   });
@@ -5739,9 +5741,12 @@ function renderDetailJoinersList(ev) {
   listEl.innerHTML = joiners.map((j, i) => {
     if (j.type === 'team') {
       const members = j.members || [];
-      const tooltipMembers = members.map(m =>
-        `<div class="ev-joiner-team-tooltip-member">${m}</div>`
-      ).join('');
+      // Support both new {username, displayName} objects and old plain strings
+      const tooltipMembers = members.map(m => {
+        const name = typeof m === 'object' ? m.displayName : m;
+        const uname = typeof m === 'object' ? ` <span style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace">@${m.username}</span>` : '';
+        return `<div class="ev-joiner-team-tooltip-member">${name}${uname}</div>`;
+      }).join('');
       return `<div class="ev-joiner-row">
         <span class="ev-joiner-num">${i + 1}.</span>
         <div class="ev-joiner-team-wrap" onclick="this.classList.toggle('tapped')">
@@ -5794,70 +5799,52 @@ function updateEvTypeUI() {
 
 // ── 3v3 Team Join modal ──
 // ── Team join state ──
+// _tjSelected stores { username, displayName } objects (or null)
 let _teamJoinEventId = null;
 const _tjSelected = { 1: null, 2: null, 3: null };
+let _tjAccountsList = []; // [{ username, displayName }] loaded when modal opens
 
-function tjGetTakenNames() {
-  // Names already chosen in other slots
-  return Object.values(_tjSelected).filter(Boolean);
+function tjGetTakenUsernames() {
+  return Object.values(_tjSelected).filter(Boolean).map(m => m.username);
 }
 
 function tjRenderOptions(slot, filter) {
-  const displayName = playerSession ? (playerSession.account.displayName || playerSession.username) : null;
+  const myUsername = playerSession ? playerSession.username : null;
   const el = document.getElementById('tj-options-' + slot);
-  const q = (filter || '').trim();
-  const qLow = q.toLowerCase();
-  const list = players
-    .map(p => p.name)
-    .filter(n => !q || n.toLowerCase().includes(qLow));
+  const q = (filter || '').trim().toLowerCase();
 
-  const rows = [];
+  // Filter accounts by displayName or username match
+  const list = _tjAccountsList.filter(acc =>
+    !q ||
+    acc.displayName.toLowerCase().includes(q) ||
+    acc.username.toLowerCase().includes(q)
+  );
 
-  // "Add new name" row — always at top when something is typed and not exact match
-  const exactMatch = players.some(p => p.name.toLowerCase() === qLow);
-  const alreadySelectedElsewhere = q && Object.entries(_tjSelected)
-    .some(([s, v]) => parseInt(s) !== slot && v && v.toLowerCase() === qLow);
-  if (q && !exactMatch && !alreadySelectedElsewhere) {
-    rows.push(`<div class="tj-option tj-add-new" onclick="tjSelectMember(${slot},'${q.replace(/'/g,"\'")}')">
-      ➕ Add "<strong>${q}</strong>" as new name
-      <div style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace;margin-top:1px">or press Enter</div>
-    </div>`);
-  }
-
-  // Existing players
-  list.forEach(name => {
-    const isYou = name === displayName;
-    const otherSlotTaken = Object.entries(_tjSelected)
-      .some(([s, v]) => parseInt(s) !== slot && v === name);
-    const cls = otherSlotTaken ? 'taken' : isYou ? 'is-you' : '';
-    const suffix = otherSlotTaken ? ' (already added)' : isYou ? ' (you)' : '';
-    rows.push(`<div class="tj-option ${cls}" onclick="tjSelectMember(${slot},'${name.replace(/'/g,"\'")}')">
-      ${name}${suffix}
-    </div>`);
-  });
-
-  if (!rows.length) {
-    el.innerHTML = '<div class="tj-no-results">Type a name to search or add new</div>';
+  if (!list.length) {
+    el.innerHTML = '<div class="tj-no-results">No matching accounts found</div>';
     return;
   }
+
+  const rows = list.map(acc => {
+    const isYou = acc.username === myUsername;
+    const otherSlotTaken = Object.entries(_tjSelected)
+      .some(([s, v]) => parseInt(s) !== slot && v && v.username === acc.username);
+    const cls = otherSlotTaken ? 'taken' : isYou ? 'is-you' : '';
+    const suffix = otherSlotTaken ? ' (already added)' : isYou ? ' (you)' : '';
+    const safeUsername = acc.username.replace(/'/g, "\'");
+    const safeDN = acc.displayName.replace(/'/g, "\'");
+    return `<div class="tj-option ${cls}" onclick="tjSelectMember(${slot},'${safeUsername}','${safeDN}')">
+      ${acc.displayName}
+      <span style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace;margin-left:6px">@${acc.username}</span>
+      ${suffix ? `<span style="font-size:10px;color:var(--muted2);margin-left:4px">${suffix}</span>` : ''}
+    </div>`;
+  });
+
   el.innerHTML = rows.join('');
 }
 
 function tjFilterOptions(slot, val) {
   tjRenderOptions(slot, val);
-}
-
-// Called when Enter is pressed in the search box
-function tjConfirmTyped(slot) {
-  const input = document.getElementById('tj-search-' + slot);
-  if (!input) return;
-  const val = input.value.trim();
-  if (!val) return;
-  // Check not already taken by another slot
-  const takenElsewhere = Object.entries(_tjSelected)
-    .some(([s, v]) => parseInt(s) !== slot && v && v.toLowerCase() === val.toLowerCase());
-  if (takenElsewhere) return;
-  tjSelectMember(slot, val);
 }
 
 function tjToggleDropdown(slot) {
@@ -5883,11 +5870,11 @@ function tjToggleDropdown(slot) {
   }
 }
 
-function tjSelectMember(slot, name) {
-  _tjSelected[slot] = name;
+function tjSelectMember(slot, username, displayName) {
+  _tjSelected[slot] = { username, displayName };
   const textEl  = document.getElementById('tj-sel-text-' + slot);
   const clearEl = document.getElementById('tj-clear-' + slot);
-  textEl.textContent = name;
+  textEl.textContent = displayName + ' (@' + username + ')';
   textEl.className = 'chosen';
   clearEl.style.display = '';
   document.getElementById('tj-drop-' + slot).classList.remove('open');
@@ -5906,7 +5893,7 @@ function tjClearMember(slot) {
   [1,2,3].forEach(s => { if (s !== slot) tjRenderOptions(s, ''); });
 }
 
-function openTeamJoinModal(eventId) {
+async function openTeamJoinModal(eventId) {
   if (!playerSession) { openPlayerLoginModal(); return; }
   _teamJoinEventId = eventId;
   // Reset state
@@ -5917,12 +5904,25 @@ function openTeamJoinModal(eventId) {
     document.getElementById('tj-clear-' + slot).style.display = 'none';
     document.getElementById('tj-drop-' + slot).classList.remove('open');
     document.getElementById('tj-sel-' + slot).classList.remove('open');
+    document.getElementById('tj-options-' + slot).innerHTML = '<div class="tj-no-results">Loading accounts…</div>';
   });
   document.getElementById('tj-teamname').value = '';
   document.getElementById('tj-error').textContent = '';
   document.getElementById('team-join-modal').classList.add('open');
-  // Close dropdowns on outside click
   setTimeout(() => document.getElementById('tj-teamname').focus(), 150);
+
+  // Load accounts to populate member dropdowns
+  try {
+    const res = await fetch('/api/accounts');
+    const accs = await res.json();
+    _tjAccountsList = Object.entries(accs).map(([username, acc]) => ({
+      username,
+      displayName: acc.displayName || username
+    })).sort((a, b) => a.displayName.localeCompare(b.displayName));
+  } catch(e) {
+    _tjAccountsList = [];
+    document.getElementById('tj-error').textContent = 'Could not load accounts. Please try again.';
+  }
 }
 
 function closeTeamJoinModal() {
@@ -5940,28 +5940,30 @@ async function submitTeamJoin() {
   errEl.textContent = '';
   if (!teamName) { errEl.textContent = 'Team name is required.'; return; }
   if (!m1 || !m2 || !m3) { errEl.textContent = 'Please select all 3 members.'; return; }
-  // Prevent duplicate members (extra safety)
-  const memberSet = new Set([m1, m2, m3].map(n => n.toLowerCase()));
+  // Prevent duplicate members
+  const memberUsernames = [m1.username, m2.username, m3.username];
+  const memberSet = new Set(memberUsernames);
   if (memberSet.size < 3) { errEl.textContent = 'All 3 members must be different players.'; return; }
 
-  // Check if any member is already in a registered team for this event
+  // Frontend pre-check: any member username already in a registered team?
   const ev = eventsData.find(e => e.id === _teamJoinEventId);
   if (ev) {
-    const incomingLC = [m1, m2, m3].map(n => n.toLowerCase());
     for (const joiner of (ev.joiners || [])) {
       if (joiner.type === 'team' && Array.isArray(joiner.members)) {
-        const conflict = incomingLC.find(m => joiner.members.map(x => x.toLowerCase()).includes(m));
+        const conflict = memberUsernames.find(u =>
+          joiner.members.some(m => (m.username || '').toLowerCase() === u.toLowerCase())
+        );
         if (conflict) {
-          errEl.textContent = `${conflict} is already in team ${joiner.teamName}.`;
+          const conflictMember = [m1,m2,m3].find(m => m.username.toLowerCase() === conflict.toLowerCase());
+          errEl.textContent = `${conflictMember ? conflictMember.displayName : conflict} is already registered in team "${joiner.teamName}".`;
           return;
         }
       }
     }
-    // Check duplicate team name
     const dupName = (ev.joiners || []).find(j =>
       j.type === 'team' && j.teamName && j.teamName.toLowerCase() === teamName.toLowerCase()
     );
-    if (dupName) { errEl.textContent = `Team name ${teamName} is already taken.`; return; }
+    if (dupName) { errEl.textContent = `Team name "${teamName}" is already taken.`; return; }
   }
 
   const btn = document.querySelector('#team-join-modal .btn.primary');
@@ -5970,7 +5972,7 @@ async function submitTeamJoin() {
   try {
     const displayName = playerSession.account.displayName || playerSession.username;
 
-    // Single-step team join — backend saves full team object atomically
+    // Send members as [{username, displayName}] objects
     const res = await fetch(EVENTS_API + '?action=team_join', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
