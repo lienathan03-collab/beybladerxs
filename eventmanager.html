@@ -801,6 +801,8 @@
           <option value="R3">R3</option>
           <option value="R4">R4</option>
           <option value="R5">R5</option>
+          <option value="R6">R6</option>
+          <option value="R7">R7</option>
           <option value="QF">Quarterfinals</option>
           <option value="SF">Semifinals</option>
           <option value="F">Finals</option>
@@ -976,6 +978,9 @@ function loadEvent(id) {
 // ─────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────
+// Manual players added by admin for this event (not in joiners)
+let manualPlayers = [];
+
 function getPlayers() {
   if (!currentEvent) return [];
   const players = [];
@@ -990,6 +995,10 @@ function getPlayers() {
       const name = j.displayName || j.name || j.username;
       if (name && !seen.has(name)) { seen.add(name); players.push({ name, team: null }); }
     }
+  }
+  // Add manually added players
+  for (const name of manualPlayers) {
+    if (!seen.has(name)) { seen.add(name); players.push({ name, team: null, manual: true }); }
   }
   return players;
 }
@@ -1313,7 +1322,7 @@ function setRoundFilter(round) {
 
 function renderRoundFilter() {
   const rounds = ['ALL', ...[...new Set(matchesState.map(m => m.round))].sort((a,b) => {
-    const order = ['R1','R2','R3','R4','R5','QF','SF','F'];
+    const order = ['R1','R2','R3','R4','R5','R6','R7','QF','SF','F'];
     return (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99);
   })];
   const el = document.getElementById('round-filter-row');
