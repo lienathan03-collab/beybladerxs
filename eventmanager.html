@@ -287,12 +287,18 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
-    margin-bottom: 8px;
     overflow: hidden;
     transition: border-color .15s;
-    max-width: 600px;
   }
   .match-card:hover { border-color: var(--border2); }
+  .match-cards-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  @media (max-width: 900px) {
+    .match-cards-grid { grid-template-columns: 1fr; }
+  }
   .match-card-header {
     display: flex;
     align-items: center;
@@ -331,16 +337,16 @@
     gap: 0;
   }
   .match-player-side {
-    padding: 7px 9px;
+    padding: 8px 10px;
     border-right: 1px solid var(--border);
   }
   .match-player-side:last-child { border-right: none; }
   .match-player-name {
     font-family: 'Barlow Condensed', sans-serif;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 700;
     letter-spacing: 1px;
-    margin-bottom: 5px;
+    margin-bottom: 6px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -350,16 +356,16 @@
   .match-build-row {
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    margin-bottom: 4px;
-    padding: 4px 6px;
+    gap: 4px;
+    margin-bottom: 5px;
+    padding: 5px 7px;
     background: var(--surface2);
     border: 1px solid var(--border);
     border-radius: 5px;
   }
   .match-build-name {
     font-family: 'Share Tech Mono', monospace;
-    font-size: 9px;
+    font-size: 11px;
     color: var(--blue);
     display: flex;
     align-items: center;
@@ -369,13 +375,13 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-top: 5px;
+    padding-top: 6px;
     border-top: 1px solid var(--border);
     margin-top: 2px;
   }
   .match-pts-val {
     font-family: 'Share Tech Mono', monospace;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 700;
     color: var(--muted);
   }
@@ -469,9 +475,9 @@
   }
   .finish-tag {
     font-family: 'Share Tech Mono', monospace;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 700;
-    padding: 1px 4px;
+    padding: 2px 5px;
     border-radius: 3px;
     letter-spacing: 0.5px;
   }
@@ -490,8 +496,8 @@
     border: 1px dashed var(--border2);
     border-radius: 3px;
     color: var(--muted2);
-    font-size: 9px;
-    padding: 1px 4px;
+    font-size: 10px;
+    padding: 2px 6px;
     cursor: pointer;
     transition: all .12s;
     white-space: nowrap;
@@ -1445,7 +1451,7 @@ function renderResults() {
     return;
   }
 
-  el.innerHTML = filtered.map(match => renderMatchCard(match)).join('');
+  el.innerHTML = `<div class="match-cards-grid">${filtered.map(match => renderMatchCard(match)).join('')}</div>`;
 }
 
 function renderMatchCard(match) {
