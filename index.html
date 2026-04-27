@@ -5046,6 +5046,66 @@ function playerLogout() {
   showToast('Logged out.', '');
 }
 
+async function playerChangePassword() {
+  const currentVal = document.getElementById('pm-pw-current').value;
+  const newVal     = document.getElementById('pm-pw-new').value;
+  const confirmVal = document.getElementById('pm-pw-confirm').value;
+  const errEl      = document.getElementById('pm-pw-error');
+  const successEl  = document.getElementById('pm-pw-success');
+  errEl.textContent = '';
+  successEl.style.display = 'none';
+
+  if (!currentVal) { errEl.textContent = 'Enter your current password.'; return; }
+  if (!newVal)     { errEl.textContent = 'Enter a new password.'; return; }
+  if (newVal.length < 4) { errEl.textContent = 'New password must be at least 4 characters.'; return; }
+  if (newVal !== confirmVal) { errEl.textContent = 'New passwords do not match.'; return; }
+
+  // Verify current password matches session
+  const currentHash = await sha256(currentVal);
+  if (currentHash !== playerSession.account.password) {
+    errEl.textContent = 'Current password is incorrect.';
+    return;
+  }
+
+  if (await sha256(newVal) === currentHash) {
+    errEl.textContent = 'New password must be different from current password.';
+    return;
+  }
+
+  const btn = document.querySelector('#player-menu-modal .btn.primary[onclick="playerChangePassword()"]');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving…'; }
+
+  try {
+    const newHash = await sha256(newVal);
+    const res = await fetch('/api/accounts?action=change_password', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        selfUsername:        playerSession.username,
+        currentPasswordHash: currentHash,
+        newPasswordHash:     newHash
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not update password.');
+
+    // Update session with new hash and persist to localStorage
+    playerSession.account.password = newHash;
+    try { localStorage.setItem('rxs_player_session', JSON.stringify(playerSession)); } catch(e) {}
+
+    // Clear inputs
+    document.getElementById('pm-pw-current').value = '';
+    document.getElementById('pm-pw-new').value = '';
+    document.getElementById('pm-pw-confirm').value = '';
+    successEl.style.display = '';
+    showToast('🔒 Password updated!', 'success');
+  } catch(e) {
+    errEl.textContent = e.message || 'Could not update password. Try again.';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Update Password'; }
+  }
+}
+
 // ═══════════════════════════════════════════════════════
 //  PLAYER MENU MODAL — with season tabs
 // ═══════════════════════════════════════════════════════
@@ -6958,6 +7018,20 @@ async function deleteEvent() {
           <button class="btn primary" style="font-size:11px;padding:6px 14px;white-space:nowrap" onclick="playerRenameSelf()">Rename</button>
         </div>
         <div class="modal-error" id="pm-rename-error" style="margin-top:6px"></div>
+      </div>
+
+      <!-- Change Password section -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:4px;margin-bottom:12px">
+        <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Change Password</div>
+        <div style="font-size:11px;color:var(--muted2);margin-bottom:10px">Enter your current password, then choose a new one.</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <input class="form-input" type="password" id="pm-pw-current" placeholder="Current password…" style="font-size:15px;padding:7px 10px" onkeydown="if(event.key==='Enter')playerChangePassword()" />
+          <input class="form-input" type="password" id="pm-pw-new" placeholder="New password…" style="font-size:15px;padding:7px 10px" onkeydown="if(event.key==='Enter')playerChangePassword()" />
+          <input class="form-input" type="password" id="pm-pw-confirm" placeholder="Confirm new password…" style="font-size:15px;padding:7px 10px" onkeydown="if(event.key==='Enter')playerChangePassword()" />
+          <button class="btn primary" style="font-size:11px;padding:6px 14px" onclick="playerChangePassword()">Update Password</button>
+        </div>
+        <div class="modal-error" id="pm-pw-error" style="margin-top:6px"></div>
+        <div id="pm-pw-success" style="margin-top:6px;font-size:12px;color:var(--green);display:none">✅ Password updated!</div>
       </div>
 
       <button class="btn danger" style="width:100%;font-size:12px" onclick="playerLogout()">Logout</button>
