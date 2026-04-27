@@ -286,17 +286,18 @@
   .match-card {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    margin-bottom: 14px;
+    border-radius: 8px;
+    margin-bottom: 8px;
     overflow: hidden;
     transition: border-color .15s;
+    max-width: 600px;
   }
   .match-card:hover { border-color: var(--border2); }
   .match-card-header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
+    gap: 6px;
+    padding: 6px 10px;
     background: var(--surface2);
     border-bottom: 1px solid var(--border);
     cursor: pointer;
@@ -304,9 +305,9 @@
   }
   .match-round-badge {
     font-family: 'Share Tech Mono', monospace;
-    font-size: 10px;
-    padding: 2px 7px;
-    border-radius: 4px;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 3px;
     background: rgba(212,175,55,0.12);
     border: 1px solid rgba(212,175,55,0.3);
     color: var(--gold);
@@ -314,14 +315,14 @@
   }
   .match-vs-label {
     font-family: 'Barlow Condensed', sans-serif;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
     letter-spacing: 1px;
     flex: 1;
   }
   .match-result-summary {
     font-family: 'Share Tech Mono', monospace;
-    font-size: 10px;
+    font-size: 9px;
     color: var(--muted);
   }
   .match-card-body {
@@ -330,16 +331,16 @@
     gap: 0;
   }
   .match-player-side {
-    padding: 10px 12px;
+    padding: 7px 9px;
     border-right: 1px solid var(--border);
   }
   .match-player-side:last-child { border-right: none; }
   .match-player-name {
     font-family: 'Barlow Condensed', sans-serif;
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 700;
     letter-spacing: 1px;
-    margin-bottom: 8px;
+    margin-bottom: 5px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -349,33 +350,32 @@
   .match-build-row {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    margin-bottom: 6px;
-    padding: 6px 8px;
+    gap: 3px;
+    margin-bottom: 4px;
+    padding: 4px 6px;
     background: var(--surface2);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: 5px;
   }
   .match-build-name {
     font-family: 'Share Tech Mono', monospace;
-    font-size: 10px;
+    font-size: 9px;
     color: var(--blue);
-    margin-bottom: 2px;
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
   }
   .match-pts-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-top: 8px;
+    padding-top: 5px;
     border-top: 1px solid var(--border);
     margin-top: 2px;
   }
   .match-pts-val {
     font-family: 'Share Tech Mono', monospace;
-    font-size: 16px;
+    font-size: 13px;
     font-weight: 700;
     color: var(--muted);
   }
@@ -462,11 +462,10 @@
   /* Finish cell */
   .finish-cell-inner {
     display: flex;
-    gap: 4px;
+    gap: 3px;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: center;
-    min-width: 70px;
+    min-width: 50px;
   }
   .finish-tag {
     font-family: 'Share Tech Mono', monospace;
@@ -491,8 +490,8 @@
     border: 1px dashed var(--border2);
     border-radius: 3px;
     color: var(--muted2);
-    font-size: 10px;
-    padding: 1px 5px;
+    font-size: 9px;
+    padding: 1px 4px;
     cursor: pointer;
     transition: all .12s;
     white-space: nowrap;
@@ -525,8 +524,8 @@
   /* win/loss badge */
   .round-win-badge {
     font-family: 'Share Tech Mono', monospace;
-    font-size: 9px;
-    padding: 2px 6px;
+    font-size: 8px;
+    padding: 2px 5px;
     border-radius: 3px;
     cursor: pointer;
     transition: all .12s;
@@ -1516,7 +1515,7 @@ function renderPlayerSide(match, side, mid) {
       </div>
       ${buildRows || '<div style="color:var(--muted2);font-size:12px;padding:8px 0">No builds registered</div>'}
       <div class="match-pts-row">
-        <span style="font-family:\'Share Tech Mono\',monospace;font-size:11px;color:var(--muted)">POINTS</span>
+        <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted)">PTS</span>
         <span class="match-pts-val ${pts > 0 ? 'has-pts' : ''}">${pts}</span>
       </div>
     </div>`;
