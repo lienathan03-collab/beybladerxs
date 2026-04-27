@@ -52,6 +52,54 @@ export async function onRequest(context) {
     const url = new URL(request.url);
     const isSelfSave = url.searchParams.get('self') === '1';
 
+    // ── Player change-password ──
+    const isChangePassword = url.searchParams.get('action') === 'change_password';
+    if (isChangePassword) {
+      const { selfUsername, currentPasswordHash, newPasswordHash } = body;
+      if (!selfUsername || !currentPasswordHash || !newPasswordHash) {
+        return new Response(
+          JSON.stringify({ error: 'Missing required fields.' }),
+          { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (currentPasswordHash === newPasswordHash) {
+        return new Response(
+          JSON.stringify({ error: 'New password must be different.' }),
+          { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+        );
+      }
+      let currentAccounts;
+      try {
+        const raw = await kv.get(KEY);
+        currentAccounts = raw ? JSON.parse(raw) : {};
+      } catch (e) {
+        return new Response(
+          JSON.stringify({ error: 'Could not read accounts: ' + e.message }),
+          { status: 502, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+        );
+      }
+      const existing = currentAccounts[selfUsername];
+      if (!existing || existing.password !== currentPasswordHash) {
+        return new Response(
+          JSON.stringify({ error: 'Current password is incorrect.' }),
+          { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+        );
+      }
+      currentAccounts[selfUsername] = { ...existing, password: newPasswordHash };
+      try {
+        await kv.put(KEY, JSON.stringify(currentAccounts));
+        return new Response(
+          JSON.stringify({ success: true }),
+          { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+        );
+      } catch (e) {
+        return new Response(
+          JSON.stringify({ error: e.message }),
+          { status: 502, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     if (isSelfSave) {
       // Player self-save: can only update aliases and displayName
       const { selfUsername, selfPasswordHash, accounts } = body;
