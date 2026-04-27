@@ -1773,6 +1773,14 @@
         <option value="done">✅ Done — Event completed</option>
       </select>
     </div>
+    <div class="form-group">
+      <label class="form-label">Season <span style="color:var(--muted);font-size:9px">(used for Bey Rankings filter)</span></label>
+      <select class="form-input" id="ev-season" style="font-size:13px">
+        <option value="s3">Season 3</option>
+        <option value="s2">Season 2</option>
+        <option value="s1">Season 1</option>
+      </select>
+    </div>
     <div class="modal-error" id="add-event-error"></div>
     <div class="modal-actions">
       <button class="btn primary" style="flex:1" onclick="saveEvent()">💾 Save Event</button>
@@ -6675,6 +6683,7 @@ function openAddEventModal() {
   document.getElementById('ev-prizes').value = '';
   document.getElementById('ev-desc').value   = '';
   document.getElementById('ev-status').value = 'open';
+  document.getElementById('ev-season').value = 's3';
   document.getElementById('add-event-error').textContent = '';
   document.getElementById('delete-event-btn').style.display = 'none';
   document.getElementById('add-event-modal').classList.add('open');
@@ -6699,6 +6708,7 @@ function openEditEventModal(eventId) {
   document.getElementById('ev-prizes').value = ev.prizes || '';
   document.getElementById('ev-desc').value   = ev.desc   || '';
   document.getElementById('ev-status').value = ev.status || 'open';
+  document.getElementById('ev-season').value = ev.season || 's3';
   document.getElementById('add-event-error').textContent = '';
   document.getElementById('delete-event-btn').style.display = '';
   document.getElementById('add-event-modal').classList.add('open');
@@ -6722,6 +6732,7 @@ async function saveEvent() {
     id:      isEdit ? existingId : 'evt_' + Date.now(),
     title,
     type:    document.getElementById('ev-type').value || '1v1',
+    season:  document.getElementById('ev-season').value || 's3',
     date:    document.getElementById('ev-date').value.trim(),
     time:    document.getElementById('ev-time').value.trim(),
     venue:   document.getElementById('ev-venue').value.trim(),
