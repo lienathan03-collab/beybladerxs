@@ -3970,9 +3970,6 @@ async function syncRenameAcrossSeasons(oldName, newName) {
   const errors = [];
 
   for (const s of SEASONS) {
-    // Skip the currently active season — already updated in memory and will
-    // be written by the cloudSave() call that follows this function.
-    if (s === currentSeason) continue;
     try {
       const res = await fetch(DATA_API + '?key=gamedata_s' + s);
       if (!res.ok) continue; // Season data doesn't exist yet — skip silently
@@ -5260,17 +5257,22 @@ async function playerRenameSelf() {
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
 
   try {
-    // Rename across all seasons + accounts (same function admin uses)
-    await syncRenameAcrossSeasons(displayName, newName);
-
-    // Update account displayName and aliases
+    // Update account displayName and aliases FIRST, then save via player self-save
+    // (no admin creds needed). This must happen before syncRenameAcrossSeasons so
+    // the KV accounts record has the new name/aliases before any season data is read.
     playerSession.account.displayName = newName;
     if (Array.isArray(playerSession.account.aliases)) {
       playerSession.account.aliases = playerSession.account.aliases.map(a =>
         a.toLowerCase() === displayName.toLowerCase() ? newName : a
       );
+    } else {
+      // If aliases array was missing, seed it with the new name
+      playerSession.account.aliases = [newName];
     }
     await savePlayerAccount();
+
+    // Rename across all seasons + accounts (same function admin uses)
+    await syncRenameAcrossSeasons(displayName, newName);
 
     // Update active season in memory
     const p = players.find(pl => pl.name.toLowerCase() === displayName.toLowerCase());
