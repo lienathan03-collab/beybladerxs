@@ -5619,10 +5619,6 @@ async function loadProfileSeasonData(aliases) {
   document.getElementById('pm-s3-pts').textContent    = ptsS3 || '—';
   document.getElementById('pm-overall-pts').textContent = ptsOverall || '—';
 
-  // Overall pane
-  document.getElementById('pm-ob-total').textContent  = ptsOverall;
-  document.getElementById('pm-ob-events').textContent = (evS2 + evS3) + ' events';
-
   // Determine overall best rank
   const rankS2 = playerS2 ? playerS2.rank : null;
   const rankS3 = playerS3 ? playerS3.rank : null;
