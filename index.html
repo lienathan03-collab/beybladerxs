@@ -5558,10 +5558,16 @@ function getStatusHtml(status) {
 
 function isPlayerJoined(ev) {
   if (!playerSession) return false;
-  return (ev.joiners || []).some(j =>
-    j.username === playerSession.username ||
-    (j.type === 'team' && j.username === playerSession.username)
-  );
+  const displayName = (playerSession.account.displayName || playerSession.username).toLowerCase();
+  return (ev.joiners || []).some(j => {
+    // Check if this player submitted the join (captain or solo)
+    if (j.username === playerSession.username) return true;
+    // Check if this player's name appears as a member in any team
+    if (j.type === 'team' && Array.isArray(j.members)) {
+      return j.members.some(m => m.toLowerCase() === displayName);
+    }
+    return false;
+  });
 }
 
 // ── Render the events list ──
@@ -5937,6 +5943,26 @@ async function submitTeamJoin() {
   // Prevent duplicate members (extra safety)
   const memberSet = new Set([m1, m2, m3].map(n => n.toLowerCase()));
   if (memberSet.size < 3) { errEl.textContent = 'All 3 members must be different players.'; return; }
+
+  // Check if any member is already in a registered team for this event
+  const ev = eventsData.find(e => e.id === _teamJoinEventId);
+  if (ev) {
+    const incomingLC = [m1, m2, m3].map(n => n.toLowerCase());
+    for (const joiner of (ev.joiners || [])) {
+      if (joiner.type === 'team' && Array.isArray(joiner.members)) {
+        const conflict = incomingLC.find(m => joiner.members.map(x => x.toLowerCase()).includes(m));
+        if (conflict) {
+          errEl.textContent = `${conflict} is already in team ${joiner.teamName}.`;
+          return;
+        }
+      }
+    }
+    // Check duplicate team name
+    const dupName = (ev.joiners || []).find(j =>
+      j.type === 'team' && j.teamName && j.teamName.toLowerCase() === teamName.toLowerCase()
+    );
+    if (dupName) { errEl.textContent = `Team name ${teamName} is already taken.`; return; }
+  }
 
   const btn = document.querySelector('#team-join-modal .btn.primary');
   btn.disabled = true; btn.textContent = '⏳ Saving…';
