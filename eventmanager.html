@@ -1779,7 +1779,10 @@ async function saveAll() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Save failed.');
 
-    // 2. Sync bladerStats to gamedata_s3
+    // 2. Archive bey results into gamedata so they survive event deletion
+    await archiveBeyResultsToGamedata();
+
+    // 3. Sync bladerStats to gamedata_s3
     await syncBladerStats();
 
     dirty = false;
@@ -1806,6 +1809,35 @@ async function saveAll() {
 // ─────────────────────────────────────────────
 // SYNC BLADER STATS → gamedata_s3
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// ARCHIVE BEY RESULTS → gamedata (persists across event deletion)
+// ─────────────────────────────────────────────
+async function archiveBeyResultsToGamedata() {
+  if (!currentEvent || !resultsState.length) return;
+  const season  = currentEvent.season || 's3';
+  const dataKey = season === 's2' ? 'gamedata_s2' : 'gamedata_s3';
+  const gdRes   = await fetch(`/api/data?key=${dataKey}`);
+  if (!gdRes.ok) return; // non-fatal — bladerStats sync will still run
+  const gdData  = await gdRes.json();
+  const archive = gdData.archivedBeyResults || [];
+  // Replace this event's entry with fresh data
+  const filtered = archive.filter(e => e.id !== currentEvent.id);
+  filtered.push({
+    id:         currentEvent.id,
+    title:      currentEvent.title  || '',
+    season:     currentEvent.season || 's3',
+    date:       currentEvent.date   || '',
+    builds:     buildsState,
+    beyResults: resultsState
+  });
+  gdData.archivedBeyResults = filtered;
+  await fetch(`/api/data?key=${dataKey}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(gdData)
+  });
+}
+
 async function syncBladerStats() {
   // Load current gamedata_s3
   const season = currentEvent.season || 'gamedata_s3';
