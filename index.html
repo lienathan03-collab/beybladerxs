@@ -5744,7 +5744,9 @@ function renderDetailJoinersList(ev) {
       // Support both new {username, displayName} objects and old plain strings
       const tooltipMembers = members.map(m => {
         const name = typeof m === 'object' ? m.displayName : m;
-        const uname = typeof m === 'object' ? ` <span style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace">@${m.username}</span>` : '';
+        const uname = (typeof m === 'object' && m.username && !m.isGuest)
+          ? ` <span style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace">@${m.username}</span>`
+          : (m.isGuest ? ` <span style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace">(guest)</span>` : '');
         return `<div class="ev-joiner-team-tooltip-member">${name}${uname}</div>`;
       }).join('');
       return `<div class="ev-joiner-row">
@@ -5820,7 +5822,15 @@ function tjRenderOptions(slot, filter) {
     acc.username.toLowerCase().includes(q)
   );
 
-  if (!list.length) {
+  // Build "add new player" option if search query doesn't exactly match an existing account
+  const addNewOption = q && !_tjAccountsList.some(a => a.displayName.toLowerCase() === q)
+    ? `<div class="tj-option tj-add-new" onclick="tjSelectNewPlayer(${slot}, this.dataset.name)" data-name="${q.replace(/"/g, '&quot;')}">
+        ➕ Add new player: <strong style="margin-left:4px">${q.replace(/</g,'&lt;')}</strong>
+        <span style="font-size:10px;color:var(--muted2);margin-left:6px;font-family:'Share Tech Mono',monospace">(guest)</span>
+       </div>`
+    : '';
+
+  if (!list.length && !addNewOption) {
     el.innerHTML = '<div class="tj-no-results">No matching accounts found</div>';
     return;
   }
@@ -5840,7 +5850,24 @@ function tjRenderOptions(slot, filter) {
     </div>`;
   });
 
-  el.innerHTML = rows.join('');
+  el.innerHTML = rows.join('') + addNewOption;
+}
+
+function tjSelectNewPlayer(slot, rawName) {
+  // rawName comes from data-name attribute (already decoded)
+  const name = (rawName || '').trim();
+  if (!name) return;
+  // Use a special sentinel username so duplicate-check still works across slots
+  const pseudoUsername = '__new__' + slot + '__' + name.toLowerCase().replace(/\s+/g, '_');
+  _tjSelected[slot] = { username: pseudoUsername, displayName: name, isNew: true };
+  const textEl  = document.getElementById('tj-sel-text-' + slot);
+  const clearEl = document.getElementById('tj-clear-' + slot);
+  textEl.textContent = name + ' (guest)';
+  textEl.className = 'chosen';
+  clearEl.style.display = '';
+  document.getElementById('tj-drop-' + slot).classList.remove('open');
+  document.getElementById('tj-sel-' + slot).classList.remove('open');
+  [1,2,3].forEach(s => { if (s !== slot) tjRenderOptions(s, ''); });
 }
 
 function tjFilterOptions(slot, val) {
@@ -5940,21 +5967,22 @@ async function submitTeamJoin() {
   errEl.textContent = '';
   if (!teamName) { errEl.textContent = 'Team name is required.'; return; }
   if (!m1 || !m2 || !m3) { errEl.textContent = 'Please select all 3 members.'; return; }
-  // Prevent duplicate members
-  const memberUsernames = [m1.username, m2.username, m3.username];
-  const memberSet = new Set(memberUsernames);
-  if (memberSet.size < 3) { errEl.textContent = 'All 3 members must be different players.'; return; }
+  // Prevent duplicate members (skip guest/new players from username collision check)
+  const memberUsernames = [m1, m2, m3].map(m => m.isNew ? null : m.username);
+  // Check display names are all distinct (catches guest+guest duplicates too)
+  const nameSet = new Set([m1.displayName.toLowerCase(), m2.displayName.toLowerCase(), m3.displayName.toLowerCase()]);
+  if (nameSet.size < 3) { errEl.textContent = 'All 3 members must be different players.'; return; }
 
-  // Frontend pre-check: any member username already in a registered team?
+  // Frontend pre-check: any registered-account member already in a registered team?
   const ev = eventsData.find(e => e.id === _teamJoinEventId);
   if (ev) {
     for (const joiner of (ev.joiners || [])) {
       if (joiner.type === 'team' && Array.isArray(joiner.members)) {
-        const conflict = memberUsernames.find(u =>
-          joiner.members.some(m => (m.username || '').toLowerCase() === u.toLowerCase())
+        const conflict = memberUsernames.filter(Boolean).find(u =>
+          joiner.members.some(m => m.username && m.username.toLowerCase() === u.toLowerCase())
         );
         if (conflict) {
-          const conflictMember = [m1,m2,m3].find(m => m.username.toLowerCase() === conflict.toLowerCase());
+          const conflictMember = [m1,m2,m3].find(m => !m.isNew && m.username.toLowerCase() === conflict.toLowerCase());
           errEl.textContent = `${conflictMember ? conflictMember.displayName : conflict} is already registered in team "${joiner.teamName}".`;
           return;
         }
@@ -5982,7 +6010,10 @@ async function submitTeamJoin() {
         eventId:      _teamJoinEventId,
         displayName,
         teamName,
-        members: [m1, m2, m3]
+        members: [m1, m2, m3].map(m => m.isNew
+          ? { displayName: m.displayName, isGuest: true }
+          : { username: m.username, displayName: m.displayName }
+        )
       })
     });
     const data = await res.json();
