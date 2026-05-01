@@ -1437,8 +1437,12 @@
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
           <div>
             <div style="font-size:15px;font-weight:700;color:var(--text)">Register Bey Builds</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px">Each player can have up to 3 builds per event. These are used for match result tracking.</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">Each player can have up to 3 builds. If you rename a build after matches have been recorded, hit <strong style="color:var(--gold)">Submit Builds</strong> — scores stay the same, only the names update.</div>
           </div>
+          <button class="btn gold" id="submit-builds-btn" onclick="submitBuilds()">⬆ Submit Builds</button>
+        </div>
+        <div id="builds-submitted-banner" style="display:none;background:rgba(76,175,80,0.08);border:1px solid rgba(76,175,80,0.3);border-radius:8px;padding:8px 14px;margin-bottom:12px;font-family:'Share Tech Mono',monospace;font-size:11px;color:#66bb6a">
+          ✓ Builds submitted — all match build names are up to date.
         </div>
         <div class="builds-grid" id="builds-grid">
           <div class="empty-state"><div class="icon">🔩</div>No players loaded yet.</div>
@@ -1988,6 +1992,14 @@ function loadEvent(id) {
   loadMatchesFromResults();
   dirty = false;
   setSaveStatus('—');
+  // Snapshot current build names as "submitted" baseline so rename indicators start clean
+  _submittedBuilds = {};
+  for (const [k, v] of Object.entries(buildsState)) {
+    _submittedBuilds[k] = [...(v || [])];
+  }
+  // Hide submitted banner on new load
+  const buildsBanner = document.getElementById('builds-submitted-banner');
+  if (buildsBanner) buildsBanner.style.display = 'none';
 
   // Check for unsaved local draft
   const draft = localLoadDraft(id);
@@ -2195,6 +2207,9 @@ function renderRoster() {
 // ─────────────────────────────────────────────
 // BUILDS TAB
 // ─────────────────────────────────────────────
+// Snapshot of builds at last submit — used to show "changed" indicators
+let _submittedBuilds = {};
+
 function renderBuilds() {
   const el = document.getElementById('builds-grid');
   const players = getPlayers();
@@ -2202,19 +2217,31 @@ function renderBuilds() {
     el.innerHTML = '<div class="empty-state"><div class="icon">🔩</div>No players registered yet.</div>';
     return;
   }
+
+  // Check if any build name differs from submitted snapshot
+  let anyChanged = false;
+
   el.innerHTML = players.map(p => {
     const key = playerKey(p.name);
     if (!buildsState[key]) buildsState[key] = [];
-    // Always pad to exactly 3 slots
     while (buildsState[key].length < 3) buildsState[key].push('');
     const builds = buildsState[key];
-    const rows = builds.slice(0, 3).map((b, i) => `
+    const submitted = _submittedBuilds[key] || ['', '', ''];
+
+    const rows = builds.slice(0, 3).map((b, i) => {
+      const wasSubmitted = submitted[i] || '';
+      const changed = b !== wasSubmitted && wasSubmitted !== ''; // name changed since last submit
+      if (changed) anyChanged = true;
+      return `
       <div class="build-row">
         <span class="build-num">${i+1}.</span>
-        <input class="form-input" style="flex:1;font-size:13px;padding:5px 8px;font-family:'Share Tech Mono',monospace"
+        <input class="form-input" style="flex:1;font-size:13px;padding:5px 8px;font-family:'Share Tech Mono',monospace;${changed ? 'border-color:var(--gold);' : ''}"
           value="${escHtml(b)}" placeholder="e.g. Wiro 1-60 H"
           oninput="updateBuild('${escJs(key)}', ${i}, this.value)" />
-      </div>`).join('');
+        ${changed ? `<span style="font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--gold);margin-left:4px;white-space:nowrap" title="Name changed from '${escHtml(wasSubmitted)}'">✎ renamed</span>` : ''}
+      </div>`;
+    }).join('');
+
     return `
       <div class="player-build-card">
         <div class="player-build-card-name">
@@ -2226,6 +2253,15 @@ function renderBuilds() {
         <div id="builds-rows-${escId(key)}">${rows}</div>
       </div>`;
   }).join('');
+
+  // Show/hide banner
+  const banner = document.getElementById('builds-submitted-banner');
+  const btn = document.getElementById('submit-builds-btn');
+  if (banner) banner.style.display = anyChanged ? 'none' : (Object.keys(_submittedBuilds).length > 0 ? '' : 'none');
+  if (btn) {
+    btn.style.background = anyChanged ? 'rgba(212,175,55,0.2)' : '';
+    btn.style.borderColor = anyChanged ? 'var(--gold2)' : '';
+  }
 }
 
 function addBuild(key) {
@@ -2245,6 +2281,120 @@ function updateBuild(key, idx, val) {
   if (!buildsState[key]) return;
   buildsState[key][idx] = val;
   markDirty();
+  // Re-render to show/hide "renamed" indicators
+  renderBuilds();
+}
+
+// ─────────────────────────────────────────────
+// SUBMIT BUILDS — renames build names in all matches by slot index,
+// keeping all finishes/deployed/win data intact
+// ─────────────────────────────────────────────
+async function submitBuilds() {
+  if (!currentEvent) return;
+  const btn = document.getElementById('submit-builds-btn');
+  if (btn) { btn.textContent = '⏳ Submitting…'; btn.disabled = true; }
+
+  try {
+    // ── Propagate renamed build names into all existing matches by slot index ──
+    // buildsState[key][0] = new name for slot 0 (1st bey), [1] = slot 1, [2] = slot 2
+    // For each match, find this player's builds array and rename build[i].build = newName[i]
+    // The finishes, deployed, win flags are untouched — only the .build string changes.
+    for (const m of matchesState) {
+      if (m.isTeamMatch) {
+        for (const teamKey of ['team1', 'team2']) {
+          if (!m[teamKey]) continue;
+          for (const member of m[teamKey].members) {
+            const key = playerKey(member.player);
+            const newNames = buildsState[key] || [];
+            member.builds.forEach((b, slotIdx) => {
+              if (newNames[slotIdx] !== undefined && newNames[slotIdx] !== '') {
+                b.build = newNames[slotIdx];
+              }
+            });
+          }
+        }
+      } else {
+        for (const side of ['p1', 'p2']) {
+          if (!m[side]) continue;
+          const key = playerKey(m[side].player);
+          const newNames = buildsState[key] || [];
+          m[side].builds.forEach((b, slotIdx) => {
+            if (newNames[slotIdx] !== undefined && newNames[slotIdx] !== '') {
+              b.build = newNames[slotIdx];
+            }
+          });
+        }
+      }
+    }
+
+    flattenMatchesToResults();
+
+    // ── Push to server ──
+    const latestRes = await fetch(`/api/beyresults?eventId=${currentEvent.id}&_t=${Date.now()}`);
+    if (latestRes.ok) {
+      const latestData = await latestRes.json();
+      mergeIncomingMatches(latestData.builds || {}, latestData.beyResults || []);
+      // Re-apply renames after merge (merge may have overwritten them)
+      for (const m of matchesState) {
+        if (m.isTeamMatch) {
+          for (const teamKey of ['team1', 'team2']) {
+            if (!m[teamKey]) continue;
+            for (const member of m[teamKey].members) {
+              const key = playerKey(member.player);
+              const newNames = buildsState[key] || [];
+              member.builds.forEach((b, slotIdx) => {
+                if (newNames[slotIdx]) b.build = newNames[slotIdx];
+              });
+            }
+          }
+        } else {
+          for (const side of ['p1','p2']) {
+            if (!m[side]) continue;
+            const key = playerKey(m[side].player);
+            const newNames = buildsState[key] || [];
+            m[side].builds.forEach((b, slotIdx) => {
+              if (newNames[slotIdx]) b.build = newNames[slotIdx];
+            });
+          }
+        }
+      }
+      flattenMatchesToResults();
+    }
+
+    const res = await fetch('/api/beyresults', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        adminUsername: adminUser,
+        adminPassword: adminPass,
+        eventId: currentEvent.id,
+        builds: buildsState,
+        beyResults: resultsState
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Submit builds failed');
+
+    _lastSyncHash = JSON.stringify(resultsState);
+    // Snapshot the submitted build names so "renamed" indicators reset
+    _submittedBuilds = {};
+    for (const [k, v] of Object.entries(buildsState)) {
+      _submittedBuilds[k] = [...(v || [])];
+    }
+
+    markDirty(); // still need Finalize to update stats
+    renderBuilds();
+    renderResults();
+    showToast('✅ Builds submitted! All match build names updated on all devices.', 'success');
+
+    // Show success banner
+    const banner = document.getElementById('builds-submitted-banner');
+    if (banner) banner.style.display = '';
+  } catch (e) {
+    showToast('❌ Submit builds failed: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.textContent = '⬆ Submit Builds'; btn.disabled = false; }
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -2750,9 +2900,9 @@ function renderMatchCard(match) {
         </span>
         <span class="match-result-summary">${summary}</span>
         ${match.submitted
-          ? `<span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:#4caf50;padding:2px 6px;border:1px solid rgba(76,175,80,0.4);border-radius:4px;margin-left:4px">✓ SUBMITTED</span>`
+          ? `<button class="btn danger unsubmit-btn" style="font-size:10px;padding:2px 8px;margin-left:4px;border-color:#c0932a;color:#c0932a" onclick="event.stopPropagation();unsubmitMatch(${mid})">↩ Unsubmit</button>`
           : `<button class="btn success" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();submitMatch(${mid})">⬆ Submit</button>`}
-        <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕</button>
+        <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕ Remove</button>
         <span style="color:var(--muted2);font-size:12px;margin-left:4px">${match.collapsed ? '▼' : '▲'}</span>
       </div>
       <button class="btn live-btn" onclick="openLiveModeSolo(${mid},'p1')">⚡</button>
@@ -2797,9 +2947,9 @@ function renderTeamMatchCard(match) {
           </span>
           <span class="match-result-summary">${summary}</span>
           ${match.submitted
-            ? `<span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:#4caf50;padding:2px 6px;border:1px solid rgba(76,175,80,0.4);border-radius:4px;margin-left:4px">✓ SUBMITTED</span>`
+            ? `<button class="btn danger unsubmit-btn" style="font-size:10px;padding:2px 8px;margin-left:4px;border-color:#c0932a;color:#c0932a" onclick="event.stopPropagation();unsubmitMatch(${mid})">↩ Unsubmit</button>`
             : `<button class="btn success" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();submitMatch(${mid})">⬆ Submit</button>`}
-          <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕</button>
+          <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕ Remove</button>
           <span style="color:var(--muted2);font-size:12px;margin-left:4px">▼</span>
         </div>
         <button class="btn live-btn" onclick="openLiveMode(${mid},'team1',0)">⚡</button>
@@ -2849,9 +2999,9 @@ function renderTeamMatchCard(match) {
         </span>
         <span class="match-result-summary">${summary}</span>
         ${match.submitted
-          ? `<span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:#4caf50;padding:2px 6px;border:1px solid rgba(76,175,80,0.4);border-radius:4px;margin-left:4px">✓ SUBMITTED</span>`
+          ? `<button class="btn danger unsubmit-btn" style="font-size:10px;padding:2px 8px;margin-left:4px;border-color:#c0932a;color:#c0932a" onclick="event.stopPropagation();unsubmitMatch(${mid})">↩ Unsubmit</button>`
           : `<button class="btn success" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();submitMatch(${mid})">⬆ Submit</button>`}
-        <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕</button>
+        <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕ Remove</button>
         <span style="color:var(--muted2);font-size:12px;margin-left:4px">▲</span>
       </div>
       <button class="btn live-btn" onclick="openLiveMode(${mid},'team1',0)">⚡</button>
@@ -3015,11 +3165,43 @@ function toggleMatchCollapse(mid) {
   if (m) { m.collapsed = !m.collapsed; renderResults(); }
 }
 
-function removeMatch(mid) {
-  if (!confirm('Remove this match?')) return;
+async function removeMatch(mid) {
+  const match = matchesState.find(m => m.id === mid);
+  if (!match) return;
+  const msg = match.submitted
+    ? 'This match is already submitted. Remove it completely? This will push the deletion to the server immediately.'
+    : 'Remove this match?';
+  if (!confirm(msg)) return;
+
   matchesState = matchesState.filter(m => m.id !== mid);
   flattenMatchesToResults();
   markDirty();
+
+  // If it was submitted, push deletion to server immediately
+  if (match.submitted && currentEvent) {
+    try {
+      const res = await fetch('/api/beyresults', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminUsername: adminUser,
+          adminPassword: adminPass,
+          eventId: currentEvent.id,
+          builds: buildsState,
+          beyResults: resultsState
+        })
+      });
+      if (res.ok) {
+        _lastSyncHash = JSON.stringify(resultsState);
+        showToast('🗑️ Submitted match removed from server.', 'success');
+      } else {
+        showToast('⚠️ Removed locally — hit 💾 Finalize to sync.', '');
+      }
+    } catch(e) {
+      showToast('⚠️ Removed locally — hit 💾 Finalize to sync.', '');
+    }
+  }
+
   renderResults();
 }
 
@@ -4585,8 +4767,101 @@ async function submitMatch(mid) {
 }
 
 // ─────────────────────────────────────────────
-// EXPORT MATCHES
+// UNSUBMIT MATCH — clears results and re-opens for editing
 // ─────────────────────────────────────────────
+async function unsubmitMatch(mid) {
+  if (!confirm('Unsubmit this match? This will clear all finishes and results so it can be re-entered. This cannot be undone.')) return;
+  if (!currentEvent) return;
+  const match = matchesState.find(m => m.id === mid);
+  if (!match) return;
+
+  // Clear all finish data
+  if (match.isTeamMatch) {
+    for (const teamKey of ['team1', 'team2']) {
+      if (!match[teamKey]) continue;
+      for (const member of match[teamKey].members) {
+        member.win = false;
+        for (const b of (member.builds || [])) {
+          b.finishes = [];
+          b.deployed = false;
+          b._usedInCycle = false;
+        }
+      }
+    }
+    // Reset play order so rows re-detect on next finish
+    match._playOrder = { team1: [], team2: [] };
+  } else {
+    for (const side of ['p1', 'p2']) {
+      if (!match[side]) continue;
+      match[side].win = false;
+      for (const b of (match[side].builds || [])) {
+        b.finishes = [];
+        b.deployed = false;
+      }
+    }
+  }
+  match.submitted = false;
+
+  // Find and update the button immediately for feedback
+  const card = document.getElementById(`match-${mid}`);
+  const btn = card ? card.querySelector('.btn.danger.unsubmit-btn') : null;
+  if (btn) { btn.textContent = '⏳ Clearing…'; btn.disabled = true; }
+
+  try {
+    // Fetch latest, merge, then push cleared state
+    const latestRes = await fetch(`/api/beyresults?eventId=${currentEvent.id}&_t=${Date.now()}`);
+    if (latestRes.ok) {
+      const latestData = await latestRes.json();
+      mergeIncomingMatches(latestData.builds || {}, latestData.beyResults || []);
+    }
+
+    // Re-apply cleared state (merge may have re-loaded it)
+    const freshMatch = matchesState.find(m => m.id === mid);
+    if (freshMatch) {
+      freshMatch.submitted = false;
+      if (freshMatch.isTeamMatch) {
+        for (const teamKey of ['team1','team2']) {
+          if (!freshMatch[teamKey]) continue;
+          for (const member of freshMatch[teamKey].members) {
+            member.win = false;
+            for (const b of (member.builds||[])) { b.finishes=[]; b.deployed=false; b._usedInCycle=false; }
+          }
+        }
+        freshMatch._playOrder = { team1: [], team2: [] };
+      } else {
+        for (const side of ['p1','p2']) {
+          if (!freshMatch[side]) continue;
+          freshMatch[side].win = false;
+          for (const b of (freshMatch[side].builds||[])) { b.finishes=[]; b.deployed=false; }
+        }
+      }
+    }
+
+    flattenMatchesToResults();
+
+    const res = await fetch('/api/beyresults', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        adminUsername: adminUser,
+        adminPassword: adminPass,
+        eventId: currentEvent.id,
+        builds: buildsState,
+        beyResults: resultsState
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Unsubmit failed');
+
+    _lastSyncHash = JSON.stringify(resultsState);
+    markDirty();
+    renderResults();
+    showToast('↩ Match unsubmitted — data cleared, ready to re-enter.', 'success');
+  } catch (e) {
+    showToast('❌ Unsubmit failed: ' + e.message, 'error');
+    if (btn) { btn.textContent = '↩ Unsubmit'; btn.disabled = false; }
+  }
+}
 function exportMatches() {
   if (!currentEvent || !matchesState.length) {
     showToast('No matches to export.', ''); return;
