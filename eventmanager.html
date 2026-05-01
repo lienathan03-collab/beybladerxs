@@ -702,6 +702,16 @@
     display: flex; gap: 5px; align-items: center;
     font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--muted);
   }
+  /* live sync */
+  @keyframes livePulse {
+    0%,100% { opacity:1; transform:scale(1); }
+    50%      { opacity:0.4; transform:scale(0.7); }
+  }
+  .live-dot-pulse { animation: livePulse 1.4s ease-in-out 3; }
+  #live-indicator.syncing { background:rgba(212,175,55,0.12); border-color:rgba(212,175,55,0.35); color:var(--gold); }
+  #live-indicator.syncing #live-dot { background:var(--gold); }
+  #live-indicator.error-state { background:rgba(229,57,53,0.1); border-color:rgba(229,57,53,0.3); color:var(--red); }
+  #live-indicator.error-state #live-dot { background:var(--red); }
 </style>
 </head>
 <body>
@@ -712,6 +722,10 @@
   <span class="topbar-sep">|</span>
   <span class="topbar-title">Event Manager</span>
   <div class="topbar-right">
+    <span id="live-indicator" style="display:none;font-family:'Share Tech Mono',monospace;font-size:10px;display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:4px;background:rgba(76,175,80,0.1);border:1px solid rgba(76,175,80,0.25);color:#4caf50">
+      <span id="live-dot" style="width:6px;height:6px;border-radius:50%;background:#4caf50;display:inline-block"></span>
+      <span id="live-label">LIVE</span>
+    </span>
     <span id="save-status">—</span>
     <button class="btn success" id="save-btn" onclick="saveAll()" disabled>💾 Save</button>
     <button class="btn gold" onclick="window.location.href='index.html'">← Back</button>
@@ -1003,6 +1017,7 @@ function loadEvent(id) {
   if (!id) {
     currentEvent = null;
     document.getElementById('event-info').style.display = 'none';
+    stopLiveSync();
     return;
   }
   currentEvent = allEvents.find(e => e.id === id);
@@ -1047,6 +1062,10 @@ function loadEvent(id) {
   renderRoster();
   renderBuilds();
   renderResults();
+
+  // Set initial sync hash so first poll doesn't trigger a false "updated"
+  _lastSyncHash = JSON.stringify(currentEvent.beyResults || []);
+  startLiveSync();
 }
 
 // ─────────────────────────────────────────────
@@ -2188,14 +2207,204 @@ document.addEventListener('click', (e) => {
 });
 
 // ─────────────────────────────────────────────
-// SAVE
+// LIVE SYNC — polls server every 15s, merges
+// new matches from other admins automatically
+// ─────────────────────────────────────────────
+let _syncInterval   = null;
+let _syncPaused     = false; // pause during active user edits
+let _lastSyncHash   = '';    // fingerprint of last known server state
+let _syncErrorCount = 0;
+
+function startLiveSync() {
+  stopLiveSync();
+  setLiveIndicator('live');
+  _syncInterval = setInterval(doLiveSync, 15000);
+}
+
+function stopLiveSync() {
+  if (_syncInterval) { clearInterval(_syncInterval); _syncInterval = null; }
+  setLiveIndicator('off');
+}
+
+function setLiveIndicator(state) {
+  const el    = document.getElementById('live-indicator');
+  const dot   = document.getElementById('live-dot');
+  const label = document.getElementById('live-label');
+  if (!el) return;
+  el.className = '';
+  el.style.display = 'flex';
+  if (state === 'off') { el.style.display = 'none'; return; }
+  if (state === 'syncing') {
+    el.classList.add('syncing');
+    label.textContent = 'SYNCING…';
+  } else if (state === 'updated') {
+    el.style.background  = 'rgba(76,175,80,0.18)';
+    el.style.borderColor = 'rgba(76,175,80,0.5)';
+    el.style.color       = '#66bb6a';
+    dot.style.background = '#66bb6a';
+    dot.classList.add('live-dot-pulse');
+    label.textContent = 'UPDATED';
+    setTimeout(() => {
+      dot.classList.remove('live-dot-pulse');
+      setLiveIndicator('live');
+    }, 4000);
+  } else if (state === 'error') {
+    el.classList.add('error-state');
+    label.textContent = 'SYNC ERR';
+  } else {
+    // normal live
+    el.style.background  = 'rgba(76,175,80,0.1)';
+    el.style.borderColor = 'rgba(76,175,80,0.25)';
+    el.style.color       = '#4caf50';
+    dot.style.background = '#4caf50';
+    label.textContent    = 'LIVE';
+  }
+}
+
+async function doLiveSync() {
+  if (!currentEvent || _syncPaused) return;
+  // Don't sync while modal is open — user is mid-action
+  const modal = document.getElementById('new-match-modal');
+  if (modal && modal.style.display !== 'none') return;
+
+  setLiveIndicator('syncing');
+  try {
+    const res = await fetch(`/api/beyresults?eventId=${currentEvent.id}&_t=${Date.now()}`);
+    if (!res.ok) throw new Error('fetch failed');
+    const data = await res.json();
+
+    // Fingerprint the incoming matches so we skip no-op syncs
+    const incoming = data.beyResults || [];
+    const hash = JSON.stringify(incoming);
+    if (hash === _lastSyncHash) { setLiveIndicator('live'); _syncErrorCount = 0; return; }
+    _lastSyncHash = hash;
+
+    // Merge: bring in any matches from server that we don't have locally
+    const merged = mergeIncomingMatches(data.builds || {}, incoming);
+    _syncErrorCount = 0;
+
+    if (merged) {
+      setLiveIndicator('updated');
+      showToast('🔄 New match data synced from server.', '');
+      renderBuilds();
+      renderResults();
+    } else {
+      setLiveIndicator('live');
+    }
+  } catch (e) {
+    _syncErrorCount++;
+    if (_syncErrorCount >= 3) setLiveIndicator('error');
+    else setLiveIndicator('live');
+  }
+}
+
+function mergeIncomingMatches(serverBuilds, serverResults) {
+  // Convert server beyResults → matchesState format
+  const serverMatches = [];
+  const rounds = [...new Set(serverResults.map(r => r.round))];
+  let counter = 9000; // high IDs to avoid collision
+  for (const round of rounds) {
+    const entries = serverResults.filter(r => r.round === round);
+
+    // Detect team entries (have a .team field)
+    const teamEntries = entries.filter(e => e.team);
+    const soloEntries = entries.filter(e => !e.team);
+
+    // Group team entries by pair of teams
+    if (teamEntries.length) {
+      const teamNames = [...new Set(teamEntries.map(e => e.team))];
+      // Pair teams up 2 at a time
+      for (let i = 0; i < teamNames.length; i += 2) {
+        const t1name = teamNames[i];
+        const t2name = teamNames[i+1];
+        if (!t1name) continue;
+        const t1members = teamEntries.filter(e => e.team === t1name).map(e => ({ player: e.player, builds: e.builds || [], win: e.win }));
+        const t2members = t2name ? teamEntries.filter(e => e.team === t2name).map(e => ({ player: e.player, builds: e.builds || [], win: e.win })) : [];
+        serverMatches.push({ _sid: `${round}|T|${t1name}|${t2name||''}`, round, isTeamMatch: true,
+          team1: { teamName: t1name, members: t1members },
+          team2: t2name ? { teamName: t2name, members: t2members } : null,
+          p1: t1members[0] || null, p2: t2members[0] || null
+        });
+      }
+    }
+
+    // Solo entries grouped 2-at-a-time
+    for (let i = 0; i < soloEntries.length; i += 2) {
+      const p1 = soloEntries[i];
+      const p2 = soloEntries[i+1];
+      serverMatches.push({ _sid: `${round}|${p1.player}|${p2 ? p2.player : ''}`,
+        round,
+        p1: { player: p1.player, builds: p1.builds || [], win: p1.win },
+        p2: p2 ? { player: p2.player, builds: p2.builds || [], win: p2.win } : null
+      });
+    }
+  }
+
+  // If user has unsaved dirty changes, only add NEW matches from server, don't overwrite local edits
+  if (dirty) {
+    let added = false;
+    const localSids = new Set(matchesState.map(m => m._sid).filter(Boolean));
+    for (const sm of serverMatches) {
+      if (!localSids.has(sm._sid)) {
+        sm.id = _matchIdCounter++;
+        sm.collapsed = true;
+        matchesState.push(sm);
+        added = true;
+      }
+    }
+    if (added) flattenMatchesToResults();
+    return added;
+  }
+
+  // If user has no unsaved changes, do a full replace from server
+  // (preserve local match IDs where possible to avoid re-render flicker)
+  const newState = serverMatches.map(sm => {
+    const existing = matchesState.find(m => m._sid === sm._sid);
+    sm.id        = existing ? existing.id : _matchIdCounter++;
+    sm.collapsed = existing ? existing.collapsed : true;
+    return sm;
+  });
+
+  // Merge server builds too
+  for (const [k, v] of Object.entries(serverBuilds)) {
+    if (!buildsState[k] || JSON.stringify(buildsState[k]) !== JSON.stringify(v)) {
+      buildsState[k] = v;
+    }
+  }
+
+  const changed = JSON.stringify(newState) !== JSON.stringify(matchesState);
+  if (changed) {
+    matchesState = newState;
+    flattenMatchesToResults();
+  }
+  return changed;
+}
+
+// ─────────────────────────────────────────────
+// SAVE (with merge-before-save protection)
 // ─────────────────────────────────────────────
 async function saveAll() {
   if (!currentEvent) return;
   setSaveStatus('Saving...', 'saving');
   document.getElementById('save-btn').disabled = true;
+  _syncPaused = true; // pause auto-sync during save
 
   try {
+    // ── MERGE-BEFORE-SAVE: fetch latest server state first ──
+    const latestRes = await fetch(`/api/beyresults?eventId=${currentEvent.id}&_t=${Date.now()}`);
+    if (latestRes.ok) {
+      const latestData = await latestRes.json();
+      const serverResults = latestData.beyResults || [];
+      const serverBuilds  = latestData.builds     || {};
+      // Merge any server matches we don't have locally
+      mergeIncomingMatches(serverBuilds, serverResults);
+      // Update fingerprint so next poll doesn't think it's new
+      _lastSyncHash = JSON.stringify(serverResults);
+    }
+
+    // Now flatten and save the fully merged state
+    flattenMatchesToResults();
+
     // 1. Save bey results to events KV
     const res = await fetch('/api/beyresults', {
       method: 'PUT',
@@ -2210,6 +2419,9 @@ async function saveAll() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Save failed.');
+
+    // Update fingerprint after successful save
+    _lastSyncHash = JSON.stringify(resultsState);
 
     // 2. Archive bey results into gamedata so they survive event deletion
     await archiveBeyResultsToGamedata();
@@ -2226,7 +2438,7 @@ async function saveAll() {
     // Update local cache
     const idx = allEvents.findIndex(e => e.id === currentEvent.id);
     if (idx !== -1) {
-      allEvents[idx].builds = buildsState;
+      allEvents[idx].builds    = buildsState;
       allEvents[idx].beyResults = resultsState;
       currentEvent = allEvents[idx];
     }
@@ -2235,6 +2447,9 @@ async function saveAll() {
     setSaveStatus('Save failed', 'error');
     showToast('❌ ' + e.message, 'error');
     document.getElementById('save-btn').disabled = false;
+  } finally {
+    _syncPaused = false;
+    document.getElementById('save-btn').disabled = dirty ? false : true;
   }
 }
 
