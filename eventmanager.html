@@ -1839,10 +1839,11 @@ function renderTeamMemberSide(match, teamKey, memberIdx, mid, colorSide) {
     </div>
     ${buildRows || '<div style="color:var(--muted2);font-size:12px;padding:4px 0">No builds</div>'}
     <div class="match-pts-row">
-      <span style="font-family:\'Share Tech Mono\',monospace;font-size:9px;color:var(--muted)">PTS</span>
+      <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted)">PTS</span>
       <span class="match-pts-val ${pts>0?'has-pts':''}">${pts}</span>
     </div>
   </div>`;
+}
 
 function renderPlayerSide(match, side, mid) {
   const player = match[side];
