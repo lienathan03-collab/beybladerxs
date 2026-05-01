@@ -1441,8 +1441,8 @@
 <!-- ══════════════════════════════════════════
      LIVE MODE MODAL
 ══════════════════════════════════════════ -->
-<div id="live-mode-overlay" class="lm-overlay" style="display:none" onclick="lmBackdropClick(event)">
-  <div class="lm-modal" id="live-mode-modal">
+<div id="live-mode-overlay" class="lm-overlay" style="display:none">
+  <div class="lm-modal" id="live-mode-modal" onclick="event.stopPropagation()">
 
     <!-- ── SHARED HEADER (always visible) ── -->
     <div class="lm-header">
@@ -2059,18 +2059,17 @@ function autoCheckWin(m) {
   const isFinals = (m.round === 'F');
   const threshold = isFinals ? 7 : 4;
 
-  const p1wins = countClashWins(m.p1.builds);
-  const p2wins = countClashWins(m.p2.builds);
+  // Use calcPoints (sum of S/O/E/B finishes) — same as autoCheckTeamWin
+  const p1pts = calcPoints(m.p1.builds);
+  const p2pts = calcPoints(m.p2.builds);
 
-  if (p1wins >= threshold && p2wins < threshold) {
-    m.p1.win = true;
-    m.p2.win = false;
-  } else if (p2wins >= threshold && p1wins < threshold) {
-    m.p2.win = true;
-    m.p1.win = false;
-  } else if (p1wins >= threshold && p2wins >= threshold) {
-    if (p1wins > p2wins) { m.p1.win = true; m.p2.win = false; }
-    else if (p2wins > p1wins) { m.p2.win = true; m.p1.win = false; }
+  if (p1pts >= threshold && p2pts < threshold) {
+    m.p1.win = true;  m.p2.win = false;
+  } else if (p2pts >= threshold && p1pts < threshold) {
+    m.p2.win = true;  m.p1.win = false;
+  } else if (p1pts >= threshold && p2pts >= threshold) {
+    if (p1pts > p2pts)      { m.p1.win = true;  m.p2.win = false; }
+    else if (p2pts > p1pts) { m.p2.win = true;  m.p1.win = false; }
   } else {
     m.p1.win = false;
     m.p2.win = false;
@@ -2888,7 +2887,10 @@ function openLiveModeSolo(mid, clickedSide) {
   lmPushClash(0, 0);
   document.getElementById('lm-screen-pick').style.display = '';
   document.getElementById('lm-screen-clash').style.display = 'none';
-  document.getElementById('live-mode-overlay').style.display = 'flex';
+  const overlay = document.getElementById('live-mode-overlay');
+  overlay.style.display = 'flex';
+  overlay.style.zIndex = '500';
+  document.body.style.overflow = 'hidden'; // prevent background scroll on mobile
   lmRender();
 }
 
@@ -2911,7 +2913,10 @@ function openLiveMode(mid, teamKey, memberIdx) {
   lmPushClash(t1Idx, t2Idx);
   document.getElementById('lm-screen-pick').style.display = '';
   document.getElementById('lm-screen-clash').style.display = 'none';
-  document.getElementById('live-mode-overlay').style.display = 'flex';
+  const overlay2 = document.getElementById('live-mode-overlay');
+  overlay2.style.display = 'flex';
+  overlay2.style.zIndex = '500';
+  document.body.style.overflow = 'hidden'; // prevent background scroll on mobile
   lmRender();
 }
 
@@ -2992,13 +2997,25 @@ function closeLiveMode() {
     renderResults();
   }
   document.getElementById('live-mode-overlay').style.display = 'none';
+  document.body.style.overflow = ''; // restore scrolling
   lmRemoveLandscape();
   lmState = null;
 }
 
 function lmBackdropClick(e) {
+  // Only close if clicking the overlay itself (not the modal)
   if (e.target === document.getElementById('live-mode-overlay')) closeLiveMode();
 }
+
+// Attach backdrop click via JS to avoid mobile touch propagation issues
+document.addEventListener('DOMContentLoaded', () => {
+  const overlay = document.getElementById('live-mode-overlay');
+  if (overlay) {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeLiveMode();
+    });
+  }
+});
 
 function lmSetScoringSide(side) {
   if (!lmState) return;
