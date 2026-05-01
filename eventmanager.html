@@ -1045,34 +1045,26 @@
     /* Member pills — wrap properly */
     #lm-beys-t1, #lm-beys-t2 { overflow: hidden; }
 
-    /* Clash screen panels */
-    #clash-left-bey, #clash-right-bey { font-size: 13px !important; word-break: break-word; }
+    /* Clash screen — score fills each half */
+    #clash-left-bey, #clash-right-bey { font-size: 12px !important; }
     #clash-left-player, #clash-right-player { font-size: 8px !important; }
-
-    /* Big score numbers — smaller so finish buttons fit without scrolling */
     #clash-score-left, #clash-score-right {
-      font-size: clamp(44px, 14vw, 72px) !important;
+      font-size: clamp(72px, 22vw, 120px) !important;
     }
 
-    /* Scorer strip */
-    #clash-scorer-strip { padding: 3px 8px !important; min-height: 26px !important; flex-wrap: wrap; gap: 4px; }
-    #clash-scorer-strip > span { font-size: 8px !important; }
-    #clash-scorer-strip .btn { font-size: 10px !important; padding: 3px 8px !important; }
+    /* Scorer strip compact */
+    #clash-scorer-strip { padding: 2px 8px !important; min-height: 24px !important; }
+    #clash-scorer-strip > span { font-size: 7px !important; }
+    #clash-scorer-strip .btn { font-size: 10px !important; padding: 2px 7px !important; }
 
-    /* Finish buttons — 2×2 on mobile, tall tap targets */
-    #lm-screen-clash > div:nth-child(4) {
-      grid-template-columns: 1fr 1fr !important;
-      gap: 8px !important;
-      padding: 8px !important;
+    /* S/O/E/B + Undo + Next row — all in one line */
+    #lm-screen-clash > div:last-child {
+      gap: 4px !important;
+      padding: 5px 6px !important;
     }
-    .lm-clash-finish-btn { padding: 16px 4px !important; border-radius: 10px !important; }
-    .lcfb-letter { font-size: 34px !important; }
-    .lcfb-label  { font-size: 10px !important; }
-    .lcfb-pts    { font-size: 9px !important; }
-
-    /* Bottom row */
-    #lm-screen-clash > div:last-child { padding: 0 8px 10px !important; gap: 6px !important; }
-    #lm-screen-clash > div:last-child .btn { font-size: 12px !important; padding: 10px !important; }
+    .lm-clash-finish-btn { padding: 6px 2px !important; }
+    .lcfb-letter { font-size: 20px !important; }
+    .lcfb-pts    { font-size: 8px !important; }
 
     /* History */
     .lm-history { max-height: 70px !important; padding: 5px 10px !important; }
@@ -1442,85 +1434,82 @@
     ════════════════════════════════ -->
     <div id="lm-screen-clash" style="display:none">
 
-      <!-- BEY NAMES ROW — two clickable halves, compact -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;cursor:pointer">
+      <!-- MAIN CLASH ARENA — landscape style, two halves side by side -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;min-height:0;flex:1">
 
-        <!-- LEFT panel -->
+        <!-- LEFT HALF — tap to select -->
         <div id="clash-panel-left" onclick="lmSetScoringSideAndHighlight('left')"
-          style="padding:10px 12px;border-right:1px solid var(--border);background:rgba(74,158,255,0.04);transition:background .12s;user-select:none;min-height:70px">
-          <div style="font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--muted2);letter-spacing:1px" id="clash-left-player"></div>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--blue);line-height:1.1;word-break:break-word;margin-top:2px" id="clash-left-bey">—</div>
-          <div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:2px" id="clash-left-finishes"></div>
+          style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+          padding:10px 8px 6px;border-right:2px solid var(--border);
+          background:rgba(74,158,255,0.04);transition:background .12s;
+          user-select:none;cursor:pointer;min-height:220px;position:relative">
+          <!-- warn badge top-right -->
+          <div id="clash-warn-left" style="display:none;position:absolute;top:6px;right:8px;text-align:center">
+            <div style="font-family:'Share Tech Mono',monospace;font-size:7px;color:var(--red);letter-spacing:1px">WARN</div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:900;color:var(--red);line-height:1" id="clash-warn-left-count">0</div>
+          </div>
+          <!-- player name -->
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:2px;text-align:center" id="clash-left-player"></div>
+          <!-- bey name -->
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;color:var(--blue);text-align:center;word-break:break-word;margin-bottom:4px;line-height:1.1" id="clash-left-bey">—</div>
+          <!-- finish tags -->
+          <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center;margin-bottom:4px" id="clash-left-finishes"></div>
+          <!-- BIG SCORE -->
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:clamp(80px,22vw,140px);font-weight:900;line-height:0.9;color:var(--muted)" id="clash-score-left">0</div>
         </div>
 
-        <!-- RIGHT panel -->
+        <!-- RIGHT HALF — tap to select -->
         <div id="clash-panel-right" onclick="lmSetScoringSideAndHighlight('right')"
-          style="padding:10px 12px;background:rgba(212,175,55,0.04);transition:background .12s;user-select:none;min-height:70px">
-          <div style="font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--muted2);letter-spacing:1px" id="clash-right-player"></div>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--gold2);line-height:1.1;word-break:break-word;margin-top:2px" id="clash-right-bey">—</div>
-          <div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:2px" id="clash-right-finishes"></div>
-        </div>
-      </div>
-
-      <!-- BIG SCORE ROW — centred, dominant -->
-      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;border-top:1px solid var(--border);padding:8px 0 6px">
-        <!-- Left score + warn -->
-        <div style="text-align:center;position:relative">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:clamp(72px,16vw,120px);font-weight:900;line-height:1" id="clash-score-left">0</div>
-          <div id="clash-warn-left" style="display:none;position:absolute;top:4px;right:12px">
-            <div style="font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--red)">WARN</div>
-            <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:var(--red)" id="clash-warn-left-count">0</div>
+          style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+          padding:10px 8px 6px;
+          background:rgba(212,175,55,0.04);transition:background .12s;
+          user-select:none;cursor:pointer;min-height:220px;position:relative">
+          <!-- warn badge top-left -->
+          <div id="clash-warn-right" style="display:none;position:absolute;top:6px;left:8px;text-align:center">
+            <div style="font-family:'Share Tech Mono',monospace;font-size:7px;color:var(--red);letter-spacing:1px">WARN</div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:900;color:var(--red);line-height:1" id="clash-warn-right-count">0</div>
           </div>
-        </div>
-        <!-- Centre divider -->
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:clamp(28px,6vw,48px);font-weight:900;color:var(--muted2);padding:0 8px">/</div>
-        <!-- Right score + warn -->
-        <div style="text-align:center;position:relative">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:clamp(72px,16vw,120px);font-weight:900;line-height:1" id="clash-score-right">0</div>
-          <div id="clash-warn-right" style="display:none;position:absolute;top:4px;left:12px">
-            <div style="font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--red)">WARN</div>
-            <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:var(--red)" id="clash-warn-right-count">0</div>
-          </div>
+          <!-- player name -->
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:2px;text-align:center" id="clash-right-player"></div>
+          <!-- bey name -->
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;color:var(--gold2);text-align:center;word-break:break-word;margin-bottom:4px;line-height:1.1" id="clash-right-bey">—</div>
+          <!-- finish tags -->
+          <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center;margin-bottom:4px" id="clash-right-finishes"></div>
+          <!-- BIG SCORE -->
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:clamp(80px,22vw,140px);font-weight:900;line-height:0.9;color:var(--muted)" id="clash-score-right">0</div>
         </div>
       </div>
 
-      <!-- Scorer strip -->
-      <div id="clash-scorer-strip" style="padding:4px 12px;background:var(--surface2);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;min-height:32px">
-        <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted)">TAP A SIDE TO SELECT PLAYER</span>
-        <div style="display:flex;gap:6px;align-items:center">
-          <button class="btn" style="padding:2px 8px;font-size:10px" onclick="lmAddWarning()">⚠️ Warn</button>
-          <span style="font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--muted2)">2 warns = win</span>
+      <!-- SELECTED PLAYER STRIP -->
+      <div id="clash-scorer-strip" style="padding:3px 10px;background:var(--surface2);border-top:1px solid var(--border);
+        display:flex;align-items:center;justify-content:space-between;min-height:28px">
+        <span style="font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--muted)">TAP A SIDE TO SELECT PLAYER</span>
+        <div style="display:flex;gap:5px;align-items:center">
+          <button class="btn" style="padding:2px 8px;font-size:10px;touch-action:manipulation" onclick="lmAddWarning()">⚠️ Warn</button>
+          <span style="font-family:'Share Tech Mono',monospace;font-size:7px;color:var(--muted2)">2 warns = win</span>
         </div>
       </div>
 
-      <!-- FINISH BUTTONS — smaller, 4-column grid -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;padding:8px 10px;">
-        <button class="lm-clash-finish-btn S" onclick="lmApplyFinish('S')">
-          <div class="lcfb-letter" style="font-size:32px">S</div>
-          <div class="lcfb-label">Spin</div>
+      <!-- COMPACT S/O/E/B ROW + UNDO + NEXT -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto auto;gap:5px;padding:6px 8px;background:var(--surface2);border-top:1px solid var(--border);align-items:stretch">
+        <button class="lm-clash-finish-btn S" onclick="lmApplyFinish('S')" style="padding:8px 4px">
+          <div class="lcfb-letter" style="font-size:22px">S</div>
           <div class="lcfb-pts">+1pt</div>
         </button>
-        <button class="lm-clash-finish-btn O" onclick="lmApplyFinish('O')">
-          <div class="lcfb-letter" style="font-size:32px">O</div>
-          <div class="lcfb-label">Over</div>
+        <button class="lm-clash-finish-btn O" onclick="lmApplyFinish('O')" style="padding:8px 4px">
+          <div class="lcfb-letter" style="font-size:22px">O</div>
           <div class="lcfb-pts">+2pt</div>
         </button>
-        <button class="lm-clash-finish-btn E" onclick="lmApplyFinish('E')">
-          <div class="lcfb-letter" style="font-size:32px">E</div>
-          <div class="lcfb-label">Extreme</div>
+        <button class="lm-clash-finish-btn E" onclick="lmApplyFinish('E')" style="padding:8px 4px">
+          <div class="lcfb-letter" style="font-size:22px">E</div>
           <div class="lcfb-pts">+3pt</div>
         </button>
-        <button class="lm-clash-finish-btn B" onclick="lmApplyFinish('B')">
-          <div class="lcfb-letter" style="font-size:32px">B</div>
-          <div class="lcfb-label">Burst</div>
+        <button class="lm-clash-finish-btn B" onclick="lmApplyFinish('B')" style="padding:8px 4px">
+          <div class="lcfb-letter" style="font-size:22px">B</div>
           <div class="lcfb-pts">+2pt</div>
         </button>
-      </div>
-
-      <!-- Bottom row -->
-      <div style="display:flex;gap:6px;padding:0 10px 10px">
-        <button class="btn danger" style="padding:8px 14px;font-size:12px;border-radius:8px;flex-shrink:0" onclick="lmUndo()">↩ Undo</button>
-        <button class="btn" style="flex:1;font-size:13px;font-family:'Barlow Condensed',sans-serif;font-weight:800;letter-spacing:1px;padding:8px" onclick="lmBackToPick()">🔄 NEXT BEY PICK</button>
+        <button class="btn danger" style="font-size:11px;padding:8px 10px;border-radius:8px;white-space:nowrap;touch-action:manipulation" onclick="lmUndo()">↩</button>
+        <button class="btn" style="font-size:11px;padding:8px 10px;font-family:'Barlow Condensed',sans-serif;font-weight:800;white-space:nowrap;touch-action:manipulation" onclick="lmBackToPick()">🔄 NEXT</button>
       </div>
     </div>
 
@@ -1553,25 +1542,72 @@ const FINISH_PTS = { S: 1, O: 2, E: 3, B: 2, L: 0 };
 // ─────────────────────────────────────────────
 // AUTH
 // ─────────────────────────────────────────────
+// AUTH
+// ─────────────────────────────────────────────
 async function tryAuth() {
   const u = document.getElementById('auth-user').value.trim();
   const p = document.getElementById('auth-pass').value;
   const errEl = document.getElementById('auth-error');
+  const btn   = document.querySelector('#auth-gate .btn.primary');
   errEl.textContent = '';
   if (!u || !p) { errEl.textContent = 'Enter username and password.'; return; }
 
-  // Verify by trying to load events — if we get data we're probably fine,
-  // real auth is checked server-side on save. We'll do a lightweight ping.
+  if (btn) { btn.textContent = 'Verifying…'; btn.disabled = true; }
+
   try {
-    const res = await fetch('/api/events');
-    if (!res.ok) throw new Error('Could not reach server.');
+    // Step 1: Reach server
+    const evRes = await fetch('/api/events');
+    if (!evRes.ok) throw new Error('Could not reach server.');
+    const evData = await evRes.json();
+    const events = evData.events || [];
+
+    // Step 2: Verify credentials by attempting an authenticated write.
+    // We pick the first event (or a dummy ID) and do a PUT — the server
+    // will return 401/403 if credentials are wrong.
+    const testId = events.length ? events[0].id : '__auth_check__';
+    const testRes = await fetch('/api/beyresults', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        adminUsername: u,
+        adminPassword: p,
+        eventId: testId,
+        builds: null,      // null signals a no-op auth check
+        beyResults: null,  // server should reject bad creds before touching data
+        _authCheck: true
+      })
+    });
+
+    // 401 or 403 = wrong credentials
+    if (testRes.status === 401 || testRes.status === 403) {
+      errEl.textContent = 'Incorrect username or password.';
+      return;
+    }
+
+    // Any server error other than auth = still reject (be safe)
+    if (!testRes.ok) {
+      const d = await testRes.json().catch(() => ({}));
+      const msg = d.error || '';
+      // If the error mentions credentials/auth, reject login
+      if (msg.toLowerCase().includes('auth') || msg.toLowerCase().includes('password') || msg.toLowerCase().includes('unauthorized')) {
+        errEl.textContent = 'Incorrect username or password.';
+        return;
+      }
+      // Otherwise (e.g. event not found for dummy ID) still let through
+      // because it means the server accepted credentials but couldn't find the event
+    }
+
+    // Credentials accepted — enter app
     adminUser = u;
     adminPass = p;
     document.getElementById('auth-gate').style.display = 'none';
     document.getElementById('app').style.display = 'block';
     loadEventList();
+
   } catch (e) {
-    errEl.textContent = e.message;
+    errEl.textContent = 'Connection error: ' + e.message;
+  } finally {
+    if (btn) { btn.textContent = 'Enter'; btn.disabled = false; }
   }
 }
 
