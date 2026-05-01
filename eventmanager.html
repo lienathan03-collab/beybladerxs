@@ -853,6 +853,32 @@
     transition:color .1s;
   }
   .lm-pts-clickable:hover { color:var(--gold)!important; }
+
+  /* ── BIG CLASH FINISH BUTTONS ── */
+  .lm-clash-finish-btn {
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:18px 8px;border-radius:12px;border:2px solid transparent;
+    cursor:pointer;transition:all .12s;gap:3px;
+  }
+  .lm-clash-finish-btn:hover { transform:scale(1.05);filter:brightness(1.25); }
+  .lm-clash-finish-btn:active { transform:scale(0.97); }
+  .lm-clash-finish-btn.S { background:rgba(74,158,255,0.15); border-color:rgba(74,158,255,0.4); }
+  .lm-clash-finish-btn.O { background:rgba(255,152,0,0.15);  border-color:rgba(255,152,0,0.4); }
+  .lm-clash-finish-btn.E { background:rgba(233,30,99,0.15);  border-color:rgba(233,30,99,0.4); }
+  .lm-clash-finish-btn.B { background:rgba(156,39,176,0.15); border-color:rgba(156,39,176,0.4); }
+  .lcfb-letter {
+    font-family:'Barlow Condensed',sans-serif;font-size:52px;font-weight:900;line-height:1;
+  }
+  .lm-clash-finish-btn.S .lcfb-letter { color:var(--finish-s); }
+  .lm-clash-finish-btn.O .lcfb-letter { color:var(--finish-o); }
+  .lm-clash-finish-btn.E .lcfb-letter { color:var(--finish-e); }
+  .lm-clash-finish-btn.B .lcfb-letter { color:var(--finish-b); }
+  .lcfb-label {
+    font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:0.5px;
+  }
+  .lcfb-pts {
+    font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);
+  }
 </style>
 </head>
 <body>
@@ -1084,87 +1110,134 @@
 <div id="live-mode-overlay" class="lm-overlay" style="display:none" onclick="lmBackdropClick(event)">
   <div class="lm-modal" id="live-mode-modal">
 
-    <!-- Header -->
+    <!-- ── SHARED HEADER (always visible) ── -->
     <div class="lm-header">
       <div>
         <div class="lm-title">⚡ LIVE SCORING</div>
         <div id="lm-match-label" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);margin-top:2px"></div>
       </div>
-      <div style="display:flex;align-items:center;gap:10px">
-        <!-- total match score -->
+      <div style="display:flex;align-items:center;gap:8px">
         <div class="lm-score-bar">
           <div class="lm-score-t1" id="lm-total-t1">0</div>
           <div class="lm-score-sep">/</div>
           <div class="lm-score-t2" id="lm-total-t2">0</div>
         </div>
-        <!-- swap sides button -->
-        <button class="btn" style="padding:5px 10px;font-size:13px;letter-spacing:0" onclick="lmSwapSides()" title="Swap left/right sides">⇄</button>
+        <button class="btn" style="padding:5px 10px;font-size:13px" onclick="lmSwapSides()" title="Swap sides">⇄</button>
+        <button class="btn primary" style="padding:5px 10px;font-size:11px" onclick="lmCommitAndClose()">✅ Done</button>
         <button class="btn" style="padding:4px 10px;font-size:12px" onclick="closeLiveMode()">✕</button>
       </div>
     </div>
 
-    <!-- Shuffle notice (hidden unless shuffled) -->
+    <!-- Shuffle notice -->
     <div id="lm-shuffle-notice" class="lm-shuffle-notice" style="display:none">
-      🔀 SHUFFLE — beyblade order has been reshuffled after 3 rounds!
+      🔀 SHUFFLE — beyblade order reshuffled after 3 rounds!
     </div>
 
-    <!-- Active clash: bey selector + scores -->
-    <div class="lm-arena" id="lm-arena">
-      <!-- Team 1 side -->
-      <div class="lm-player-col t1" id="lm-col-t1">
-        <div class="lm-player-label" id="lm-label-t1">TEAM 1</div>
-        <div class="lm-player-name t1" id="lm-name-t1">—</div>
-        <div id="lm-beys-t1" style="margin-top:4px"></div>
+    <!-- ════════════════════════════════
+         SCREEN A: PICK SCREEN
+         Select player + bey per side
+    ════════════════════════════════ -->
+    <div id="lm-screen-pick">
+      <div class="lm-arena">
+        <!-- Left side -->
+        <div class="lm-player-col t1" id="lm-col-t1">
+          <div class="lm-player-label" id="lm-label-t1">TEAM 1</div>
+          <div class="lm-player-name t1" id="lm-name-t1">—</div>
+          <div id="lm-beys-t1" style="margin-top:4px"></div>
+        </div>
+        <!-- VS divider -->
+        <div class="lm-vs-col">
+          <div class="lm-vs-badge">VS</div>
+        </div>
+        <!-- Right side -->
+        <div class="lm-player-col" id="lm-col-t2">
+          <div class="lm-player-label" id="lm-label-t2">TEAM 2</div>
+          <div class="lm-player-name t2" id="lm-name-t2">—</div>
+          <div id="lm-beys-t2" style="margin-top:4px"></div>
+        </div>
       </div>
+      <!-- Start clash button -->
+      <div style="padding:12px 14px;border-top:1px solid var(--border);background:var(--surface2)">
+        <button class="btn primary" style="width:100%;font-size:15px;padding:12px;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:800"
+          onclick="lmStartClash()">⚔️ START CLASH</button>
+      </div>
+      <!-- History log -->
+      <div class="lm-history" id="lm-history">
+        <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">CLASH LOG</div>
+      </div>
+    </div>
 
-      <!-- Centre VS -->
-      <div class="lm-vs-col">
-        <div class="lm-vs-badge">VS</div>
-        <!-- Current clash pts -->
-        <div style="text-align:center">
-          <div id="lm-clash-pts-t1" class="lm-pts-display t1" style="font-size:20px">0</div>
-          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted)">PTS</div>
-          <div id="lm-clash-pts-t2" class="lm-pts-display t2" style="font-size:20px">0</div>
+    <!-- ════════════════════════════════
+         SCREEN B: CLASH SCREEN
+         Big real-time scoring view
+    ════════════════════════════════ -->
+    <div id="lm-screen-clash" style="display:none">
+
+      <!-- Big bey names -->
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;min-height:140px">
+        <!-- Left bey -->
+        <div style="padding:18px 16px;display:flex;flex-direction:column;justify-content:center;border-right:1px solid var(--border);background:rgba(74,158,255,0.04)">
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:4px" id="clash-left-player"></div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:900;color:var(--blue);line-height:1.1;word-break:break-word" id="clash-left-bey">—</div>
+          <div style="margin-top:8px" id="clash-left-finishes"></div>
+        </div>
+
+        <!-- Centre score -->
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 14px;gap:4px;min-width:80px">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:44px;font-weight:900;color:var(--blue);line-height:1" id="clash-score-left">0</div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted2)">PTS</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:44px;font-weight:900;color:var(--gold2);line-height:1" id="clash-score-right">0</div>
+        </div>
+
+        <!-- Right bey -->
+        <div style="padding:18px 16px;display:flex;flex-direction:column;justify-content:center;background:rgba(212,175,55,0.04)">
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:4px" id="clash-right-player"></div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:900;color:var(--gold2);line-height:1.1;word-break:break-word" id="clash-right-bey">—</div>
+          <div style="margin-top:8px" id="clash-right-finishes"></div>
         </div>
       </div>
 
-      <!-- Team 2 side -->
-      <div class="lm-player-col" id="lm-col-t2">
-        <div class="lm-player-label" id="lm-label-t2">TEAM 2</div>
-        <div class="lm-player-name t2" id="lm-name-t2">—</div>
-        <div id="lm-beys-t2" style="margin-top:4px"></div>
+      <!-- Scorer toggle -->
+      <div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 14px;border-top:1px solid var(--border);background:var(--surface2)">
+        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted)">SCORER:</span>
+        <div class="lm-side-toggle">
+          <button class="lm-side-btn t1 active" id="lm-side-t1-btn">◀ LEFT</button>
+          <button class="lm-side-btn t2" id="lm-side-t2-btn">RIGHT ▶</button>
+        </div>
+        <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2)">L = auto on opponent</span>
+      </div>
+
+      <!-- BIG finish buttons -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;padding:14px;">
+        <button class="lm-clash-finish-btn S" onclick="lmApplyFinish('S')">
+          <div class="lcfb-letter">S</div>
+          <div class="lcfb-label">Spin</div>
+          <div class="lcfb-pts">+1pt</div>
+        </button>
+        <button class="lm-clash-finish-btn O" onclick="lmApplyFinish('O')">
+          <div class="lcfb-letter">O</div>
+          <div class="lcfb-label">Over</div>
+          <div class="lcfb-pts">+2pt</div>
+        </button>
+        <button class="lm-clash-finish-btn E" onclick="lmApplyFinish('E')">
+          <div class="lcfb-letter">E</div>
+          <div class="lcfb-label">Extreme</div>
+          <div class="lcfb-pts">+3pt</div>
+        </button>
+        <button class="lm-clash-finish-btn B" onclick="lmApplyFinish('B')">
+          <div class="lcfb-letter">B</div>
+          <div class="lcfb-label">Burst</div>
+          <div class="lcfb-pts">+2pt</div>
+        </button>
+      </div>
+
+      <!-- Bottom row: undo + next pick -->
+      <div style="display:flex;gap:8px;padding:0 14px 14px">
+        <button class="btn danger" style="padding:10px 18px;font-size:13px;border-radius:8px;flex-shrink:0" onclick="lmUndo()">↩ Undo</button>
+        <button class="btn" style="flex:1;font-size:14px;font-family:'Barlow Condensed',sans-serif;font-weight:800;letter-spacing:1px;padding:10px" onclick="lmBackToPick()">🔄 NEXT BEY PICK</button>
       </div>
     </div>
 
-    <!-- Which side is scoring (left = team1 finishing, right = team2 finishing) -->
-    <div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 14px;border-top:1px solid var(--border);background:var(--surface2)">
-      <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted)">SCORER:</span>
-      <div class="lm-side-toggle">
-        <button class="lm-side-btn t1 active" id="lm-side-t1-btn" onclick="lmSetScoringSide('t1')">◀ TEAM 1</button>
-        <button class="lm-side-btn t2" id="lm-side-t2-btn" onclick="lmSetScoringSide('t2')">TEAM 2 ▶</button>
-      </div>
-      <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);flex:1;text-align:right">L is auto on opponent</span>
-    </div>
-
-    <!-- Finish buttons -->
-    <div class="lm-finish-row">
-      <button class="lm-finish-btn S" onclick="lmApplyFinish('S')" id="lm-btn-S">S <span style="font-size:11px;font-weight:400">Spin</span></button>
-      <button class="lm-finish-btn O" onclick="lmApplyFinish('O')" id="lm-btn-O">O <span style="font-size:11px;font-weight:400">Over</span></button>
-      <button class="lm-finish-btn E" onclick="lmApplyFinish('E')" id="lm-btn-E">E <span style="font-size:11px;font-weight:400">Extreme</span></button>
-      <button class="lm-finish-btn B" onclick="lmApplyFinish('B')" id="lm-btn-B">B <span style="font-size:11px;font-weight:400">Burst</span></button>
-      <button class="btn danger" style="padding:8px 16px;font-size:13px;border-radius:8px" onclick="lmUndo()" title="Undo last finish">↩ Undo</button>
-    </div>
-
-    <!-- Round history log -->
-    <div class="lm-history" id="lm-history">
-      <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">CLASH LOG</div>
-    </div>
-
-    <!-- Bottom action row -->
-    <div style="display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--border);background:var(--surface2)">
-      <button class="btn" style="flex:1;font-size:12px" onclick="lmNextClash()">⏭ Next Clash</button>
-      <button class="btn primary" style="flex:1;font-size:12px" onclick="lmCommitAndClose()">✅ Commit & Close</button>
-    </div>
   </div>
 </div>
 
@@ -2429,6 +2502,8 @@ function openLiveModeSolo(mid, clickedSide) {
   };
 
   lmPushClash(0, 0);
+  document.getElementById('lm-screen-pick').style.display = '';
+  document.getElementById('lm-screen-clash').style.display = 'none';
   document.getElementById('live-mode-overlay').style.display = 'flex';
   lmRender();
 }
@@ -2443,18 +2518,15 @@ function openLiveMode(mid, teamKey, memberIdx) {
 
   lmSwapped = false;
   lmState = {
-    mid,
-    match,
-    clashes: [],
-    activeClashIdx: -1,
-    scoringSide: 't1',
-    roundCount: 0,
-    shuffled: false,
-    history: [],
-    undoStack: [],
+    mid, match,
+    clashes: [], activeClashIdx: -1,
+    scoringSide: 't1', roundCount: 0,
+    shuffled: false, history: [], undoStack: [],
   };
 
   lmPushClash(t1Idx, t2Idx);
+  document.getElementById('lm-screen-pick').style.display = '';
+  document.getElementById('lm-screen-clash').style.display = 'none';
   document.getElementById('live-mode-overlay').style.display = 'flex';
   lmRender();
 }
@@ -2462,7 +2534,9 @@ function openLiveMode(mid, teamKey, memberIdx) {
 // ── Swap left/right display sides ──
 function lmSwapSides() {
   lmSwapped = !lmSwapped;
-  lmRender();
+  const clashScreen = document.getElementById('lm-screen-clash');
+  if (clashScreen && clashScreen.style.display !== 'none') lmRenderClashScreen();
+  else lmRender();
   showToast(lmSwapped ? '⇄ Sides swapped' : '⇄ Sides restored', '');
 }
 
@@ -2540,10 +2614,11 @@ function lmApplyFinish(type) {
     scorerMember.builds[scorerBeyIdx].finishes.push(type);
     scorerMember.builds[scorerBeyIdx].deployed = true;
   }
-  // Auto-apply L to loser's bey
+  // Auto-apply L to loser's bey, stamp round count for shuffle tracking
   if (loserMember.builds[loserBeyIdx] && !loserMember.builds[loserBeyIdx].finishes.includes('L')) {
     loserMember.builds[loserBeyIdx].finishes.push('L');
     loserMember.builds[loserBeyIdx].deployed = true;
+    loserMember.builds[loserBeyIdx]._lAddedAtRound = lmState.roundCount + 1;
   }
 
   const scorerBeyName = scorerMember.builds[scorerBeyIdx]?.build || '?';
@@ -2568,6 +2643,7 @@ function lmApplyFinish(type) {
   // Check shuffle (every 3 clashes)
   if (lmState.roundCount % 3 === 0 && lmState.roundCount > 0) {
     lmState.shuffled = true;
+    lmState.lastShuffleAt = lmState.roundCount;
   } else {
     lmState.shuffled = false;
   }
@@ -2577,7 +2653,38 @@ function lmApplyFinish(type) {
   autoCheckTeamWin(lmState.match);
   markDirty();
 
-  lmRender();
+  // Re-render whichever screen is active
+  const clashScreen = document.getElementById('lm-screen-clash');
+  if (clashScreen && clashScreen.style.display !== 'none') {
+    lmRenderClashScreen();
+  } else {
+    lmRender();
+  }
+  lmUpdateScoreBar();
+}
+
+function lmUpdateScoreBar() {
+  if (!lmState) return;
+  const { match } = lmState;
+  const isFinals = match.round === 'F';
+  const threshold = isFinals ? 7 : 4;
+
+  const leftKey  = lmSwapped ? 't2' : 't1';
+  const rightKey = lmSwapped ? 't1' : 't2';
+  const leftTeam  = match[leftKey  === 't1' ? 'team1' : 'team2'];
+  const rightTeam = match[rightKey === 't1' ? 'team1' : 'team2'];
+
+  const leftPts  = (leftTeam?.members  || []).reduce((s,m) => s + calcPoints(m.builds), 0);
+  const rightPts = (rightTeam?.members || []).reduce((s,m) => s + calcPoints(m.builds), 0);
+
+  const lEl = document.getElementById('lm-total-t1');
+  const rEl = document.getElementById('lm-total-t2');
+  if (lEl) { lEl.textContent = leftPts;  lEl.className = `lm-score-t1${leftPts  >= threshold ? ' winning' : ''}`; }
+  if (rEl) { rEl.textContent = rightPts; rEl.className = `lm-score-t2${rightPts >= threshold ? ' winning' : ''}`; }
+
+  // Shuffle notice on both screens
+  const sn = document.getElementById('lm-shuffle-notice');
+  if (sn) sn.style.display = lmState.shuffled ? '' : 'none';
 }
 
 // ── Undo last finish ──
@@ -2605,20 +2712,97 @@ function lmUndo() {
 
   flattenMatchesToResults();
   markDirty();
-  lmRender();
+
+  const clashScreen = document.getElementById('lm-screen-clash');
+  if (clashScreen && clashScreen.style.display !== 'none') lmRenderClashScreen();
+  else lmRender();
+  lmUpdateScoreBar();
 }
 
-// ── Move to next clash (pick new beys / players) ──
-function lmNextClash() {
+// ── Go from pick screen → clash screen ──
+function lmStartClash() {
   if (!lmState) return;
   const clash = lmState.clashes[lmState.activeClashIdx];
-  if (clash) clash.done = true;
+  if (!clash) return;
+  document.getElementById('lm-screen-pick').style.display = 'none';
+  document.getElementById('lm-screen-clash').style.display = '';
+  lmRenderClashScreen();
+}
 
-  // default: same matchup, advance to next available bey
+// ── Go back to pick screen (after a finish or "Next Bey Pick") ──
+function lmBackToPick() {
+  if (!lmState) return;
+  // Mark current clash done
+  const clash = lmState.clashes[lmState.activeClashIdx];
+  if (clash) clash.done = true;
+  // Push a fresh clash with same member indices as default
   const t1Idx = clash ? clash.t1MemberIdx : 0;
   const t2Idx = clash ? clash.t2MemberIdx : 0;
   lmPushClash(t1Idx, t2Idx);
+
+  document.getElementById('lm-screen-clash').style.display = 'none';
+  document.getElementById('lm-screen-pick').style.display = '';
   lmRender();
+}
+
+// ── Render the big clash screen ──
+function lmRenderClashScreen() {
+  if (!lmState) return;
+  const { match, clashes, activeClashIdx, scoringSide } = lmState;
+  const clash = clashes[activeClashIdx];
+  if (!clash) return;
+
+  const leftKey  = lmSwapped ? 't2' : 't1';
+  const rightKey = lmSwapped ? 't1' : 't2';
+  const leftTeam  = match[leftKey  === 't1' ? 'team1' : 'team2'];
+  const rightTeam = match[rightKey === 't1' ? 'team1' : 'team2'];
+
+  const leftMemberIdx  = leftKey  === 't1' ? clash.t1MemberIdx : clash.t2MemberIdx;
+  const rightMemberIdx = rightKey === 't1' ? clash.t1MemberIdx : clash.t2MemberIdx;
+  const leftBeyIdx     = leftKey  === 't1' ? clash.t1BeyIdx    : clash.t2BeyIdx;
+  const rightBeyIdx    = rightKey === 't1' ? clash.t1BeyIdx    : clash.t2BeyIdx;
+
+  const leftMember  = leftTeam  ? leftTeam.members[leftMemberIdx]   : null;
+  const rightMember = rightTeam ? rightTeam.members[rightMemberIdx] : null;
+  const leftBey     = leftMember  ? leftMember.builds[leftBeyIdx]   : null;
+  const rightBey    = rightMember ? rightMember.builds[rightBeyIdx] : null;
+
+  // Player + bey names
+  document.getElementById('clash-left-player').textContent  = leftMember  ? leftMember.player  : '—';
+  document.getElementById('clash-right-player').textContent = rightMember ? rightMember.player : '—';
+  document.getElementById('clash-left-bey').textContent     = leftBey  ? (leftBey.build  || '(unnamed)') : '—';
+  document.getElementById('clash-right-bey').textContent    = rightBey ? (rightBey.build || '(unnamed)') : '—';
+
+  // Finish tags on each bey
+  const mkTags = b => b ? b.finishes.map(f => `<span class="finish-tag ${f}" style="font-size:11px;padding:2px 7px">${f}</span>`).join('') : '';
+  document.getElementById('clash-left-finishes').innerHTML  = mkTags(leftBey);
+  document.getElementById('clash-right-finishes').innerHTML = mkTags(rightBey);
+
+  // Clash points (running pts for THIS clash's scorer side)
+  const leftPts  = clash.finishes.filter(f => f.side === leftKey ).reduce((s,f) => s+f.pts, 0);
+  const rightPts = clash.finishes.filter(f => f.side === rightKey).reduce((s,f) => s+f.pts, 0);
+  document.getElementById('clash-score-left').textContent  = leftPts;
+  document.getElementById('clash-score-right').textContent = rightPts;
+
+  // Colour winning score green
+  document.getElementById('clash-score-left').style.color  = leftPts  > rightPts ? '#66bb6a' : leftPts  > 0 ? 'var(--blue)'  : 'var(--muted)';
+  document.getElementById('clash-score-right').style.color = rightPts > leftPts  ? '#66bb6a' : rightPts > 0 ? 'var(--gold2)' : 'var(--muted)';
+
+  // Scorer buttons
+  const lBtn = document.getElementById('lm-side-t1-btn');
+  const rBtn = document.getElementById('lm-side-t2-btn');
+  const lName = leftTeam?.teamName  || 'LEFT';
+  const rName = rightTeam?.teamName || 'RIGHT';
+  lBtn.textContent = `◀ ${lName}`;
+  rBtn.textContent = `${rName} ▶`;
+  const leftSideActive  = scoringSide === leftKey;
+  lBtn.className = `lm-side-btn t1${leftSideActive  ? ' active' : ''}`;
+  rBtn.className = `lm-side-btn t2${!leftSideActive ? ' active' : ''}`;
+  lBtn.onclick = () => lmSetScoringSide(leftKey);
+  rBtn.onclick = () => lmSetScoringSide(rightKey);
+
+  // Total score bar
+  lmUpdateScoreBar();
 }
 
 // ── Commit & close — saves state, closes modal ──
@@ -2667,81 +2851,44 @@ function lmSelectMember(side, memberIdx) {
   lmRender();
 }
 
-// ── Main render ──
+// ── Main render (pick screen) ──
 function lmRender() {
   if (!lmState) return;
-  const { match, clashes, activeClashIdx, scoringSide, shuffled, history } = lmState;
+  const { match, clashes, activeClashIdx, scoringSide, history } = lmState;
   const clash = clashes[activeClashIdx];
+  const isFinals = match.round === 'F';
+  const threshold = isFinals ? 7 : 4;
 
-  // Determine display sides based on swap
-  // leftKey/rightKey are 't1'/'t2' — lmSwapped flips them
+  document.getElementById('lm-match-label').textContent =
+    `${match.round} · ${match.team1?.teamName || '?'} vs ${match.team2?.teamName || '?'}  (win at ${threshold} pts)`;
+
+  lmUpdateScoreBar();
+
+  if (!clash) return;
+
   const leftKey  = lmSwapped ? 't2' : 't1';
   const rightKey = lmSwapped ? 't1' : 't2';
   const leftTeam  = match[leftKey  === 't1' ? 'team1' : 'team2'];
   const rightTeam = match[rightKey === 't1' ? 'team1' : 'team2'];
+  const leftMemberIdx  = leftKey  === 't1' ? clash.t1MemberIdx : clash.t2MemberIdx;
+  const rightMemberIdx = rightKey === 't1' ? clash.t1MemberIdx : clash.t2MemberIdx;
 
-  const isFinals = match.round === 'F';
-  const threshold = isFinals ? 7 : 4;
-
-  // Header labels
-  document.getElementById('lm-match-label').textContent =
-    `${match.round} · ${match.team1?.teamName || '?'} vs ${match.team2?.teamName || '?'}  (win at ${threshold} pts)`;
-
-  // Score bar — always shows LEFT team pts on left, RIGHT on right
-  const leftPts  = (match[leftKey  === 't1' ? 'team1' : 'team2']?.members || []).reduce((s,m) => s + calcPoints(m.builds), 0);
-  const rightPts = (match[rightKey === 't1' ? 'team1' : 'team2']?.members || []).reduce((s,m) => s + calcPoints(m.builds), 0);
-
-  const leftEl  = document.getElementById('lm-total-t1'); // left slot in DOM
-  const rightEl = document.getElementById('lm-total-t2'); // right slot in DOM
-  leftEl.textContent  = leftPts;
-  rightEl.textContent = rightPts;
-  leftEl.className  = `lm-score-t1${leftPts  >= threshold ? ' winning' : ''}`;
-  rightEl.className = `lm-score-t2${rightPts >= threshold ? ' winning' : ''}`;
-
-  // Shuffle notice
-  document.getElementById('lm-shuffle-notice').style.display = shuffled ? '' : 'none';
-
-  if (!clash) return;
-
-  const leftMemberIdx  = lmSwapped ? clash.t2MemberIdx : clash.t1MemberIdx;
-  const rightMemberIdx = lmSwapped ? clash.t1MemberIdx : clash.t2MemberIdx;
-  const leftMember  = leftTeam  ? leftTeam.members[leftMemberIdx]   : null;
-  const rightMember = rightTeam ? rightTeam.members[rightMemberIdx] : null;
-
-  // Player name headers
   document.getElementById('lm-label-t1').textContent = leftTeam?.teamName  || '';
   document.getElementById('lm-label-t2').textContent = rightTeam?.teamName || '';
-  document.getElementById('lm-name-t1').textContent  = leftMember?.player  || '—';
-  document.getElementById('lm-name-t2').textContent  = rightMember?.player || '—';
+  document.getElementById('lm-name-t1').textContent  = leftTeam?.members[leftMemberIdx]?.player   || '—';
+  document.getElementById('lm-name-t2').textContent  = rightTeam?.members[rightMemberIdx]?.player || '—';
 
-  // Clash pts — show left/right according to swap
-  const clashPtsLeft  = clash.finishes.filter(f => f.side === leftKey ).reduce((s,f) => s+f.pts, 0);
-  const clashPtsRight = clash.finishes.filter(f => f.side === rightKey).reduce((s,f) => s+f.pts, 0);
-  document.getElementById('lm-clash-pts-t1').textContent = clashPtsLeft;
-  document.getElementById('lm-clash-pts-t2').textContent = clashPtsRight;
-
-  // Bey / member chips (pass actual team key, not display key)
   lmRenderMemberSelector('t1', leftTeam,  clash, leftKey);
   lmRenderMemberSelector('t2', rightTeam, clash, rightKey);
 
-  // Scoring side buttons — label them by display position
-  const leftSideActive  = scoringSide === leftKey;
-  const rightSideActive = scoringSide === rightKey;
-  const lBtn = document.getElementById('lm-side-t1-btn');
-  const rBtn = document.getElementById('lm-side-t2-btn');
-  lBtn.textContent = `◀ ${leftTeam?.teamName  || 'LEFT'}`;
-  rBtn.textContent = `${rightTeam?.teamName || 'RIGHT'} ▶`;
-  lBtn.className = `lm-side-btn t1${leftSideActive  ? ' active' : ''}`;
-  rBtn.className = `lm-side-btn t2${rightSideActive ? ' active' : ''}`;
-  lBtn.onclick = () => lmSetScoringSide(leftKey);
-  rBtn.onclick = () => lmSetScoringSide(rightKey);
-
-  // History
+  // History log
   const histEl = document.getElementById('lm-history');
-  histEl.innerHTML = '<div style="font-family:\'Share Tech Mono\',monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">CLASH LOG</div>' +
-    (history.length
-      ? history.map(h => `<div class="lm-history-item">${h.html}</div>`).join('')
-      : '<div style="font-family:\'Share Tech Mono\',monospace;font-size:10px;color:var(--muted2)">No clashes yet</div>');
+  if (histEl) {
+    histEl.innerHTML = '<div style="font-family:\'Share Tech Mono\',monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">CLASH LOG</div>' +
+      (history.length
+        ? history.map(h => `<div class="lm-history-item">${h.html}</div>`).join('')
+        : '<div style="font-family:\'Share Tech Mono\',monospace;font-size:10px;color:var(--muted2)">No clashes yet</div>');
+  }
 }
 
 function lmRenderMemberSelector(domSlot, team, clash, actualKey) {
@@ -2773,9 +2920,14 @@ function lmRenderMemberSelector(domSlot, team, clash, actualKey) {
 
   const beyHtml = (activeMember.builds || []).map((b, bi) => {
     const isActiveB = bi === activeBeyIdx;
+    // A bey is "used up" (locked out) only if it has an L AND we haven't shuffled since
+    // lmState.lastShuffleAt tracks the roundCount when the last shuffle happened
+    const lastShuffle = lmState.lastShuffleAt || 0;
     const hasL = b.finishes.includes('L');
-    return `<div class="lm-bey-chip ${isActiveB?'active':''} ${hasL?'used':''}"
-      onclick="${hasL?'':'lmSelectBey(\''+actualKey+'\','+bi+')'}">
+    // Count Ls added after the last shuffle by checking b._lAddedAtRound array
+    const lockedOut = hasL && (b._lAddedAtRound || 0) > lastShuffle;
+    return `<div class="lm-bey-chip ${isActiveB?'active':''} ${lockedOut?'used':''}"
+      onclick="${lockedOut?'':'lmSelectBey(\''+actualKey+'\','+bi+')'}">
       <span class="lm-bey-name">${escHtml(b.build)||'(unnamed)'}</span>
       <span class="lm-bey-pts">${b.finishes.map(f=>`<span class="finish-tag ${f}" style="font-size:8px;padding:1px 4px">${f}</span>`).join('')}</span>
     </div>`;
