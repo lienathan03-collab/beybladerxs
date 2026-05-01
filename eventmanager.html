@@ -2201,16 +2201,16 @@ function renderBuilds() {
   el.innerHTML = players.map(p => {
     const key = playerKey(p.name);
     if (!buildsState[key]) buildsState[key] = [];
+    // Always pad to exactly 3 slots
+    while (buildsState[key].length < 3) buildsState[key].push('');
     const builds = buildsState[key];
-    const rows = builds.map((b, i) => `
+    const rows = builds.slice(0, 3).map((b, i) => `
       <div class="build-row">
         <span class="build-num">${i+1}.</span>
         <input class="form-input" style="flex:1;font-size:13px;padding:5px 8px;font-family:'Share Tech Mono',monospace"
           value="${escHtml(b)}" placeholder="e.g. Wiro 1-60 H"
           oninput="updateBuild('${escJs(key)}', ${i}, this.value)" />
-        <button class="build-delete" onclick="removeBuild('${escJs(key)}', ${i})">✕</button>
       </div>`).join('');
-    const canAdd = builds.length < 3;
     return `
       <div class="player-build-card">
         <div class="player-build-card-name">
@@ -2220,23 +2220,17 @@ function renderBuilds() {
           ${p.name}
         </div>
         <div id="builds-rows-${escId(key)}">${rows}</div>
-        ${canAdd ? `<button class="add-build-btn" onclick="addBuild('${escJs(key)}')">+ Add Build</button>` : ''}
       </div>`;
   }).join('');
 }
 
 function addBuild(key) {
-  if (!buildsState[key]) buildsState[key] = [];
-  if (buildsState[key].length >= 3) return;
-  buildsState[key].push('');
-  markDirty();
-  renderBuilds();
+  // No-op — slots are fixed at 3
 }
 
 function removeBuild(key, idx) {
   if (!buildsState[key]) return;
-  buildsState[key].splice(idx, 1);
-  // Also clean up results referencing this build
+  buildsState[key][idx] = ''; // clear the slot instead of removing it
   syncResultsBuilds();
   markDirty();
   renderBuilds();
