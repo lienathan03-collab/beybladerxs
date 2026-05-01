@@ -3082,7 +3082,7 @@ function renderTeamMatchCard(match) {
       const rowFinished = (m1?.win || m2?.win);
       const slotNum = displayIdx + 1;
       const slotLabel = slotNum === 1 ? '1ST MATCH' : slotNum === 2 ? '2ND MATCH' : slotNum === 3 ? '3RD MATCH' : `${slotNum}TH MATCH`;
-      const isPlayed = displayIdx < playedPairs.filter((p,j) => j <= displayIdx && (playOrder.team1.includes(p.t1i) || playOrder.team2.includes(p.t2i))).length;
+      const isPlayed = displayIdx < playedPairs.filter((p,j) => j <= displayIdx && (storedOrder.team1.includes(p.t1i) || storedOrder.team2.includes(p.t2i))).length;
       return `<div style="border-top:1px solid var(--border)">
         <div style="display:flex;align-items:center;gap:6px;padding:2px 10px;background:${rowFinished?'rgba(76,175,80,0.06)':'var(--surface2)'};border-bottom:1px solid var(--border)">
           <span style="font-family:'Share Tech Mono',monospace;font-size:8px;color:${rowFinished?'#66bb6a':'var(--muted2)'};letter-spacing:1px">${slotLabel}</span>
