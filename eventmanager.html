@@ -2779,29 +2779,7 @@ function renderTeamMatchCard(match) {
     </div>`;
   }
 
-  // Build the per-player rows side by side
   const maxMembers = Math.max(t1.members.length, t2.members.length);
-  let playerRows = '';
-  for (let i = 0; i < maxMembers; i++) {
-    const m1 = t1.members[i];
-    const m2 = t2.members[i];
-    const pos = i === 0 ? '1st' : i === 1 ? '2nd' : i === 2 ? '3rd' : `${i+1}th`;
-    playerRows += `
-      <div style="display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--border)">
-        <div style="padding:4px 8px 2px;border-right:1px solid var(--border)">
-          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);margin-bottom:1px">${pos} player</div>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:var(--blue)">${m1 ? escHtml(m1.player) : '—'}</div>
-        </div>
-        <div style="padding:4px 8px 2px">
-          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);margin-bottom:1px">${pos} player</div>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:var(--gold2)">${m2 ? escHtml(m2.player) : '—'}</div>
-        </div>
-      </div>`;
-  }
-
-  // Build the full match detail sections
-  const t1Sides = t1.members.map((m, i) => renderTeamMemberSide(match, 'team1', i, mid, 'p1')).join('');
-  const t2Sides = t2.members.map((m, i) => renderTeamMemberSide(match, 'team2', i, mid, 'p2')).join('');
 
   return `
   <div class="match-card" id="match-${mid}">
@@ -2822,19 +2800,24 @@ function renderTeamMatchCard(match) {
       </div>
       <button class="btn live-btn" onclick="openLiveMode(${mid},'team1',0)">⚡</button>
     </div>
-    <!-- Player name grid (positional) -->
-    ${playerRows}
-    <!-- Per-player match detail -->
-    <div style="display:grid;grid-template-columns:1fr 1fr">
-      <div style="border-right:1px solid var(--border)">
-        <div style="padding:4px 10px;background:rgba(74,158,255,0.06);border-bottom:1px solid var(--border);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;color:var(--blue);letter-spacing:1px">${escHtml(t1.teamName)}</div>
-        ${t1Sides}
-      </div>
-      <div>
-        <div style="padding:4px 10px;background:rgba(212,175,55,0.06);border-bottom:1px solid var(--border);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;color:var(--gold2);letter-spacing:1px">${escHtml(t2.teamName)}</div>
-        ${t2Sides}
-      </div>
+    <!-- Team name headers -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--border)">
+      <div style="padding:4px 10px;background:rgba(74,158,255,0.06);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;color:var(--blue);letter-spacing:1px;border-right:1px solid var(--border)">${escHtml(t1.teamName)}</div>
+      <div style="padding:4px 10px;background:rgba(212,175,55,0.06);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;color:var(--gold2);letter-spacing:1px">${escHtml(t2.teamName)}</div>
     </div>
+    <!-- Per-player matchup rows — each row aligns team1[i] with team2[i] -->
+    ${Array.from({length: maxMembers}, (_,i) => {
+      const m1 = t1.members[i];
+      const m2 = t2.members[i];
+      return `<div style="display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--border)">
+        <div style="border-right:1px solid var(--border)">
+          ${m1 ? renderTeamMemberSide(match, 'team1', i, mid, 'p1') : '<div style="padding:8px;color:var(--muted2);font-size:11px">—</div>'}
+        </div>
+        <div>
+          ${m2 ? renderTeamMemberSide(match, 'team2', i, mid, 'p2') : '<div style="padding:8px;color:var(--muted2);font-size:11px">—</div>'}
+        </div>
+      </div>`;
+    }).join('')}
     <!-- Team totals -->
     <div style="display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--border)">
       <div style="padding:6px 10px;display:flex;align-items:center;justify-content:space-between;border-right:1px solid var(--border)">
@@ -2883,7 +2866,7 @@ function renderTeamMemberSide(match, teamKey, memberIdx, mid, colorSide) {
   const isPending = !autoActive && !member.win;
 
   return `
-  <div class="match-player-side" style="border-top:1px solid var(--border)">
+  <div class="match-player-side">
     <div class="match-player-name ${colorSide}">
       <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);margin-right:4px">${pos}</span>
       ${escHtml(member.player)}
