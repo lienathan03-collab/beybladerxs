@@ -916,71 +916,6 @@
     .lm-overlay { padding: 0; align-items: stretch; }
   }
 
-  /* ── CLASH LANDSCAPE MODE (portrait phones → rotate full screen) ──
-     Applied via JS class .clash-landscape-active on the overlay
-     when the clash screen is shown on a portrait mobile device.
-     We rotate the overlay 90° so the clash fills the full landscape width.
-  ── */
-  .clash-landscape-active {
-    transform: rotate(90deg);
-    transform-origin: center center;
-    width: 100vh !important;
-    height: 100vw !important;
-    top: calc(50vw - 50vh) !important;
-    left: calc(50vh - 50vw) !important;
-    padding: 0 !important;
-    align-items: stretch !important;
-  }
-  .clash-landscape-active .lm-modal {
-    max-width: 100% !important;
-    width: 100% !important;
-    max-height: 100% !important;
-    height: 100% !important;
-    border-radius: 0 !important;
-    overflow-y: auto;
-  }
-  /* In rotated landscape: clash screen fills full height, use horizontal layout */
-  .clash-landscape-active #lm-screen-clash {
-    display: flex !important;
-    flex-direction: column;
-    height: calc(100% - 56px); /* minus header */
-  }
-  /* Compact header in landscape */
-  .clash-landscape-active .lm-header {
-    padding: 4px 10px !important;
-  }
-  .clash-landscape-active .lm-title { font-size: 12px !important; }
-  .clash-landscape-active #lm-match-label { font-size: 7px !important; }
-
-  /* Player panels side by side, compact */
-  .clash-landscape-active #lm-screen-clash > div:first-child {
-    min-height: 50px !important;
-  }
-  .clash-landscape-active #clash-left-bey,
-  .clash-landscape-active #clash-right-bey { font-size: 13px !important; }
-
-  /* Big scores — smaller in landscape to fit */
-  .clash-landscape-active #clash-score-left,
-  .clash-landscape-active #clash-score-right {
-    font-size: clamp(48px, 12vw, 80px) !important;
-  }
-
-  /* Finish buttons — single row of 4 in landscape */
-  .clash-landscape-active #lm-screen-clash > div:nth-child(4) {
-    grid-template-columns: 1fr 1fr 1fr 1fr !important;
-    gap: 6px !important;
-    padding: 6px 8px !important;
-  }
-  .clash-landscape-active .lm-clash-finish-btn { padding: 10px 4px !important; }
-  .clash-landscape-active .lcfb-letter { font-size: 28px !important; }
-  .clash-landscape-active .lcfb-label  { font-size: 9px !important; }
-  .clash-landscape-active .lcfb-pts    { font-size: 8px !important; }
-
-  /* Bottom row compact */
-  .clash-landscape-active #lm-screen-clash > div:last-child {
-    padding: 0 8px 6px !important;
-  }
-
   /* ══════════════════════════════════════
      MOBILE RESPONSIVE — ≤ 600px
   ══════════════════════════════════════ */
@@ -1114,9 +1049,9 @@
     #clash-left-bey, #clash-right-bey { font-size: 13px !important; word-break: break-word; }
     #clash-left-player, #clash-right-player { font-size: 8px !important; }
 
-    /* Big score numbers */
+    /* Big score numbers — smaller so finish buttons fit without scrolling */
     #clash-score-left, #clash-score-right {
-      font-size: clamp(52px, 18vw, 88px) !important;
+      font-size: clamp(44px, 14vw, 72px) !important;
     }
 
     /* Scorer strip */
@@ -1124,23 +1059,23 @@
     #clash-scorer-strip > span { font-size: 8px !important; }
     #clash-scorer-strip .btn { font-size: 10px !important; padding: 3px 8px !important; }
 
-    /* Finish buttons — 2×2 on mobile */
+    /* Finish buttons — 2×2 on mobile, tall tap targets */
     #lm-screen-clash > div:nth-child(4) {
       grid-template-columns: 1fr 1fr !important;
-      gap: 6px !important;
-      padding: 6px 8px !important;
+      gap: 8px !important;
+      padding: 8px !important;
     }
-    .lm-clash-finish-btn { padding: 12px 4px !important; border-radius: 10px !important; }
-    .lcfb-letter { font-size: 32px !important; }
-    .lcfb-label  { font-size: 9px !important; }
-    .lcfb-pts    { font-size: 8px !important; }
+    .lm-clash-finish-btn { padding: 16px 4px !important; border-radius: 10px !important; }
+    .lcfb-letter { font-size: 34px !important; }
+    .lcfb-label  { font-size: 10px !important; }
+    .lcfb-pts    { font-size: 9px !important; }
 
     /* Bottom row */
-    #lm-screen-clash > div:last-child { padding: 0 8px 8px !important; gap: 6px !important; }
-    #lm-screen-clash > div:last-child .btn { font-size: 12px !important; padding: 9px 10px !important; }
+    #lm-screen-clash > div:last-child { padding: 0 8px 10px !important; gap: 6px !important; }
+    #lm-screen-clash > div:last-child .btn { font-size: 12px !important; padding: 10px !important; }
 
     /* History */
-    .lm-history { max-height: 80px !important; padding: 5px 10px !important; }
+    .lm-history { max-height: 70px !important; padding: 5px 10px !important; }
     .lm-history-item { font-size: 9px !important; }
 
     /* NEW MATCH MODAL */
@@ -3304,34 +3239,13 @@ function lmStartClash() {
   if (!clash) return;
   document.getElementById('lm-screen-pick').style.display = 'none';
   document.getElementById('lm-screen-clash').style.display = '';
-
-  // Try native landscape lock first (Android Chrome supports this)
-  if (screen.orientation && screen.orientation.lock) {
-    screen.orientation.lock('landscape').catch(() => {});
-  }
-  // CSS rotation fallback for iOS and unsupported browsers:
-  // Only rotate if we're on a small portrait screen (phone)
-  lmApplyLandscape();
   lmRenderClashScreen();
 }
 
-function lmApplyLandscape() {
-  const overlay = document.getElementById('live-mode-overlay');
-  if (!overlay) return;
-  const isPortrait = window.innerHeight > window.innerWidth;
-  const isSmall = window.innerWidth <= 768;
-  if (isPortrait && isSmall) {
-    overlay.classList.add('clash-landscape-active');
-  } else {
-    overlay.classList.remove('clash-landscape-active');
-  }
-}
-
+function lmApplyLandscape() {} // no-op — rotation removed, causes touch issues on mobile
 function lmRemoveLandscape() {
-  const overlay = document.getElementById('live-mode-overlay');
-  if (overlay) overlay.classList.remove('clash-landscape-active');
   if (screen.orientation && screen.orientation.unlock) {
-    screen.orientation.unlock();
+    try { screen.orientation.unlock(); } catch(e) {}
   }
 }
 
@@ -3345,7 +3259,6 @@ function lmBackToPick() {
   lmPushClash(t1Idx, t2Idx);
   document.getElementById('lm-screen-clash').style.display = 'none';
   document.getElementById('lm-screen-pick').style.display = '';
-  lmRemoveLandscape();
   lmRender();
 }
 
@@ -4223,20 +4136,6 @@ function escId(s) {
 }
 
 // Warn on unsaved changes + auto-save draft
-// Re-check landscape mode if device is rotated or window resized
-window.addEventListener('resize', () => {
-  if (lmState && document.getElementById('lm-screen-clash')?.style.display !== 'none') {
-    lmApplyLandscape();
-  }
-});
-window.addEventListener('orientationchange', () => {
-  setTimeout(() => {
-    if (lmState && document.getElementById('lm-screen-clash')?.style.display !== 'none') {
-      lmApplyLandscape();
-    }
-  }, 300); // small delay for orientation to settle
-});
-
 // Sync immediately when user switches back to this tab/app
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && currentEvent) doLiveSync();
