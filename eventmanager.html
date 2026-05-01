@@ -2273,15 +2273,42 @@ let activeRoundFilter = 'ALL';
 let _matchIdCounter = 1;
 
 function loadMatchesFromResults() {
-  // Convert old flat resultsState into matchesState pairs
-  // Group by round then pair up players 2 at a time
+  // Convert flat resultsState into matchesState pairs
   matchesState = [];
   const rounds = [...new Set(resultsState.map(r => r.round))];
   for (const round of rounds) {
     const entries = resultsState.filter(r => r.round === round);
-    for (let i = 0; i < entries.length; i += 2) {
-      const p1 = entries[i];
-      const p2 = entries[i+1];
+
+    const teamEntries = entries.filter(e => e.team);
+    const soloEntries = entries.filter(e => !e.team);
+
+    // Handle team entries
+    if (teamEntries.length) {
+      const teamNames = [...new Set(teamEntries.map(e => e.team))];
+      for (let i = 0; i < teamNames.length; i += 2) {
+        const t1name = teamNames[i], t2name = teamNames[i+1];
+        if (!t1name) continue;
+        const t1entries = teamEntries.filter(e => e.team === t1name);
+        const t2entries = t2name ? teamEntries.filter(e => e.team === t2name) : [];
+        const t1members = t1entries.map(e => ({ player: e.player, builds: e.builds || [], win: e.win }));
+        const t2members = t2entries.map(e => ({ player: e.player, builds: e.builds || [], win: e.win }));
+        const playOrderEntry = t1entries.find(e => e._playOrder);
+        matchesState.push({
+          id: _matchIdCounter++,
+          round, isTeamMatch: true,
+          team1: { teamName: t1name, members: t1members },
+          team2: t2name ? { teamName: t2name, members: t2members } : null,
+          p1: t1members[0] || null, p2: t2members[0] || null,
+          _playOrder: playOrderEntry ? playOrderEntry._playOrder : undefined,
+          collapsed: true
+        });
+      }
+    }
+
+    // Handle solo entries
+    for (let i = 0; i < soloEntries.length; i += 2) {
+      const p1 = soloEntries[i];
+      const p2 = soloEntries[i+1];
       if (!p1) continue;
       matchesState.push({
         id: _matchIdCounter++,
@@ -2303,9 +2330,12 @@ function flattenMatchesToResults() {
   resultsState = [];
   for (const m of matchesState) {
     if (m.isTeamMatch) {
-      // Flatten all team members
+      // Flatten all team members — include _playOrder on team1's first entry for persistence
+      let firstT1 = true;
       for (const member of (m.team1 ? m.team1.members : [])) {
-        resultsState.push({ player: member.player, round: m.round, builds: member.builds, pointsTotal: calcPoints(member.builds), win: member.win, team: m.team1.teamName });
+        const entry = { player: member.player, round: m.round, builds: member.builds, pointsTotal: calcPoints(member.builds), win: member.win, team: m.team1.teamName };
+        if (firstT1 && m._playOrder) { entry._playOrder = m._playOrder; firstT1 = false; }
+        resultsState.push(entry);
       }
       for (const member of (m.team2 ? m.team2.members : [])) {
         resultsState.push({ player: member.player, round: m.round, builds: member.builds, pointsTotal: calcPoints(member.builds), win: member.win, team: m.team2.teamName });
@@ -2779,16 +2809,31 @@ function renderTeamMatchCard(match) {
 
   const maxMembers = Math.max(t1.members.length, t2.members.length);
 
-  // Build index pairs sorted so finished matchups appear first
-  const indexPairs = Array.from({length: maxMembers}, (_, i) => i);
-  indexPairs.sort((a, b) => {
-    const m1a = t1.members[a], m2a = t2.members[a];
-    const m1b = t1.members[b], m2b = t2.members[b];
-    const finishedA = (m1a?.win || m2a?.win) ? 1 : 0;
-    const finishedB = (m1b?.win || m2b?.win) ? 1 : 0;
-    // Finished goes to top (higher sort priority)
-    return finishedB - finishedA;
-  });
+  // ── Build display order using _playOrder ──
+  // _playOrder.team1 = [memberIdx, ...] in the order they were sent to clash
+  // We use team1's play order as the canonical row order (team2 is paired by clash order)
+  const playOrder = match._playOrder || { team1: [], team2: [] };
+
+  // Build ordered index pairs: played pairs first (in play order), then unplayed
+  const playedPairs = []; // { t1i, t2i } in play order
+  const maxPlayed = Math.max(playOrder.team1.length, playOrder.team2.length);
+  for (let p = 0; p < maxPlayed; p++) {
+    const t1i = playOrder.team1[p] !== undefined ? playOrder.team1[p] : null;
+    const t2i = playOrder.team2[p] !== undefined ? playOrder.team2[p] : null;
+    playedPairs.push({ t1i, t2i });
+  }
+  // Add unplayed members (those not in playOrder yet)
+  const usedT1 = new Set(playOrder.team1);
+  const usedT2 = new Set(playOrder.team2);
+  for (let i = 0; i < maxMembers; i++) {
+    const t1has = i < t1.members.length;
+    const t2has = i < t2.members.length;
+    const t1unused = t1has && !usedT1.has(i);
+    const t2unused = t2has && !usedT2.has(i);
+    if (t1unused || t2unused) {
+      playedPairs.push({ t1i: t1unused ? i : null, t2i: t2unused ? i : null });
+    }
+  }
 
   return `
   <div class="match-card" id="match-${mid}">
@@ -2814,24 +2859,25 @@ function renderTeamMatchCard(match) {
       <div style="padding:4px 10px;background:rgba(74,158,255,0.06);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;color:var(--blue);letter-spacing:1px;border-right:1px solid var(--border)">${escHtml(t1.teamName)}</div>
       <div style="padding:4px 10px;background:rgba(212,175,55,0.06);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;color:var(--gold2);letter-spacing:1px">${escHtml(t2.teamName)}</div>
     </div>
-    <!-- Per-player matchup rows — each row aligns team1[i] with team2[i] -->
-    ${indexPairs.map(i => {
-      const m1 = t1.members[i];
-      const m2 = t2.members[i];
+    <!-- Per-player matchup rows — ordered by play order -->
+    ${playedPairs.map(({ t1i, t2i }, displayIdx) => {
+      const m1 = t1i !== null ? t1.members[t1i] : null;
+      const m2 = t2i !== null ? t2.members[t2i] : null;
       const rowFinished = (m1?.win || m2?.win);
-      const rowNum = i + 1;
-      const rowLabel = rowNum === 1 ? '1ST MATCH' : rowNum === 2 ? '2ND MATCH' : rowNum === 3 ? '3RD MATCH' : `${rowNum}TH MATCH`;
+      const slotNum = displayIdx + 1;
+      const slotLabel = slotNum === 1 ? '1ST MATCH' : slotNum === 2 ? '2ND MATCH' : slotNum === 3 ? '3RD MATCH' : `${slotNum}TH MATCH`;
+      const isPlayed = displayIdx < playedPairs.filter((p,j) => j <= displayIdx && (playOrder.team1.includes(p.t1i) || playOrder.team2.includes(p.t2i))).length;
       return `<div style="border-top:1px solid var(--border)">
         <div style="display:flex;align-items:center;gap:6px;padding:2px 10px;background:${rowFinished?'rgba(76,175,80,0.06)':'var(--surface2)'};border-bottom:1px solid var(--border)">
-          <span style="font-family:'Share Tech Mono',monospace;font-size:8px;color:${rowFinished?'#66bb6a':'var(--muted2)'};letter-spacing:1px">${rowLabel}</span>
+          <span style="font-family:'Share Tech Mono',monospace;font-size:8px;color:${rowFinished?'#66bb6a':'var(--muted2)'};letter-spacing:1px">${slotLabel}</span>
           ${rowFinished ? `<span style="font-family:'Share Tech Mono',monospace;font-size:8px;color:#66bb6a">✓ DONE</span>` : ''}
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr">
           <div style="border-right:1px solid var(--border)">
-            ${m1 ? renderTeamMemberSide(match, 'team1', i, mid, 'p1') : '<div style="padding:8px;color:var(--muted2);font-size:11px">—</div>'}
+            ${m1 ? renderTeamMemberSide(match, 'team1', t1i, mid, 'p1', slotNum) : '<div style="padding:8px;color:var(--muted2);font-size:11px">—</div>'}
           </div>
           <div>
-            ${m2 ? renderTeamMemberSide(match, 'team2', i, mid, 'p2') : '<div style="padding:8px;color:var(--muted2);font-size:11px">—</div>'}
+            ${m2 ? renderTeamMemberSide(match, 'team2', t2i, mid, 'p2', slotNum) : '<div style="padding:8px;color:var(--muted2);font-size:11px">—</div>'}
           </div>
         </div>
       </div>`;
@@ -2850,13 +2896,15 @@ function renderTeamMatchCard(match) {
   </div>`;
 }
 
-function renderTeamMemberSide(match, teamKey, memberIdx, mid, colorSide) {
+function renderTeamMemberSide(match, teamKey, memberIdx, mid, colorSide, slotNum) {
   const team = match[teamKey];
   const member = team.members[memberIdx];
   if (!member) return '';
 
   const pts = calcPoints(member.builds);
-  const pos = memberIdx === 0 ? '1st' : memberIdx === 1 ? '2nd' : memberIdx === 2 ? '3rd' : `${memberIdx+1}th`;
+  // Use slotNum (play order position) if provided, else fall back to memberIdx
+  const displayPos = slotNum !== undefined ? slotNum : memberIdx + 1;
+  const pos = displayPos === 1 ? '1st' : displayPos === 2 ? '2nd' : displayPos === 3 ? '3rd' : `${displayPos}th`;
   const isFinals = match.round === 'F';
   const threshold = isFinals ? 7 : 4;
 
@@ -3484,8 +3532,35 @@ function lmUpdateScoreBar() {
   // Shuffle notice
   const sn = document.getElementById('lm-shuffle-notice');
   if (sn) sn.style.display = lmState.shuffled ? '' : 'none';
+
+  // Keep Next button state in sync (shared helper)
+  _syncNextBtnState(match, ptThreshold, teamWinThreshold);
+
   // Update landscape bar too
   if (document.getElementById('clash-landscape-wrap')?.classList.contains('active')) clwUpdateScoreBar();
+}
+
+function _syncNextBtnState(match, ptThreshold, teamWinThreshold) {
+  const t1wins = (match.team1?.members||[]).filter(m => calcPoints(m.builds) >= ptThreshold || m.win).length;
+  const t2wins = (match.team2?.members||[]).filter(m => calcPoints(m.builds) >= ptThreshold || m.win).length;
+  const soloWon = match._isSolo && ((match.team1?.members[0]?.win) || (match.team2?.members[0]?.win));
+  const teamMatchWon = !match._isSolo && (t1wins >= teamWinThreshold || t2wins >= teamWinThreshold);
+  const won = soloWon || teamMatchWon;
+
+  const winStyle = { bg: 'rgba(76,175,80,0.15)', border: 'rgba(76,175,80,0.4)', color: '#66bb6a', html: `🏆<br><span style="font-size:8px">DONE</span>`, title: 'Match finished — press ✅ to commit' };
+  const nextStyle = { bg: '', border: '', color: '', html: `🔄<br>NEXT`, title: 'Next round' };
+  const s = won ? winStyle : nextStyle;
+
+  for (const id of ['clw-next-btn', 'lm-next-btn']) {
+    const btn = document.getElementById(id);
+    if (!btn) continue;
+    btn.disabled = won;
+    btn.title = s.title;
+    btn.innerHTML = s.html;
+    btn.style.background = s.bg;
+    btn.style.borderColor = s.border;
+    btn.style.color = s.color;
+  }
 }
 
 // ── Undo last finish ──
@@ -3665,6 +3740,17 @@ function lmStartClash() {
   const clash = lmState.clashes[lmState.activeClashIdx];
   if (!clash) return;
 
+  // ── Record play order: track which member indices have been played, in order ──
+  // This drives the 1ST/2ND/3RD display in the match card
+  const realMatch = matchesState.find(m => m.id === lmState.mid);
+  if (realMatch && realMatch.isTeamMatch) {
+    if (!realMatch._playOrder) realMatch._playOrder = { team1: [], team2: [] };
+    const t1i = clash.t1MemberIdx;
+    const t2i = clash.t2MemberIdx;
+    if (!realMatch._playOrder.team1.includes(t1i)) realMatch._playOrder.team1.push(t1i);
+    if (!realMatch._playOrder.team2.includes(t2i)) realMatch._playOrder.team2.push(t2i);
+  }
+
   const isMobile = window.innerWidth <= 768;
   if (isMobile) {
     // Switch landscape wrap from pick → clash screen
@@ -3692,6 +3778,22 @@ function lmRemoveLandscape() {
 // ── Go back to pick screen (after a finish or "Next Bey Pick") ──
 function lmBackToPick() {
   if (!lmState) return;
+
+  // Guard: don't allow Next if overall match is already won
+  const { match } = lmState;
+  const isFinals_bt = match.round === 'F';
+  const isBestOf5_bt = ['TC','QF','SF','F'].includes(match.round);
+  const ptThresh_bt = isFinals_bt ? 7 : 4;
+  const winThresh_bt = isBestOf5_bt ? 3 : 2;
+  const t1w_bt = (match.team1?.members||[]).filter(m => calcPoints(m.builds) >= ptThresh_bt || m.win).length;
+  const t2w_bt = (match.team2?.members||[]).filter(m => calcPoints(m.builds) >= ptThresh_bt || m.win).length;
+  const soloWon_bt = match._isSolo && ((match.team1?.members[0]?.win) || (match.team2?.members[0]?.win));
+  const teamWon_bt = !match._isSolo && (t1w_bt >= winThresh_bt || t2w_bt >= winThresh_bt);
+  if (soloWon_bt || teamWon_bt) {
+    showToast('🏆 Match is finished! Press ✅ to commit results.', '');
+    return;
+  }
+
   const clash = lmState.clashes[lmState.activeClashIdx];
   if (clash) clash.done = true;
   const t1Idx = clash ? clash.t1MemberIdx : 0;
@@ -3772,33 +3874,7 @@ function clwRender() {
   el('clw-warn-left-num').textContent  = lwc;
   el('clw-warn-right-num').textContent = rwc;
 
-  // Check if match already has a winner — disable Next if so
-  const isFinals_clw = match.round === 'F';
-  const isBestOf5_clw = ['TC','QF','SF','F'].includes(match.round);
-  const ptThresh_clw = isFinals_clw ? 7 : 4;
-  const winThresh_clw = isBestOf5_clw ? 3 : 2;
-  const t1wins_clw = (match.team1?.members||[]).filter(m => calcPoints(m.builds) >= ptThresh_clw || m.win).length;
-  const t2wins_clw = (match.team2?.members||[]).filter(m => calcPoints(m.builds) >= ptThresh_clw || m.win).length;
-  const matchWon_clw = t1wins_clw >= winThresh_clw || t2wins_clw >= winThresh_clw;
-  const nextBtn = document.getElementById('clw-next-btn');
-  if (nextBtn) {
-    nextBtn.disabled = matchWon_clw;
-    nextBtn.title = matchWon_clw ? 'Match is finished' : 'Next round';
-    if (matchWon_clw) {
-      const winner = t1wins_clw >= winThresh_clw ? (match.team1?.teamName||'T1') : (match.team2?.teamName||'T2');
-      nextBtn.innerHTML = `🏆<br><span style="font-size:8px">DONE</span>`;
-      nextBtn.style.background = 'rgba(76,175,80,0.15)';
-      nextBtn.style.borderColor = 'rgba(76,175,80,0.4)';
-      nextBtn.style.color = '#66bb6a';
-    } else {
-      nextBtn.innerHTML = `🔄<br>NEXT`;
-      nextBtn.style.background = '';
-      nextBtn.style.borderColor = '';
-      nextBtn.style.color = '';
-    }
-  }
-
-  // Team score bar (player wins)
+  // Team score bar (player wins) — also syncs Next button state
   clwUpdateScoreBar();
 
   // Panel highlight
@@ -3829,6 +3905,8 @@ function clwUpdateScoreBar() {
   const s2 = document.getElementById('clw-s2');
   if (s1) { s1.textContent = lw; s1.className = lw >= teamWinThreshold ? 'winning' : ''; }
   if (s2) { s2.textContent = rw; s2.className = rw >= teamWinThreshold ? 'winning' : ''; }
+  // Keep Next button in sync
+  _syncNextBtnState(match, ptThreshold, teamWinThreshold);
 }
 
 function clwHighlight(side) {
@@ -3993,31 +4071,7 @@ function lmRenderClashScreen() {
   const leftSideActive = scoringSide === leftKey;
   lmSetScoringSideAndHighlight(leftSideActive ? 'left' : 'right');
 
-  // Disable Next button if match already has a winner
-  const isFinals_lm = match.round === 'F';
-  const isBestOf5_lm = ['TC','QF','SF','F'].includes(match.round);
-  const ptThresh_lm = isFinals_lm ? 7 : 4;
-  const winThresh_lm = isBestOf5_lm ? 3 : 2;
-  const t1w_lm = (match.team1?.members||[]).filter(m => calcPoints(m.builds) >= ptThresh_lm || m.win).length;
-  const t2w_lm = (match.team2?.members||[]).filter(m => calcPoints(m.builds) >= ptThresh_lm || m.win).length;
-  const matchWon_lm = t1w_lm >= winThresh_lm || t2w_lm >= winThresh_lm;
-  const lmNextBtn = document.getElementById('lm-next-btn');
-  if (lmNextBtn) {
-    lmNextBtn.disabled = matchWon_lm;
-    if (matchWon_lm) {
-      lmNextBtn.innerHTML = `🏆<br><span style="font-size:8px">DONE</span>`;
-      lmNextBtn.style.background = 'rgba(76,175,80,0.15)';
-      lmNextBtn.style.borderColor = 'rgba(76,175,80,0.4)';
-      lmNextBtn.style.color = '#66bb6a';
-    } else {
-      lmNextBtn.innerHTML = `🔄<br>NEXT`;
-      lmNextBtn.style.background = '';
-      lmNextBtn.style.borderColor = '';
-      lmNextBtn.style.color = '';
-    }
-  }
-
-  lmUpdateScoreBar();
+  lmUpdateScoreBar(); // also syncs Next button state
 }
 
 // ── Commit & close — saves state, closes modal ──
@@ -4392,10 +4446,13 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
         if (!t1name) continue;
         const t1members = teamEntries.filter(e => e.team === t1name).map(e => ({ player: e.player, builds: e.builds || [], win: e.win }));
         const t2members = t2name ? teamEntries.filter(e => e.team === t2name).map(e => ({ player: e.player, builds: e.builds || [], win: e.win })) : [];
+        // Restore _playOrder from first team1 entry that has it
+        const playOrderEntry = teamEntries.find(e => e.team === t1name && e._playOrder);
         serverMatches.push({ _sid: `${round}|T|${t1name}|${t2name||''}`, round, isTeamMatch: true,
           team1: { teamName: t1name, members: t1members },
           team2: t2name ? { teamName: t2name, members: t2members } : null,
-          p1: t1members[0] || null, p2: t2members[0] || null
+          p1: t1members[0] || null, p2: t2members[0] || null,
+          _playOrder: playOrderEntry ? playOrderEntry._playOrder : undefined
         });
       }
     }
