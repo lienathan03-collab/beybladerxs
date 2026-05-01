@@ -933,6 +933,10 @@
     top: calc((100vh - 100vw) / 2);
     left: calc((100vw - 100vh) / 2);
   }
+  #clw-pick-screen { display: none; flex: 1; min-height: 0; flex-direction: column; overflow: hidden; }
+  #clw-pick-screen.visible { display: flex; }
+  #clw-clash-screen { display: none; flex: 1; min-height: 0; flex-direction: column; overflow: hidden; }
+  #clw-clash-screen.visible { display: flex; }
 
   /* Header strip — very thin */
   #clw-header {
@@ -1080,6 +1084,23 @@
     width: 100% !important;
     background: var(--surface) !important;
     border-bottom: 1px solid var(--border) !important;
+  }
+  /* On clash-active: collapse header-top into a single row, hide title text */
+  .lm-modal.clash-active .lm-header-top {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 6px !important;
+  }
+  .lm-modal.clash-active .lm-header-title {
+    display: none !important;
+  }
+  .lm-modal.clash-active .lm-header-controls {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex: 1 !important;
+    justify-content: center !important;
   }
   /* Push clash content below the fixed header */
   .lm-modal.clash-active #lm-screen-clash {
@@ -1722,7 +1743,7 @@
      Entire element rotates 90° — true landscape
 ══════════════════════════════════════════ -->
 <div id="clash-landscape-wrap">
-  <!-- Header strip -->
+  <!-- Shared header strip (used by both pick + clash screens) -->
   <div id="clw-header">
     <div id="clw-title">⚡ LIVE</div>
     <div id="clw-matchlabel"></div>
@@ -1736,51 +1757,86 @@
     <button class="clw-hbtn" onclick="closeLiveMode()">✕</button>
   </div>
 
-  <!-- Two score halves -->
-  <div id="clw-arena">
-    <!-- LEFT -->
-    <div class="clw-half" id="clw-left" onclick="lmSetScoringSideAndHighlight('left')">
-      <div class="clw-warn" id="clw-warn-left">
-        <div class="clw-warn-label">WARN</div>
-        <div class="clw-warn-num" id="clw-warn-left-num">0</div>
+  <!-- ══ LANDSCAPE PICK SCREEN ══ -->
+  <div id="clw-pick-screen">
+    <!-- Two player columns side by side -->
+    <div style="display:grid;grid-template-columns:1fr 48px 1fr;flex:1;min-height:0;overflow:hidden">
+      <!-- LEFT -->
+      <div id="clwp-left" style="padding:8px 10px;overflow-y:auto;border-right:1px solid var(--border);background:rgba(74,158,255,0.04)">
+        <div id="clwp-label-left" style="font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--muted2);letter-spacing:1px;margin-bottom:3px"></div>
+        <div id="clwp-name-left" style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;color:var(--blue);margin-bottom:6px">—</div>
+        <div id="clwp-beys-left"></div>
       </div>
-      <div class="clw-player" id="clw-player-left"></div>
-      <div class="clw-bey" id="clw-bey-left">—</div>
-      <div class="clw-finishes" id="clw-finishes-left"></div>
-      <div class="clw-score" id="clw-score-left">0</div>
+      <!-- VS -->
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:4px 0">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:900;color:var(--muted2)">VS</div>
+      </div>
+      <!-- RIGHT -->
+      <div id="clwp-right" style="padding:8px 10px;overflow-y:auto;background:rgba(212,175,55,0.04)">
+        <div id="clwp-label-right" style="font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--muted2);letter-spacing:1px;margin-bottom:3px"></div>
+        <div id="clwp-name-right" style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;color:var(--gold2);margin-bottom:6px">—</div>
+        <div id="clwp-beys-right"></div>
+      </div>
     </div>
-    <!-- RIGHT -->
-    <div class="clw-half" id="clw-right" onclick="lmSetScoringSideAndHighlight('right')">
-      <div class="clw-warn" id="clw-warn-right">
-        <div class="clw-warn-label">WARN</div>
-        <div class="clw-warn-num" id="clw-warn-right-num">0</div>
-      </div>
-      <div class="clw-player" id="clw-player-right"></div>
-      <div class="clw-bey" id="clw-bey-right">—</div>
-      <div class="clw-finishes" id="clw-finishes-right"></div>
-      <div class="clw-score" id="clw-score-right">0</div>
+    <!-- START CLASH button -->
+    <div style="padding:8px 10px;background:var(--surface2);border-top:1px solid var(--border);flex-shrink:0">
+      <button class="btn primary" style="width:100%;font-size:16px;padding:10px;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:800"
+        onclick="lmStartClash()">⚔️ START CLASH</button>
+    </div>
+    <!-- Clash log -->
+    <div id="clwp-history" style="padding:6px 10px;background:var(--surface);border-top:1px solid var(--border);max-height:72px;overflow-y:auto;flex-shrink:0">
+      <div style="font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--muted2);letter-spacing:1px;margin-bottom:2px">CLASH LOG</div>
     </div>
   </div>
 
-  <!-- Controls bottom bar -->
-  <div id="clw-controls">
-    <div id="clw-strip">TAP A SIDE TO SELECT PLAYER</div>
-    <button class="clw-finish-btn S" onclick="lmApplyFinish('S')">
-      <div class="clw-fb-letter">S</div><div class="clw-fb-pts">+1pt</div>
-    </button>
-    <button class="clw-finish-btn O" onclick="lmApplyFinish('O')">
-      <div class="clw-fb-letter">O</div><div class="clw-fb-pts">+2pt</div>
-    </button>
-    <button class="clw-finish-btn E" onclick="lmApplyFinish('E')">
-      <div class="clw-fb-letter">E</div><div class="clw-fb-pts">+3pt</div>
-    </button>
-    <button class="clw-finish-btn B" onclick="lmApplyFinish('B')">
-      <div class="clw-fb-letter">B</div><div class="clw-fb-pts">+2pt</div>
-    </button>
-    <button class="clw-icon-btn" id="clw-warn-btn" onclick="lmAddWarning()">⚠️<br><span style="font-size:7px">WARN</span></button>
-    <button class="clw-icon-btn" id="clw-undo-btn" onclick="lmUndo()">↩</button>
-    <button class="clw-icon-btn" id="clw-next-btn" onclick="lmBackToPick()">🔄<br>NEXT</button>
+  <!-- ══ LANDSCAPE CLASH SCREEN ══ -->
+  <div id="clw-clash-screen">
+    <!-- Two score halves -->
+    <div id="clw-arena" style="display:grid;grid-template-columns:1fr 1fr;flex:1;min-height:0">
+      <!-- LEFT -->
+      <div class="clw-half" id="clw-left" onclick="lmSetScoringSideAndHighlight('left')">
+        <div class="clw-warn" id="clw-warn-left">
+          <div class="clw-warn-label">WARN</div>
+          <div class="clw-warn-num" id="clw-warn-left-num">0</div>
+        </div>
+        <div class="clw-player" id="clw-player-left"></div>
+        <div class="clw-bey" id="clw-bey-left">—</div>
+        <div class="clw-finishes" id="clw-finishes-left"></div>
+        <div class="clw-score" id="clw-score-left">0</div>
+      </div>
+      <!-- RIGHT -->
+      <div class="clw-half" id="clw-right" onclick="lmSetScoringSideAndHighlight('right')">
+        <div class="clw-warn" id="clw-warn-right">
+          <div class="clw-warn-label">WARN</div>
+          <div class="clw-warn-num" id="clw-warn-right-num">0</div>
+        </div>
+        <div class="clw-player" id="clw-player-right"></div>
+        <div class="clw-bey" id="clw-bey-right">—</div>
+        <div class="clw-finishes" id="clw-finishes-right"></div>
+        <div class="clw-score" id="clw-score-right">0</div>
+      </div>
+    </div>
+    <!-- Controls bottom bar -->
+    <div id="clw-controls">
+      <div id="clw-strip">TAP A SIDE TO SELECT PLAYER</div>
+      <button class="clw-finish-btn S" onclick="lmApplyFinish('S')">
+        <div class="clw-fb-letter">S</div><div class="clw-fb-pts">+1pt</div>
+      </button>
+      <button class="clw-finish-btn O" onclick="lmApplyFinish('O')">
+        <div class="clw-fb-letter">O</div><div class="clw-fb-pts">+2pt</div>
+      </button>
+      <button class="clw-finish-btn E" onclick="lmApplyFinish('E')">
+        <div class="clw-fb-letter">E</div><div class="clw-fb-pts">+3pt</div>
+      </button>
+      <button class="clw-finish-btn B" onclick="lmApplyFinish('B')">
+        <div class="clw-fb-letter">B</div><div class="clw-fb-pts">+2pt</div>
+      </button>
+      <button class="clw-icon-btn" id="clw-warn-btn" onclick="lmAddWarning()">⚠️<br><span style="font-size:7px">WARN</span></button>
+      <button class="clw-icon-btn" id="clw-undo-btn" onclick="lmUndo()">↩</button>
+      <button class="clw-icon-btn" id="clw-next-btn" onclick="lmBackToPick()">🔄<br>NEXT</button>
+    </div>
   </div>
+
 </div>
 
 <!-- Toast -->
@@ -3118,13 +3174,7 @@ function openLiveModeSolo(mid, clickedSide) {
   };
 
   lmPushClash(0, 0);
-  document.getElementById('lm-screen-pick').style.display = '';
-  document.getElementById('lm-screen-clash').style.display = 'none';
-  const overlay = document.getElementById('live-mode-overlay');
-  overlay.style.display = 'flex';
-  overlay.style.zIndex = '500';
-  document.body.style.overflow = 'hidden'; // prevent background scroll on mobile
-  lmRender();
+  lmOpenPickScreen();
 }
 
 // ── Entry point: 3v3 match ──
@@ -3144,13 +3194,30 @@ function openLiveMode(mid, teamKey, memberIdx) {
   };
 
   lmPushClash(t1Idx, t2Idx);
-  document.getElementById('lm-screen-pick').style.display = '';
-  document.getElementById('lm-screen-clash').style.display = 'none';
-  const overlay2 = document.getElementById('live-mode-overlay');
-  overlay2.style.display = 'flex';
-  overlay2.style.zIndex = '500';
-  document.body.style.overflow = 'hidden'; // prevent background scroll on mobile
-  lmRender();
+  lmOpenPickScreen();
+}
+
+// ── Show pick screen: landscape on mobile, portrait modal on desktop ──
+function lmOpenPickScreen() {
+  const isMobile = window.innerWidth <= 768;
+  document.body.style.overflow = 'hidden';
+
+  if (isMobile) {
+    document.getElementById('live-mode-overlay').style.display = 'none';
+    const wrap = document.getElementById('clash-landscape-wrap');
+    wrap.classList.add('active');
+    document.getElementById('clw-pick-screen').classList.add('visible');
+    document.getElementById('clw-clash-screen').classList.remove('visible');
+    clwRenderPickScreen();
+    clwUpdateScoreBar();
+  } else {
+    document.getElementById('lm-screen-pick').style.display = '';
+    document.getElementById('lm-screen-clash').style.display = 'none';
+    const overlay = document.getElementById('live-mode-overlay');
+    overlay.style.display = 'flex';
+    overlay.style.zIndex = '500';
+    lmRender();
+  }
 }
 
 // ── Swap left/right display sides ──
@@ -3572,11 +3639,9 @@ function lmStartClash() {
 
   const isMobile = window.innerWidth <= 768;
   if (isMobile) {
-    // Use the true landscape rotation wrapper
-    document.getElementById('live-mode-overlay').style.display = 'none';
-    const wrap = document.getElementById('clash-landscape-wrap');
-    wrap.classList.add('active');
-    document.body.style.overflow = 'hidden';
+    // Switch landscape wrap from pick → clash screen
+    document.getElementById('clw-pick-screen').classList.remove('visible');
+    document.getElementById('clw-clash-screen').classList.add('visible');
     clwRender();
   } else {
     // Desktop: use the normal clash screen inside the modal
@@ -3605,20 +3670,20 @@ function lmBackToPick() {
   const t2Idx = clash ? clash.t2MemberIdx : 0;
   lmPushClash(t1Idx, t2Idx);
 
-  // Hide landscape wrap if active
   const wrap = document.getElementById('clash-landscape-wrap');
   if (wrap.classList.contains('active')) {
-    wrap.classList.remove('active');
-    // Re-show the live modal pick screen
-    document.getElementById('live-mode-overlay').style.display = 'flex';
-    document.getElementById('live-mode-overlay').style.zIndex = '500';
+    // Mobile: switch back to pick screen within the landscape wrap
+    document.getElementById('clw-clash-screen').classList.remove('visible');
+    document.getElementById('clw-pick-screen').classList.add('visible');
+    clwRenderPickScreen();
+    clwUpdateScoreBar();
   } else {
     document.getElementById('lm-screen-clash').style.display = 'none';
     document.getElementById('live-mode-modal')?.classList.remove('clash-active');
     document.getElementById('live-mode-overlay')?.classList.remove('clash-active');
+    document.getElementById('lm-screen-pick').style.display = '';
+    lmRender();
   }
-  document.getElementById('lm-screen-pick').style.display = '';
-  lmRender();
 }
 
 // ── Render the landscape clash wrapper (mobile full-screen) ──
@@ -3716,6 +3781,102 @@ function clwHighlight(side) {
   if (!left || !right) return;
   left.className  = 'clw-half' + (side === 'left'  ? ' selected-left'  : '');
   right.className = 'clw-half' + (side === 'right' ? ' selected-right' : '');
+}
+
+// ── Render the landscape pick screen ──
+function clwRenderPickScreen() {
+  if (!lmState) return;
+  const { match, clashes, activeClashIdx, history } = lmState;
+  const clash = clashes[activeClashIdx];
+  if (!clash) return;
+
+  const leftKey   = lmSwapped ? 't2' : 't1';
+  const rightKey  = lmSwapped ? 't1' : 't2';
+  const leftTeam  = match[leftKey  === 't1' ? 'team1' : 'team2'];
+  const rightTeam = match[rightKey === 't1' ? 'team1' : 'team2'];
+
+  // Update match label in header
+  const isFinals = match.round === 'F';
+  const ptThreshold = isFinals ? 7 : 4;
+  document.getElementById('clw-matchlabel').textContent =
+    `${match.round} · ${match.team1?.teamName||'?'} vs ${match.team2?.teamName||'?'} (${ptThreshold}pts)`;
+
+  // Team labels + current player names
+  document.getElementById('clwp-label-left').textContent  = leftTeam?.teamName  || '';
+  document.getElementById('clwp-label-right').textContent = rightTeam?.teamName || '';
+  const activeLMemberIdx = leftKey  === 't1' ? clash.t1MemberIdx : clash.t2MemberIdx;
+  const activeRMemberIdx = rightKey === 't1' ? clash.t1MemberIdx : clash.t2MemberIdx;
+  document.getElementById('clwp-name-left').textContent  = leftTeam?.members[activeLMemberIdx]?.player  || '—';
+  document.getElementById('clwp-name-right').textContent = rightTeam?.members[activeRMemberIdx]?.player || '—';
+
+  // Render bey chips for each side (reuse lmRenderMemberSelector logic inline)
+  ['left','right'].forEach(dom => {
+    const actualKey = dom === 'left' ? leftKey  : rightKey;
+    const team = dom === 'left' ? leftTeam : rightTeam;
+    const activeMemberIdx = actualKey === 't1' ? clash.t1MemberIdx : clash.t2MemberIdx;
+    const activeBeyIdx    = actualKey === 't1' ? clash.t1BeyIdx    : clash.t2BeyIdx;
+    const container = document.getElementById(`clwp-beys-${dom}`);
+    if (!container || !team) return;
+
+    const isBestOf5Round = ['TC','QF','SF','F'].includes(match.round);
+
+    const memberHtml = team.members.map((m, i) => {
+      const pts = calcPoints(m.builds);
+      const isActive = i === activeMemberIdx;
+      const hasPlayed = m.builds.some(b => (b.finishes||[]).length > 0);
+      const won  = m.win;
+      const lost = !isBestOf5Round && hasPlayed && !won;
+      let border, bg, color, textDeco, cursor;
+      if (isActive) {
+        border='var(--gold)';bg='rgba(212,175,55,0.12)';color='var(--gold2)';textDeco='none';cursor='pointer';
+      } else if (won) {
+        border='rgba(76,175,80,0.4)';bg='rgba(76,175,80,0.08)';color='#66bb6a';textDeco='line-through';cursor='not-allowed';
+      } else if (lost) {
+        border='rgba(229,57,53,0.4)';bg='rgba(229,57,53,0.08)';color='var(--red)';textDeco='line-through';cursor='not-allowed';
+      } else {
+        border='var(--border2)';bg='var(--surface2)';color='var(--muted)';textDeco='none';cursor='pointer';
+      }
+      const clickable = !won && !lost;
+      return `<span ${clickable?`onclick="clwPickMember('${actualKey}',${i})"`:''} 
+        style="display:inline-block;cursor:${cursor};font-family:'Share Tech Mono',monospace;
+        font-size:9px;padding:2px 7px;border-radius:10px;margin:0 3px 4px 0;
+        border:1px solid ${border};background:${bg};color:${color};text-decoration:${textDeco};"
+        title="${escHtml(m.player)} · ${pts}pts">${escHtml(m.player)}</span>`;
+    }).join('');
+
+    const activeMember = team.members[activeMemberIdx];
+    const beyHtml = (activeMember?.builds||[]).map((b, bi) => {
+      const isActiveB = bi === activeBeyIdx;
+      const used = lmBeyIsUsed(b);
+      const cls = `lm-bey-chip${isActiveB?' active':''}${used?' used':''}`;
+      const click = used ? '' : `onclick="clwPickBey('${actualKey}',${bi})"`;
+      const usedLabel = used ? `<span style="font-size:8px;color:var(--muted2);margin-left:4px">[used]</span>` : '';
+      return `<div class="${cls}" ${click} style="${used?'cursor:not-allowed;':''}font-size:10px;padding:5px 8px;margin-bottom:4px">
+        <span class="lm-bey-name">${escHtml(b.build)||'(unnamed)'}${usedLabel}</span>
+        <span class="lm-bey-pts">${(b.finishes||[]).map(f=>`<span class="finish-tag ${f}" style="font-size:8px;padding:1px 4px">${f}</span>`).join('')}</span>
+      </div>`;
+    }).join('') || '<div style="font-family:\'Share Tech Mono\',monospace;font-size:10px;color:var(--muted2)">No builds</div>';
+
+    container.innerHTML = memberHtml + beyHtml;
+  });
+
+  // History log
+  const histEl = document.getElementById('clwp-history');
+  if (histEl) {
+    histEl.innerHTML = '<div style="font-family:\'Share Tech Mono\',monospace;font-size:8px;color:var(--muted2);letter-spacing:1px;margin-bottom:2px">CLASH LOG</div>' +
+      (history.length
+        ? history.map(h=>`<div class="lm-history-item" style="font-size:9px">${h.html}</div>`).join('')
+        : '<div style="font-family:\'Share Tech Mono\',monospace;font-size:9px;color:var(--muted2)">No clashes yet</div>');
+  }
+}
+
+function clwPickMember(actualKey, memberIdx) {
+  lmSelectMember(actualKey, memberIdx);
+  clwRenderPickScreen();
+}
+function clwPickBey(actualKey, beyIdx) {
+  lmSelectBey(actualKey, beyIdx);
+  clwRenderPickScreen();
 }
 
 // ── Render the big clash screen (desktop modal) ──
