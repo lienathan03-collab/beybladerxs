@@ -906,8 +906,42 @@
       <span id="live-label">LIVE</span>
     </span>
     <span id="save-status">—</span>
-    <button class="btn success" id="save-btn" onclick="saveAll()" disabled>💾 Save</button>
+    <button class="btn" id="import-btn" onclick="openImportModal()" title="Import matches from file" style="display:none">📥 Import</button>
+    <button class="btn" id="export-btn" onclick="exportMatches()" title="Export matches to file" style="display:none">📤 Export</button>
+    <button class="btn success" id="save-btn" onclick="saveAll()" disabled>💾 Finalize</button>
     <button class="btn gold" onclick="window.location.href='index.html'">← Back</button>
+  </div>
+</div>
+
+<!-- IMPORT MODAL -->
+<div id="import-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:400;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:24px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;letter-spacing:2px;color:var(--gold)">📥 IMPORT MATCHES</div>
+      <button class="btn" style="padding:4px 10px;font-size:12px" onclick="closeImportModal()">✕</button>
+    </div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:12px">
+      Paste exported JSON below or drag a .json file. Only NEW matches (not already in this event) will be added.
+    </div>
+    <!-- Drag drop zone -->
+    <div id="import-drop-zone"
+      style="border:2px dashed var(--border2);border-radius:10px;padding:18px;text-align:center;margin-bottom:12px;cursor:pointer;transition:border-color .15s"
+      ondragover="event.preventDefault();this.style.borderColor='var(--gold)'"
+      ondragleave="this.style.borderColor='var(--border2)'"
+      ondrop="importHandleDrop(event)">
+      <div style="font-size:28px;margin-bottom:6px">📂</div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted)">Drop .json file here or click to browse</div>
+      <input type="file" id="import-file-input" accept=".json" style="display:none" onchange="importHandleFile(this.files[0])">
+      <button class="btn" style="margin-top:8px;font-size:11px" onclick="document.getElementById('import-file-input').click()">Browse File</button>
+    </div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted2);margin-bottom:6px">OR PASTE JSON:</div>
+    <textarea id="import-json-text" class="form-input" style="width:100%;height:120px;font-family:'Share Tech Mono',monospace;font-size:11px;resize:vertical" placeholder='{"matches":[...]}'></textarea>
+    <div id="import-preview" style="margin:10px 0;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted)"></div>
+    <div id="import-error" style="color:var(--red);font-size:11px;margin-bottom:8px;min-height:16px"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" style="flex:1" onclick="importPreview()">🔍 Preview</button>
+      <button class="btn primary" style="flex:1" onclick="importCommit()">✅ Import Matches</button>
+    </div>
   </div>
 </div>
 
@@ -1399,6 +1433,10 @@ function loadEvent(id) {
   // Set initial sync hash so first poll doesn't trigger a false "updated"
   _lastSyncHash = JSON.stringify(currentEvent.beyResults || []);
   startLiveSync();
+
+  // Show import/export buttons
+  document.getElementById('import-btn').style.display = '';
+  document.getElementById('export-btn').style.display = '';
 }
 
 // ─────────────────────────────────────────────
@@ -2093,7 +2131,10 @@ function renderMatchCard(match) {
         <span style="color:var(--gold2)">${match.p2 ? match.p2.player : '?'}</span>
       </span>
       <span class="match-result-summary">${summary}</span>
-      <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:8px" onclick="event.stopPropagation();removeMatch(${mid})">✕</button>
+      ${match.submitted
+        ? `<span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:#4caf50;padding:2px 6px;border:1px solid rgba(76,175,80,0.4);border-radius:4px;margin-left:4px">✓ SUBMITTED</span>`
+        : `<button class="btn success" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();submitMatch(${mid})" title="Submit this match to server now">⬆ Submit</button>`}
+      <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕</button>
       <span style="color:var(--muted2);font-size:12px;margin-left:4px">${match.collapsed ? '▼' : '▲'}</span>
     </div>
     ${match.collapsed ? '' : `
@@ -2134,7 +2175,10 @@ function renderTeamMatchCard(match) {
           <span style="color:var(--gold2)">${escHtml(t2.teamName)}</span>
         </span>
         <span class="match-result-summary">${summary}</span>
-        <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:8px" onclick="event.stopPropagation();removeMatch(${mid})">✕</button>
+        ${match.submitted
+          ? `<span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:#4caf50;padding:2px 6px;border:1px solid rgba(76,175,80,0.4);border-radius:4px;margin-left:4px">✓ SUBMITTED</span>`
+          : `<button class="btn success" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();submitMatch(${mid})">⬆ Submit</button>`}
+        <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕</button>
         <span style="color:var(--muted2);font-size:12px;margin-left:4px">▼</span>
       </div>
     </div>`;
@@ -2174,7 +2218,10 @@ function renderTeamMatchCard(match) {
         <span style="color:var(--gold2)">${escHtml(t2.teamName)}</span>
       </span>
       <span class="match-result-summary">${summary}</span>
-      <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:8px" onclick="event.stopPropagation();removeMatch(${mid})">✕</button>
+      ${match.submitted
+        ? `<span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:#4caf50;padding:2px 6px;border:1px solid rgba(76,175,80,0.4);border-radius:4px;margin-left:4px">✓ SUBMITTED</span>`
+        : `<button class="btn success" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();submitMatch(${mid})">⬆ Submit</button>`}
+      <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕</button>
       <span style="color:var(--muted2);font-size:12px;margin-left:4px">▲</span>
     </div>
     <!-- Player name grid (positional) -->
@@ -3313,6 +3360,206 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
     flattenMatchesToResults();
   }
   return changed;
+}
+
+// ─────────────────────────────────────────────
+// SUBMIT MATCH (per-match atomic save for judges)
+// ─────────────────────────────────────────────
+async function submitMatch(mid) {
+  if (!currentEvent) return;
+  const match = matchesState.find(m => m.id === mid);
+  if (!match) return;
+
+  // Check match has a result
+  const hasResult = match.isTeamMatch
+    ? (match.team1.members.some(m => m.win) || match.team2.members.some(m => m.win))
+    : (match.p1?.win || match.p2?.win);
+  if (!hasResult) {
+    if (!confirm('This match has no winner yet. Submit anyway?')) return;
+  }
+
+  // Button visual feedback
+  const card = document.getElementById(`match-${mid}`);
+  const btn = card ? card.querySelector('.btn.success') : null;
+  if (btn) { btn.textContent = '⏳ Submitting…'; btn.disabled = true; }
+
+  try {
+    // 1. Fetch latest server state
+    const latestRes = await fetch(`/api/beyresults?eventId=${currentEvent.id}&_t=${Date.now()}`);
+    if (!latestRes.ok) throw new Error('Could not reach server');
+    const latestData = await latestRes.json();
+    const serverResults = latestData.beyResults || [];
+    const serverBuilds  = latestData.builds     || {};
+
+    // 2. Merge server state locally (don't touch dirty local matches)
+    mergeIncomingMatches(serverBuilds, serverResults);
+
+    // 3. Make sure THIS match is in the merged state
+    const existingIdx = matchesState.findIndex(m => m.id === mid);
+    if (existingIdx === -1) matchesState.push(match);
+    match.submitted = true;
+
+    // 4. Flatten and push
+    flattenMatchesToResults();
+
+    const res = await fetch('/api/beyresults', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        adminUsername: adminUser,
+        adminPassword: adminPass,
+        eventId: currentEvent.id,
+        builds: buildsState,
+        beyResults: resultsState
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Submit failed');
+
+    _lastSyncHash = JSON.stringify(resultsState);
+    markDirty(); // still dirty until Finalize runs archive+stats
+    renderResults();
+    showToast(`✅ Match submitted! Other judges will see it within 15s.`, 'success');
+  } catch (e) {
+    showToast('❌ Submit failed: ' + e.message, 'error');
+    if (btn) { btn.textContent = '⬆ Submit'; btn.disabled = false; }
+    match.submitted = false;
+  }
+}
+
+// ─────────────────────────────────────────────
+// EXPORT MATCHES
+// ─────────────────────────────────────────────
+function exportMatches() {
+  if (!currentEvent || !matchesState.length) {
+    showToast('No matches to export.', ''); return;
+  }
+  flattenMatchesToResults();
+  const payload = {
+    eventId:   currentEvent.id,
+    eventTitle: currentEvent.title || '',
+    exportedAt: new Date().toISOString(),
+    exportedBy: adminUser,
+    matches:    matchesState,
+    builds:     buildsState,
+  };
+  const json = JSON.stringify(payload, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const ts   = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+  a.href     = url;
+  a.download = `matches-${currentEvent.id}-${ts}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('📤 Matches exported!', 'success');
+}
+
+// ─────────────────────────────────────────────
+// IMPORT MATCHES
+// ─────────────────────────────────────────────
+let _importParsed = null; // holds parsed JSON ready to commit
+
+function openImportModal() {
+  _importParsed = null;
+  document.getElementById('import-json-text').value = '';
+  document.getElementById('import-preview').textContent = '';
+  document.getElementById('import-error').textContent = '';
+  document.getElementById('import-modal').style.display = 'flex';
+}
+
+function closeImportModal() {
+  document.getElementById('import-modal').style.display = 'none';
+  _importParsed = null;
+}
+
+function importHandleDrop(e) {
+  e.preventDefault();
+  e.currentTarget.style.borderColor = 'var(--border2)';
+  const file = e.dataTransfer.files[0];
+  if (file) importHandleFile(file);
+}
+
+function importHandleFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    document.getElementById('import-json-text').value = ev.target.result;
+    importPreview();
+  };
+  reader.readAsText(file);
+}
+
+function importPreview() {
+  const errEl     = document.getElementById('import-error');
+  const previewEl = document.getElementById('import-preview');
+  errEl.textContent = '';
+  previewEl.textContent = '';
+  _importParsed = null;
+
+  const raw = document.getElementById('import-json-text').value.trim();
+  if (!raw) { errEl.textContent = 'Paste JSON or load a file first.'; return; }
+
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch(e) { errEl.textContent = 'Invalid JSON: ' + e.message; return; }
+
+  const incoming = parsed.matches || parsed; // support both wrapped and bare array
+  if (!Array.isArray(incoming)) { errEl.textContent = 'Expected a matches array.'; return; }
+
+  // Figure out which are new
+  const existingSids = new Set(matchesState.map(m => m._sid).filter(Boolean));
+  const existingPairs = new Set(matchesState.map(m => {
+    if (m.isTeamMatch) return `${m.round}|${m.team1?.teamName}|${m.team2?.teamName}`;
+    return `${m.round}|${m.p1?.player}|${m.p2?.player}`;
+  }));
+
+  const newMatches = incoming.filter(m => {
+    if (m._sid && existingSids.has(m._sid)) return false;
+    const pair = m.isTeamMatch
+      ? `${m.round}|${m.team1?.teamName}|${m.team2?.teamName}`
+      : `${m.round}|${m.p1?.player}|${m.p2?.player}`;
+    return !existingPairs.has(pair);
+  });
+
+  const skipped = incoming.length - newMatches.length;
+  previewEl.innerHTML = `<span style="color:var(--green)">✓ ${newMatches.length} new match(es) to import</span>${skipped ? `<span style="color:var(--muted2)"> · ${skipped} duplicate(s) skipped</span>` : ''}<br><br>` +
+    newMatches.map(m => {
+      const label = m.isTeamMatch
+        ? `${m.round} · ${escHtml(m.team1?.teamName||'?')} vs ${escHtml(m.team2?.teamName||'?')}`
+        : `${m.round} · ${escHtml(m.p1?.player||'?')} vs ${escHtml(m.p2?.player||'?')}`;
+      return `<div style="padding:2px 0;border-bottom:1px solid var(--border)">+ ${label}</div>`;
+    }).join('');
+
+  _importParsed = { newMatches, builds: parsed.builds || {} };
+  if (!newMatches.length) previewEl.innerHTML += '<br><span style="color:var(--muted2)">Nothing new to import.</span>';
+}
+
+async function importCommit() {
+  const errEl = document.getElementById('import-error');
+  if (!_importParsed) { importPreview(); return; }
+  if (!_importParsed.newMatches.length) { errEl.textContent = 'No new matches to import.'; return; }
+  if (!currentEvent) { errEl.textContent = 'No event loaded.'; return; }
+
+  // Merge builds
+  for (const [k, v] of Object.entries(_importParsed.builds)) {
+    if (!buildsState[k]) buildsState[k] = v;
+  }
+
+  // Add new matches with fresh IDs
+  for (const m of _importParsed.newMatches) {
+    const fresh = JSON.parse(JSON.stringify(m));
+    fresh.id = _matchIdCounter++;
+    fresh.collapsed = true;
+    fresh.submitted = false;
+    matchesState.push(fresh);
+  }
+
+  flattenMatchesToResults();
+  markDirty();
+  renderBuilds();
+  renderResults();
+  closeImportModal();
+  showToast(`✅ Imported ${_importParsed.newMatches.length} match(es)! Hit ⬆ Submit or 💾 Finalize to push to server.`, 'success');
 }
 
 // ─────────────────────────────────────────────
