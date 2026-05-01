@@ -2334,8 +2334,8 @@ function updateBuild(key, idx, val) {
   if (!buildsState[key]) return;
   buildsState[key][idx] = val;
   markDirty();
-  // Re-render to show/hide "renamed" indicators
-  renderBuilds();
+  // Don't re-render full builds grid on every keystroke — just update the indicator
+  // (renderBuilds would destroy the focused input element mid-typing)
 }
 
 // ─────────────────────────────────────────────
@@ -2841,7 +2841,7 @@ function nmClearPlayer(slot) {
   document.getElementById(`nm-p${slot}-dropdown`).style.display = 'none';
 }
 
-function createMatch() {
+async function createMatch() {
   const errEl = document.getElementById('nm-error');
   const round = document.getElementById('nm-round-select').value;
   const is3v3 = currentEvent && currentEvent.type === '3v3';
@@ -2856,7 +2856,6 @@ function createMatch() {
       isTeamMatch: true,
       team1: JSON.parse(JSON.stringify(_nmTeam1)),
       team2: JSON.parse(JSON.stringify(_nmTeam2)),
-      // Keep p1/p2 as the first members for legacy compat
       p1: JSON.parse(JSON.stringify(_nmTeam1.members[0] || { player: _nmTeam1.teamName, builds: [] })),
       p2: JSON.parse(JSON.stringify(_nmTeam2.members[0] || { player: _nmTeam2.teamName, builds: [] })),
       collapsed: false
@@ -2884,6 +2883,27 @@ function createMatch() {
     const last = document.querySelector('.match-card:last-child');
     if (last) last.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, 100);
+
+  // Push to server immediately so live sync doesn't overwrite the new match
+  if (!currentEvent) return;
+  try {
+    const res = await fetch('/api/beyresults', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        adminUsername: adminUser,
+        adminPassword: adminPass,
+        eventId: currentEvent.id,
+        builds: buildsState,
+        beyResults: resultsState
+      })
+    });
+    if (res.ok) {
+      _lastSyncHash = JSON.stringify(resultsState);
+    }
+  } catch(e) {
+    // Non-fatal — match is local, user can Finalize to sync
+  }
 }
 
 // ─────────────────────────────────────────────
