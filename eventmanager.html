@@ -2884,8 +2884,9 @@ async function createMatch() {
     if (last) last.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, 100);
 
-  // Push to server immediately so live sync doesn't overwrite the new match
+  // Push to server immediately — pause sync so it can't overwrite before push completes
   if (!currentEvent) return;
+  _syncPaused = true;
   try {
     const res = await fetch('/api/beyresults', {
       method: 'PUT',
@@ -2903,6 +2904,8 @@ async function createMatch() {
     }
   } catch(e) {
     // Non-fatal — match is local, user can Finalize to sync
+  } finally {
+    _syncPaused = false;
   }
 }
 
@@ -2953,49 +2956,55 @@ function renderResults() {
 }
 
 function renderMatchCard(match) {
-  const mid = match.id;
+  try {
+    const mid = match.id;
 
-  if (match.isTeamMatch && match.team1 && match.team2) {
-    return renderTeamMatchCard(match);
-  }
+    if (match.isTeamMatch && match.team1 && match.team2) {
+      return renderTeamMatchCard(match);
+    }
 
-  const p1pts = calcPoints(match.p1.builds);
-  const p2pts = match.p2 ? calcPoints(match.p2.builds) : 0;
+    const p1pts = calcPoints(match.p1.builds);
+    const p2pts = match.p2 ? calcPoints(match.p2.builds) : 0;
 
-  const summary = match.p1.win
-    ? `<span style="color:var(--green)">${match.p1.player} WIN</span>`
-    : match.p2 && match.p2.win
-      ? `<span style="color:var(--green)">${match.p2.player} WIN</span>`
-      : `<span style="color:var(--muted)">pending</span>`;
+    const summary = match.p1.win
+      ? `<span style="color:var(--green)">${match.p1.player} WIN</span>`
+      : match.p2 && match.p2.win
+        ? `<span style="color:var(--green)">${match.p2.player} WIN</span>`
+        : `<span style="color:var(--muted)">pending</span>`;
 
-  return `
-  <div class="match-card" id="match-${mid}">
-    <div style="display:flex;align-items:stretch;border-bottom:1px solid var(--border)">
-      <div class="match-card-header" style="flex:1;border-bottom:none" onclick="toggleMatchCollapse(${mid})">
-        <span class="match-round-badge">${match.round}</span>
-        <span class="match-vs-label">
-          <span style="color:var(--blue)">${match.p1.player}</span>
-          <span style="color:var(--muted2);margin:0 8px;font-size:12px">VS</span>
-          <span style="color:var(--gold2)">${match.p2 ? match.p2.player : '?'}</span>
-        </span>
-        <span class="match-result-summary">${summary}</span>
-        ${match.submitted
-          ? `<button class="btn danger unsubmit-btn" style="font-size:10px;padding:2px 8px;margin-left:4px;border-color:#c0932a;color:#c0932a" onclick="event.stopPropagation();unsubmitMatch(${mid})">↩ Unsubmit</button>`
-          : `<button class="btn success" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();submitMatch(${mid})">⬆ Submit</button>`}
-        <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕ Remove</button>
-        <span style="color:var(--muted2);font-size:12px;margin-left:4px">${match.collapsed ? '▼' : '▲'}</span>
+    return `
+    <div class="match-card" id="match-${mid}">
+      <div style="display:flex;align-items:stretch;border-bottom:1px solid var(--border)">
+        <div class="match-card-header" style="flex:1;border-bottom:none" onclick="toggleMatchCollapse(${mid})">
+          <span class="match-round-badge">${match.round}</span>
+          <span class="match-vs-label">
+            <span style="color:var(--blue)">${match.p1.player}</span>
+            <span style="color:var(--muted2);margin:0 8px;font-size:12px">VS</span>
+            <span style="color:var(--gold2)">${match.p2 ? match.p2.player : '?'}</span>
+          </span>
+          <span class="match-result-summary">${summary}</span>
+          ${match.submitted
+            ? `<button class="btn danger unsubmit-btn" style="font-size:10px;padding:2px 8px;margin-left:4px;border-color:#c0932a;color:#c0932a" onclick="event.stopPropagation();unsubmitMatch(${mid})">↩ Unsubmit</button>`
+            : `<button class="btn success" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();submitMatch(${mid})">⬆ Submit</button>`}
+          <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕ Remove</button>
+          <span style="color:var(--muted2);font-size:12px;margin-left:4px">${match.collapsed ? '▼' : '▲'}</span>
+        </div>
+        <button class="btn live-btn" onclick="openLiveModeSolo(${mid},'p1')">⚡</button>
       </div>
-      <button class="btn live-btn" onclick="openLiveModeSolo(${mid},'p1')">⚡</button>
-    </div>
-    ${match.collapsed ? '' : `
-    <div class="match-card-body">
-      ${renderPlayerSide(match, 'p1', mid)}
-      ${match.p2 ? renderPlayerSide(match, 'p2', mid) : ''}
-    </div>`}
-  </div>`;
+      ${match.collapsed ? '' : `
+      <div class="match-card-body">
+        ${renderPlayerSide(match, 'p1', mid)}
+        ${match.p2 ? renderPlayerSide(match, 'p2', mid) : ''}
+      </div>`}
+    </div>`;
+  } catch(e) {
+    console.error('renderMatchCard error:', e, match);
+    return `<div class="match-card" style="padding:10px;color:var(--red);font-size:11px">⚠️ Render error for match ${match?.id} — ${e.message}</div>`;
+  }
 }
 
 function renderTeamMatchCard(match) {
+  try {
   const mid = match.id;
   const t1 = match.team1;
   const t2 = match.team2;
@@ -3126,9 +3135,11 @@ function renderTeamMatchCard(match) {
       </div>
     </div>
   </div>`;
-}
-
-function renderTeamMemberSide(match, teamKey, memberIdx, mid, colorSide, slotNum) {
+  } catch(e) {
+    console.error('renderTeamMatchCard error:', e, match);
+    return `<div class="match-card" style="padding:10px;color:var(--red);font-size:11px">⚠️ Render error for team match ${match?.id} — ${e.message}</div>`;
+  }
+}(match, teamKey, memberIdx, mid, colorSide, slotNum) {
   const team = match[teamKey];
   const member = team.members[memberIdx];
   if (!member) return '';
@@ -3260,6 +3271,7 @@ async function removeMatch(mid) {
 
   // Always push deletion to server immediately so live sync doesn't bring it back
   if (!currentEvent) return;
+  _syncPaused = true;
   try {
     const res = await fetch('/api/beyresults', {
       method: 'PUT',
@@ -3280,6 +3292,8 @@ async function removeMatch(mid) {
     }
   } catch(e) {
     showToast('⚠️ Removed locally but server push failed — try Finalize.', '');
+  } finally {
+    _syncPaused = false;
   }
 }
 
