@@ -2809,30 +2809,32 @@ function renderTeamMatchCard(match) {
 
   const maxMembers = Math.max(t1.members.length, t2.members.length);
 
-  // ── Build display order using _playOrder ──
-  // _playOrder.team1 = [memberIdx, ...] in the order they were sent to clash
-  // We use team1's play order as the canonical row order (team2 is paired by clash order)
-  const playOrder = match._playOrder || { team1: [], team2: [] };
-
-  // Build ordered index pairs: played pairs first (in play order), then unplayed
-  const playedPairs = []; // { t1i, t2i } in play order
-  const maxPlayed = Math.max(playOrder.team1.length, playOrder.team2.length);
-  for (let p = 0; p < maxPlayed; p++) {
-    const t1i = playOrder.team1[p] !== undefined ? playOrder.team1[p] : null;
-    const t2i = playOrder.team2[p] !== undefined ? playOrder.team2[p] : null;
-    playedPairs.push({ t1i, t2i });
+  // ── Build display order using _playOrder, falling back to finish-order detection ──
+  // _playOrder is set by live mode (lmStartClash) and manual entry (pickFinish).
+  // For each team, detect play order: members sorted by when they first got any finish.
+  function getPlayOrderForTeam(team, storedOrder) {
+    if (storedOrder && storedOrder.length > 0) return storedOrder;
+    // Fall back: sort members by whether they have finishes, preserving roster order for unplayed
+    const withFinishes = [];
+    const without = [];
+    team.members.forEach((m, i) => {
+      if (m.builds.some(b => (b.finishes||[]).length > 0)) withFinishes.push(i);
+      else without.push(i);
+    });
+    return [...withFinishes, ...without];
   }
-  // Add unplayed members (those not in playOrder yet)
-  const usedT1 = new Set(playOrder.team1);
-  const usedT2 = new Set(playOrder.team2);
-  for (let i = 0; i < maxMembers; i++) {
-    const t1has = i < t1.members.length;
-    const t2has = i < t2.members.length;
-    const t1unused = t1has && !usedT1.has(i);
-    const t2unused = t2has && !usedT2.has(i);
-    if (t1unused || t2unused) {
-      playedPairs.push({ t1i: t1unused ? i : null, t2i: t2unused ? i : null });
-    }
+
+  const storedOrder = match._playOrder || { team1: [], team2: [] };
+  const t1Order = getPlayOrderForTeam(t1, storedOrder.team1);
+  const t2Order = getPlayOrderForTeam(t2, storedOrder.team2);
+
+  // Build paired rows: match t1Order[i] with t2Order[i]
+  const playedPairs = [];
+  const pairCount = Math.max(t1Order.length, t2Order.length);
+  for (let p = 0; p < pairCount; p++) {
+    const t1i = t1Order[p] !== undefined ? t1Order[p] : null;
+    const t2i = t2Order[p] !== undefined ? t2Order[p] : null;
+    playedPairs.push({ t1i, t2i });
   }
 
   return `
@@ -3083,6 +3085,11 @@ function mToggleTeamDeploy(mid, teamKey, memberIdx, buildIdx, val) {
   if (!member) return;
   member.builds[buildIdx].deployed = val;
   if (!val) member.builds[buildIdx].finishes = [];
+  // If member now has no finishes at all, remove from _playOrder so row resets
+  const hasAnyFinish = member.builds.some(b => (b.finishes||[]).length > 0);
+  if (!hasAnyFinish && m._playOrder?.[teamKey]) {
+    m._playOrder[teamKey] = m._playOrder[teamKey].filter(i => i !== memberIdx);
+  }
   flattenMatchesToResults();
   markDirty();
   renderResults();
@@ -3143,20 +3150,25 @@ function pickFinish(type) {
     if (!member) { closePicker(); return; }
     const bEntry = member.builds[buildIdx];
     if (!bEntry) { closePicker(); return; }
-    if (type === 'L') {
-      if (bEntry.finishes.includes('L')) { closePicker(); return; }
-    }
+    // Check if this is the member's first finish ever (before we push the new one)
+    const hadNoFinishes = !member.builds.some(b => (b.finishes||[]).length > 0);
     bEntry.finishes.push(type);
     bEntry.deployed = true;
+
+    // ── Manual play order tracking ──
+    // Register this member in _playOrder when they get their first ever finish
+    if (hadNoFinishes) {
+      if (!m._playOrder) m._playOrder = { team1: [], team2: [] };
+      if (!m._playOrder[teamKey].includes(memberIdx)) {
+        m._playOrder[teamKey].push(memberIdx);
+      }
+    }
   } else {
     const { mid, side, buildIdx } = _pickerTarget;
     const m = matchesState.find(x => x.id === mid);
     if (!m || !m[side]) { closePicker(); return; }
     const bEntry = m[side].builds[buildIdx];
     if (!bEntry) { closePicker(); return; }
-    if (type === 'L') {
-      if (bEntry.finishes.includes('L')) { closePicker(); return; }
-    }
     bEntry.finishes.push(type);
     bEntry.deployed = true;
   }
@@ -3428,8 +3440,8 @@ function lmApplyFinish(type) {
     scorerMember.builds[scorerBeyIdx].deployed = true;
     scorerMember.builds[scorerBeyIdx]._usedInCycle = true; // lock until next shuffle
   }
-  // Auto-apply L to loser's bey, stamp round count for shuffle tracking
-  if (loserMember.builds[loserBeyIdx] && !loserMember.builds[loserBeyIdx].finishes.includes('L')) {
+  // Auto-apply L to loser's bey (always — a bey can lose multiple times in Best-of-5)
+  if (loserMember.builds[loserBeyIdx]) {
     loserMember.builds[loserBeyIdx].finishes.push('L');
     loserMember.builds[loserBeyIdx].deployed = true;
     loserMember.builds[loserBeyIdx]._lAddedAtRound = lmState.roundCount + 1;
@@ -3704,10 +3716,8 @@ function lmAddWarning() {
       scorerMember.builds[scorerBeyIdx]._usedInCycle = true;
     }
     if (loserMember?.builds[loserBeyIdx]) {
-      if (!loserMember.builds[loserBeyIdx].finishes.includes('L')) {
-        loserMember.builds[loserBeyIdx].finishes.push('L');
-        loserMember.builds[loserBeyIdx]._lAddedAtRound = lmState.roundCount + 1;
-      }
+      loserMember.builds[loserBeyIdx].finishes.push('L');
+      loserMember.builds[loserBeyIdx]._lAddedAtRound = lmState.roundCount + 1;
       loserMember.builds[loserBeyIdx].deployed = true;
       loserMember.builds[loserBeyIdx]._usedInCycle = true;
     }
