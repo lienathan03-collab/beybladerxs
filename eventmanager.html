@@ -2982,14 +2982,13 @@ function renderMatchCard(match) {
 
 // ── Helper: get play order for a team, falling back to finish-order detection ──
 function getPlayOrderForTeam(team, storedOrder) {
-  if (storedOrder && storedOrder.length > 0) return storedOrder;
-  const withFinishes = [];
-  const without = [];
+  // Start with stored play order (members who have already played)
+  const base = (storedOrder && storedOrder.length > 0) ? [...storedOrder] : [];
+  // Always append any members not yet in the order so they remain visible
   team.members.forEach((m, i) => {
-    if (m.builds.some(b => (b.finishes||[]).length > 0)) withFinishes.push(i);
-    else without.push(i);
+    if (!base.includes(i)) base.push(i);
   });
-  return [...withFinishes, ...without];
+  return base;
 }
 
 function renderTeamMatchCard(match) {
