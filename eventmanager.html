@@ -1941,50 +1941,27 @@ async function tryAuth() {
   if (btn) { btn.textContent = 'Verifying…'; btn.disabled = true; }
 
   try {
-    // Verify credentials by doing a real authenticated PUT to the server.
-    // The server checks ADMIN_USERNAME + ADMIN_PASSWORD env vars.
-    // If wrong, it returns 401/403 or an error message.
     const testRes = await fetch('/api/beyresults', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         adminUsername: u,
         adminPassword: p,
-        _authCheck: true,   // signal to server this is just a credential check
+        _authCheck: true,
         eventId: '__auth_check__',
         builds: {},
         beyResults: []
       })
     });
 
-    const responseText = await testRes.text();
-    let responseData = {};
-    try { responseData = JSON.parse(responseText); } catch(e) {}
-
-    // Check HTTP status codes for auth failure
+    // Only 401 / 403 mean wrong credentials — everything else (200, 400, 404, 500) means
+    // the server accepted the credentials but had some other issue (event not found, etc.)
     if (testRes.status === 401 || testRes.status === 403) {
       errEl.textContent = '❌ Incorrect username or password.';
       return;
     }
 
-    // Check error message content for auth-related rejections
-    const errMsg = (responseData.error || responseData.message || responseText || '').toLowerCase();
-    const isAuthError = errMsg.includes('unauthorized') ||
-                        errMsg.includes('forbidden') ||
-                        errMsg.includes('invalid') ||
-                        errMsg.includes('incorrect') ||
-                        errMsg.includes('wrong') ||
-                        errMsg.includes('password') ||
-                        errMsg.includes('credentials') ||
-                        errMsg.includes('auth');
-
-    if (isAuthError) {
-      errEl.textContent = '❌ Incorrect username or password.';
-      return;
-    }
-
-    // Server accepted credentials (even if event not found — that's fine)
-    // 200 OK or non-auth errors = credentials are valid
+    // Credentials accepted
     adminUser = u;
     adminPass = p;
     document.getElementById('auth-gate').style.display = 'none';
@@ -3003,6 +2980,18 @@ function renderMatchCard(match) {
   }
 }
 
+// ── Helper: get play order for a team, falling back to finish-order detection ──
+function getPlayOrderForTeam(team, storedOrder) {
+  if (storedOrder && storedOrder.length > 0) return storedOrder;
+  const withFinishes = [];
+  const without = [];
+  team.members.forEach((m, i) => {
+    if (m.builds.some(b => (b.finishes||[]).length > 0)) withFinishes.push(i);
+    else without.push(i);
+  });
+  return [...withFinishes, ...without];
+}
+
 function renderTeamMatchCard(match) {
   try {
   const mid = match.id;
@@ -3049,20 +3038,6 @@ function renderTeamMatchCard(match) {
   const maxMembers = Math.max(t1.members.length, t2.members.length);
 
   // ── Build display order using _playOrder, falling back to finish-order detection ──
-  // _playOrder is set by live mode (lmStartClash) and manual entry (pickFinish).
-  // For each team, detect play order: members sorted by when they first got any finish.
-  function getPlayOrderForTeam(team, storedOrder) {
-    if (storedOrder && storedOrder.length > 0) return storedOrder;
-    // Fall back: sort members by whether they have finishes, preserving roster order for unplayed
-    const withFinishes = [];
-    const without = [];
-    team.members.forEach((m, i) => {
-      if (m.builds.some(b => (b.finishes||[]).length > 0)) withFinishes.push(i);
-      else without.push(i);
-    });
-    return [...withFinishes, ...without];
-  }
-
   const storedOrder = match._playOrder || { team1: [], team2: [] };
   const t1Order = getPlayOrderForTeam(t1, storedOrder.team1);
   const t2Order = getPlayOrderForTeam(t2, storedOrder.team2);
@@ -3139,7 +3114,9 @@ function renderTeamMatchCard(match) {
     console.error('renderTeamMatchCard error:', e, match);
     return `<div class="match-card" style="padding:10px;color:var(--red);font-size:11px">⚠️ Render error for team match ${match?.id} — ${e.message}</div>`;
   }
-}(match, teamKey, memberIdx, mid, colorSide, slotNum) {
+}
+
+function renderTeamMemberSide(match, teamKey, memberIdx, mid, colorSide, slotNum) {
   const team = match[teamKey];
   const member = team.members[memberIdx];
   if (!member) return '';
