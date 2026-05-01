@@ -4372,6 +4372,8 @@ function clwSelectBeyChip(actualKey, beyIdx) {
   if (!clash) return;
   if (actualKey === 't1') clash.t1BeyIdx = beyIdx;
   else clash.t2BeyIdx = beyIdx;
+  // Reset warnings — they are per bey matchup, not per player
+  clash.warnings = { t1: 0, t2: 0 };
   // Also set scoring side to the tapped chip's player
   lmState.scoringSide = actualKey;
   clwRender();
@@ -4482,8 +4484,31 @@ function clwPickMember(actualKey, memberIdx) {
 }
 function clwPickMemberAndStart(actualKey, memberIdx) {
   lmSelectMember(actualKey, memberIdx);
-  // After both sides have a member selected, start clash automatically
-  lmStartClash();
+
+  // Only start clash once BOTH sides have an unplayed member selected
+  const clash = lmState?.clashes[lmState?.activeClashIdx];
+  if (!clash) return;
+
+  const match = lmState.match;
+  const isBestOf5Round = ['TC','QF','SF','F'].includes(match.round);
+
+  const t1Member = match.team1?.members[clash.t1MemberIdx];
+  const t2Member = match.team2?.members[clash.t2MemberIdx];
+
+  const memberReady = (m) => {
+    if (!m) return false;
+    if (isBestOf5Round) return true; // always selectable in topcut
+    // R1-R7: member is ready only if they haven't played yet
+    return !m.builds.some(b => (b.finishes||[]).length > 0) && !m.win;
+  };
+
+  if (memberReady(t1Member) && memberReady(t2Member)) {
+    lmStartClash();
+  } else {
+    // Just refresh the pick screen so the selection highlights update
+    clwRenderPickScreen();
+    clwUpdateScoreBar();
+  }
 }
 
 function clwPickBey(actualKey, beyIdx) {
@@ -4591,6 +4616,8 @@ function lmSelectBey(side, beyIdx) {
   if (member && lmBeyIsUsed(member.builds[beyIdx])) return;
   if (side === 't1') clash.t1BeyIdx = beyIdx;
   else clash.t2BeyIdx = beyIdx;
+  // Reset warnings — they are per bey matchup, not per player
+  clash.warnings = { t1: 0, t2: 0 };
   lmRender();
 }
 
