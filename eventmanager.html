@@ -3778,6 +3778,68 @@ function lmApplyFinish(type) {
     // 3v3: each player independently wins when they hit the point threshold
     // 3rd match always plays — do NOT block or stop it
     autoCheckTeamWin(match);
+
+    // ── Auto-advance: if the current player just hit the threshold, declare win
+    // and automatically move to the next unplayed member pair ──
+    const isTopcutRound = ['TC','QF','SF','F'].includes(match.round);
+    const scorerMemberWon = calcPoints(scorerMember.builds) >= ptThreshold;
+    if (scorerMemberWon) {
+      scorerMember.win = true;
+      // Find next unplayed member for each team
+      const nextT1 = match.team1.members.findIndex((m, i) =>
+        i !== clash.t1MemberIdx && !m.win && !m.builds.some(b => (b.finishes||[]).length > 0)
+      );
+      const nextT2 = match.team2.members.findIndex((m, i) =>
+        i !== clash.t2MemberIdx && !m.win && !m.builds.some(b => (b.finishes||[]).length > 0)
+      );
+      const hasNextPair = nextT1 !== -1 && nextT2 !== -1;
+
+      if (hasNextPair) {
+        // Check that the overall team match isn't already done (topcut only)
+        const t1wins = match.team1.members.filter(m => m.win).length;
+        const t2wins = match.team2.members.filter(m => m.win).length;
+        const teamWinThreshold = isTopcutRound ? 2 : Infinity;
+        const matchDone = isTopcutRound && (t1wins >= teamWinThreshold || t2wins >= teamWinThreshold);
+
+        if (!matchDone) {
+          flattenMatchesToResults();
+          markDirty();
+
+          // Mark current clash done and push a new one for the next pair
+          clash.done = true;
+          lmPushClash(nextT1, nextT2);
+
+          // Record the new pair in play order
+          const realMatch = matchesState.find(m => m.id === lmState.mid);
+          if (realMatch && realMatch.isTeamMatch) {
+            if (!realMatch._playOrder) realMatch._playOrder = { team1: [], team2: [] };
+            if (!realMatch._playOrder.team1.includes(nextT1)) realMatch._playOrder.team1.push(nextT1);
+            if (!realMatch._playOrder.team2.includes(nextT2)) realMatch._playOrder.team2.push(nextT2);
+          }
+
+          // Show brief toast then switch to pick screen for the next pair
+          showToast(`✅ ${escHtml(scorerMember.player)} wins! Moving to next match…`, 'success');
+
+          setTimeout(() => {
+            const wrapEl = document.getElementById('clash-landscape-wrap');
+            if (wrapEl?.classList.contains('active')) {
+              document.getElementById('clw-clash-screen').classList.remove('visible');
+              document.getElementById('clw-pick-screen').classList.add('visible');
+              clwRenderPickScreen();
+              clwUpdateScoreBar();
+            } else {
+              document.getElementById('lm-screen-clash').style.display = 'none';
+              document.getElementById('live-mode-modal')?.classList.remove('clash-active');
+              document.getElementById('live-mode-overlay')?.classList.remove('clash-active');
+              document.getElementById('lm-screen-pick').style.display = '';
+              lmRender();
+            }
+            lmUpdateScoreBar();
+          }, 900);
+          return; // skip normal re-render below — the setTimeout handles it
+        }
+      }
+    }
   }
 
   markDirty();
@@ -4084,7 +4146,15 @@ function lmBackToPick() {
   const t1w_bt = (match.team1?.members||[]).filter(m => calcPoints(m.builds) >= ptThresh_bt || m.win).length;
   const t2w_bt = (match.team2?.members||[]).filter(m => calcPoints(m.builds) >= ptThresh_bt || m.win).length;
   const soloWon_bt = match._isSolo && ((match.team1?.members[0]?.win) || (match.team2?.members[0]?.win));
-  const teamWon_bt = !match._isSolo && (t1w_bt >= winThresh_bt || t2w_bt >= winThresh_bt);
+  // Regular rounds: all members must finish before match is locked; Topcut: lock at win threshold
+  let teamWon_bt;
+  if (isBestOf5_bt) {
+    teamWon_bt = !match._isSolo && (t1w_bt >= winThresh_bt || t2w_bt >= winThresh_bt);
+  } else {
+    const allMembers_bt = [...(match.team1?.members||[]), ...(match.team2?.members||[])];
+    teamWon_bt = !match._isSolo && allMembers_bt.length > 0 &&
+      allMembers_bt.every(m => calcPoints(m.builds) >= ptThresh_bt || m.win);
+  }
   if (soloWon_bt || teamWon_bt) {
     showToast('🏆 Match is finished! Press ✅ to commit results.', '');
     return;
