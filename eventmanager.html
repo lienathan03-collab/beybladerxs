@@ -712,6 +712,147 @@
   #live-indicator.syncing #live-dot { background:var(--gold); }
   #live-indicator.error-state { background:rgba(229,57,53,0.1); border-color:rgba(229,57,53,0.3); color:var(--red); }
   #live-indicator.error-state #live-dot { background:var(--red); }
+
+  /* ── LIVE MODE ── */
+  .lm-overlay {
+    position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:500;
+    display:flex;align-items:center;justify-content:center;padding:12px;
+  }
+  .lm-modal {
+    background:var(--surface);border:1px solid var(--border2);border-radius:16px;
+    width:100%;max-width:780px;max-height:94vh;overflow-y:auto;
+    display:flex;flex-direction:column;
+  }
+  .lm-header {
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px 10px;border-bottom:1px solid var(--border);
+    position:sticky;top:0;background:var(--surface);z-index:2;
+  }
+  .lm-title { font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;letter-spacing:2px;color:var(--gold); }
+  .lm-score-bar {
+    display:flex;align-items:center;gap:0;border:1px solid var(--border2);border-radius:8px;overflow:hidden;
+    font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;
+  }
+  .lm-score-t1 { padding:6px 18px;background:rgba(74,158,255,0.12);color:var(--blue); }
+  .lm-score-sep { padding:6px 10px;background:var(--surface2);color:var(--muted2);font-size:16px; }
+  .lm-score-t2 { padding:6px 18px;background:rgba(212,175,55,0.12);color:var(--gold2); }
+  .lm-score-t1.winning { background:rgba(76,175,80,0.18);color:#66bb6a; }
+  .lm-score-t2.winning { background:rgba(76,175,80,0.18);color:#66bb6a; }
+
+  /* clash arena */
+  .lm-arena {
+    display:grid;grid-template-columns:1fr auto 1fr;gap:0;
+    border-bottom:1px solid var(--border);
+  }
+  .lm-player-col { padding:12px 14px; }
+  .lm-player-col.t1 { border-right:1px solid var(--border); }
+  .lm-player-label {
+    font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);
+    letter-spacing:1px;margin-bottom:4px;
+  }
+  .lm-player-name {
+    font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:800;
+    margin-bottom:8px;
+  }
+  .lm-player-name.t1 { color:var(--blue); }
+  .lm-player-name.t2 { color:var(--gold2); }
+
+  /* bey selector chips */
+  .lm-bey-chip {
+    display:flex;align-items:center;justify-content:space-between;
+    padding:7px 10px;border-radius:7px;border:1.5px solid var(--border2);
+    background:var(--surface2);cursor:pointer;margin-bottom:5px;
+    transition:all .12s;font-family:'Share Tech Mono',monospace;font-size:11px;
+    gap:6px;
+  }
+  .lm-bey-chip:hover { border-color:var(--muted);background:var(--surface3); }
+  .lm-bey-chip.active { border-color:var(--gold);background:rgba(212,175,55,0.1);color:var(--gold2); }
+  .lm-bey-chip.used { opacity:.45;text-decoration:line-through;cursor:default;pointer-events:none; }
+  .lm-bey-chip.shuffled { border-color:rgba(156,39,176,0.6);background:rgba(156,39,176,0.08);color:#ce93d8; }
+  .lm-bey-name { flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+  .lm-bey-pts { font-size:9px;color:var(--muted2); }
+
+  /* vs divider */
+  .lm-vs-col {
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:0 10px;gap:6px;
+  }
+  .lm-vs-badge {
+    font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:900;
+    color:var(--muted2);letter-spacing:2px;
+  }
+
+  /* clash score row */
+  .lm-clash-row {
+    display:grid;grid-template-columns:1fr auto 1fr;
+    align-items:center;gap:6px;
+    background:var(--surface2);border-top:1px solid var(--border);
+    padding:10px 14px;
+  }
+  .lm-pts-display {
+    font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;
+    text-align:center;
+  }
+  .lm-pts-display.t1 { color:var(--blue); }
+  .lm-pts-display.t2 { color:var(--gold2); }
+  .lm-pts-display.won { color:#66bb6a; }
+
+  /* finish buttons row */
+  .lm-finish-row {
+    display:flex;gap:6px;justify-content:center;padding:10px 14px 12px;
+    border-top:1px solid var(--border);flex-wrap:wrap;
+  }
+  .lm-finish-btn {
+    font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;
+    padding:8px 20px;border-radius:8px;border:none;cursor:pointer;
+    letter-spacing:1px;transition:all .12s;min-width:60px;
+  }
+  .lm-finish-btn.S { background:rgba(74,158,255,0.2);color:var(--finish-s);border:1.5px solid rgba(74,158,255,0.5); }
+  .lm-finish-btn.O { background:rgba(255,152,0,0.2); color:var(--finish-o);border:1.5px solid rgba(255,152,0,0.5); }
+  .lm-finish-btn.E { background:rgba(233,30,99,0.2); color:var(--finish-e);border:1.5px solid rgba(233,30,99,0.5); }
+  .lm-finish-btn.B { background:rgba(156,39,176,0.2);color:var(--finish-b);border:1.5px solid rgba(156,39,176,0.5); }
+  .lm-finish-btn:hover { filter:brightness(1.3);transform:scale(1.06); }
+  .lm-finish-btn:disabled { opacity:.25;cursor:not-allowed;transform:none;filter:none; }
+  .lm-finish-btn.active-side {
+    box-shadow:0 0 0 2px var(--gold);
+  }
+
+  /* which side is scoring indicator */
+  .lm-side-toggle {
+    display:flex;border:1px solid var(--border2);border-radius:8px;overflow:hidden;
+    font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;
+  }
+  .lm-side-btn {
+    padding:5px 14px;cursor:pointer;border:none;background:none;color:var(--muted);
+    transition:all .12s;letter-spacing:0.5px;
+  }
+  .lm-side-btn.active.t1 { background:rgba(74,158,255,0.15);color:var(--blue); }
+  .lm-side-btn.active.t2 { background:rgba(212,175,55,0.15);color:var(--gold2); }
+
+  /* history log */
+  .lm-history { padding:8px 14px;border-top:1px solid var(--border);max-height:130px;overflow-y:auto; }
+  .lm-history-item {
+    font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);
+    padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.04);
+    display:flex;align-items:center;gap:8px;
+  }
+  .lm-history-item .lm-hi-dot { width:6px;height:6px;border-radius:50%;flex-shrink:0; }
+  .lm-history-item:last-child { border-bottom:none; }
+
+  /* shuffle badge */
+  .lm-shuffle-notice {
+    margin:8px 14px;padding:8px 12px;border-radius:7px;
+    background:rgba(156,39,176,0.1);border:1px solid rgba(156,39,176,0.3);
+    color:#ce93d8;font-family:'Share Tech Mono',monospace;font-size:11px;
+    text-align:center;
+  }
+
+  /* pts clickable indicator */
+  .lm-pts-clickable {
+    cursor:pointer;border-bottom:1.5px dashed rgba(212,175,55,0.4);
+    transition:color .1s;
+  }
+  .lm-pts-clickable:hover { color:var(--gold)!important; }
 </style>
 </head>
 <body>
@@ -935,6 +1076,96 @@
   <button class="finish-picker-btn E" onclick="pickFinish('E')">E — Extreme</button>
   <button class="finish-picker-btn B" onclick="pickFinish('B')">B — Burst</button>
   <button class="finish-picker-btn L" onclick="pickFinish('L')">L — Loss</button>
+</div>
+
+<!-- ══════════════════════════════════════════
+     LIVE MODE MODAL
+══════════════════════════════════════════ -->
+<div id="live-mode-overlay" class="lm-overlay" style="display:none" onclick="lmBackdropClick(event)">
+  <div class="lm-modal" id="live-mode-modal">
+
+    <!-- Header -->
+    <div class="lm-header">
+      <div>
+        <div class="lm-title">⚡ LIVE SCORING</div>
+        <div id="lm-match-label" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);margin-top:2px"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <!-- total match score -->
+        <div class="lm-score-bar">
+          <div class="lm-score-t1" id="lm-total-t1">0</div>
+          <div class="lm-score-sep">/</div>
+          <div class="lm-score-t2" id="lm-total-t2">0</div>
+        </div>
+        <!-- swap sides button -->
+        <button class="btn" style="padding:5px 10px;font-size:13px;letter-spacing:0" onclick="lmSwapSides()" title="Swap left/right sides">⇄</button>
+        <button class="btn" style="padding:4px 10px;font-size:12px" onclick="closeLiveMode()">✕</button>
+      </div>
+    </div>
+
+    <!-- Shuffle notice (hidden unless shuffled) -->
+    <div id="lm-shuffle-notice" class="lm-shuffle-notice" style="display:none">
+      🔀 SHUFFLE — beyblade order has been reshuffled after 3 rounds!
+    </div>
+
+    <!-- Active clash: bey selector + scores -->
+    <div class="lm-arena" id="lm-arena">
+      <!-- Team 1 side -->
+      <div class="lm-player-col t1" id="lm-col-t1">
+        <div class="lm-player-label" id="lm-label-t1">TEAM 1</div>
+        <div class="lm-player-name t1" id="lm-name-t1">—</div>
+        <div id="lm-beys-t1" style="margin-top:4px"></div>
+      </div>
+
+      <!-- Centre VS -->
+      <div class="lm-vs-col">
+        <div class="lm-vs-badge">VS</div>
+        <!-- Current clash pts -->
+        <div style="text-align:center">
+          <div id="lm-clash-pts-t1" class="lm-pts-display t1" style="font-size:20px">0</div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted)">PTS</div>
+          <div id="lm-clash-pts-t2" class="lm-pts-display t2" style="font-size:20px">0</div>
+        </div>
+      </div>
+
+      <!-- Team 2 side -->
+      <div class="lm-player-col" id="lm-col-t2">
+        <div class="lm-player-label" id="lm-label-t2">TEAM 2</div>
+        <div class="lm-player-name t2" id="lm-name-t2">—</div>
+        <div id="lm-beys-t2" style="margin-top:4px"></div>
+      </div>
+    </div>
+
+    <!-- Which side is scoring (left = team1 finishing, right = team2 finishing) -->
+    <div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 14px;border-top:1px solid var(--border);background:var(--surface2)">
+      <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted)">SCORER:</span>
+      <div class="lm-side-toggle">
+        <button class="lm-side-btn t1 active" id="lm-side-t1-btn" onclick="lmSetScoringSide('t1')">◀ TEAM 1</button>
+        <button class="lm-side-btn t2" id="lm-side-t2-btn" onclick="lmSetScoringSide('t2')">TEAM 2 ▶</button>
+      </div>
+      <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);flex:1;text-align:right">L is auto on opponent</span>
+    </div>
+
+    <!-- Finish buttons -->
+    <div class="lm-finish-row">
+      <button class="lm-finish-btn S" onclick="lmApplyFinish('S')" id="lm-btn-S">S <span style="font-size:11px;font-weight:400">Spin</span></button>
+      <button class="lm-finish-btn O" onclick="lmApplyFinish('O')" id="lm-btn-O">O <span style="font-size:11px;font-weight:400">Over</span></button>
+      <button class="lm-finish-btn E" onclick="lmApplyFinish('E')" id="lm-btn-E">E <span style="font-size:11px;font-weight:400">Extreme</span></button>
+      <button class="lm-finish-btn B" onclick="lmApplyFinish('B')" id="lm-btn-B">B <span style="font-size:11px;font-weight:400">Burst</span></button>
+      <button class="btn danger" style="padding:8px 16px;font-size:13px;border-radius:8px" onclick="lmUndo()" title="Undo last finish">↩ Undo</button>
+    </div>
+
+    <!-- Round history log -->
+    <div class="lm-history" id="lm-history">
+      <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">CLASH LOG</div>
+    </div>
+
+    <!-- Bottom action row -->
+    <div style="display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--border);background:var(--surface2)">
+      <button class="btn" style="flex:1;font-size:12px" onclick="lmNextClash()">⏭ Next Clash</button>
+      <button class="btn primary" style="flex:1;font-size:12px" onclick="lmCommitAndClose()">✅ Commit & Close</button>
+    </div>
+  </div>
 </div>
 
 <!-- Toast -->
@@ -1918,7 +2149,9 @@ function renderTeamMemberSide(match, teamKey, memberIdx, mid, colorSide) {
     ${buildRows || '<div style="color:var(--muted2);font-size:12px;padding:4px 0">No builds</div>'}
     <div class="match-pts-row">
       <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted)">PTS</span>
-      <span class="match-pts-val ${pts>0?'has-pts':''}">${pts}</span>
+      <span class="match-pts-val lm-pts-clickable ${pts>0?'has-pts':''}"
+        onclick="openLiveMode(${mid},'${teamKey}',${memberIdx})"
+        title="⚡ Open Live Scoring">${pts}</span>
     </div>
   </div>`;
 }
@@ -1969,7 +2202,9 @@ function renderPlayerSide(match, side, mid) {
       ${buildRows || '<div style="color:var(--muted2);font-size:12px;padding:8px 0">No builds registered</div>'}
       <div class="match-pts-row">
         <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted)">PTS</span>
-        <span class="match-pts-val ${pts > 0 ? 'has-pts' : ''}">${pts}</span>
+        <span class="match-pts-val lm-pts-clickable ${pts > 0 ? 'has-pts' : ''}"
+          onclick="openLiveModeSolo(${mid},'${side}')"
+          title="⚡ Open Live Scoring">${pts}</span>
       </div>
     </div>`;
 }
@@ -2134,6 +2369,423 @@ function pickFinish(type) {
   markDirty();
   closePicker();
   renderResults();
+}
+
+// ─────────────────────────────────────────────
+// LIVE MODE ENGINE
+// ─────────────────────────────────────────────
+/*
+  lmState holds the full live-session:
+  {
+    mid,              // match id
+    match,            // reference to matchesState entry
+    // Each clash = { t1MemberIdx, t2MemberIdx, t1BeyIdx, t2BeyIdx, finishes:[], done }
+    clashes:[],
+    activeClashIdx,
+    scoringSide:'t1', // who is currently finishing ('t1' | 't2')
+    roundCount: 0,    // total clashes done — triggers shuffle at 3
+    shuffled: false,
+    history:[],       // log strings
+    undoStack:[],     // deep copies for undo
+  }
+*/
+let lmState = null;
+let lmSwapped = false; // when true, t2 is displayed on left, t1 on right
+
+// ── Entry point: 1v1 match ──
+function openLiveModeSolo(mid, clickedSide) {
+  const match = matchesState.find(m => m.id === mid);
+  if (!match || match.isTeamMatch) return;
+
+  // Wrap p1/p2 as fake "team" entries so the same engine works
+  const wrap = (playerData, teamLabel) => ({
+    teamName: playerData.player,
+    members: [{ player: playerData.player, builds: playerData.builds, win: playerData.win }],
+    _soloSide: teamLabel,
+  });
+
+  // Build a lightweight proxy match
+  const proxyMatch = {
+    id: match.id,
+    round: match.round,
+    isTeamMatch: true,
+    _isSolo: true,
+    _soloRef: match,
+    team1: wrap(match.p1, 'p1'),
+    team2: match.p2 ? wrap(match.p2, 'p2') : null,
+  };
+
+  lmSwapped = (clickedSide === 'p2'); // if they clicked p2 side, put p2 on left
+  lmState = {
+    mid,
+    match: proxyMatch,
+    clashes: [],
+    activeClashIdx: -1,
+    scoringSide: 't1',
+    roundCount: 0,
+    shuffled: false,
+    history: [],
+    undoStack: [],
+  };
+
+  lmPushClash(0, 0);
+  document.getElementById('live-mode-overlay').style.display = 'flex';
+  lmRender();
+}
+
+// ── Entry point: 3v3 match ──
+function openLiveMode(mid, teamKey, memberIdx) {
+  const match = matchesState.find(m => m.id === mid);
+  if (!match || !match.isTeamMatch) return;
+
+  const t1Idx = teamKey === 'team1' ? memberIdx : 0;
+  const t2Idx = teamKey === 'team2' ? memberIdx : 0;
+
+  lmSwapped = false;
+  lmState = {
+    mid,
+    match,
+    clashes: [],
+    activeClashIdx: -1,
+    scoringSide: 't1',
+    roundCount: 0,
+    shuffled: false,
+    history: [],
+    undoStack: [],
+  };
+
+  lmPushClash(t1Idx, t2Idx);
+  document.getElementById('live-mode-overlay').style.display = 'flex';
+  lmRender();
+}
+
+// ── Swap left/right display sides ──
+function lmSwapSides() {
+  lmSwapped = !lmSwapped;
+  lmRender();
+  showToast(lmSwapped ? '⇄ Sides swapped' : '⇄ Sides restored', '');
+}
+
+function lmPushClash(t1MemberIdx, t2MemberIdx) {
+  const { match } = lmState;
+  // default bey = first unfinished build for each player
+  const t1Bey = lmFirstAvailBey(match.team1.members[t1MemberIdx]);
+  const t2Bey = lmFirstAvailBey(match.team2.members[t2MemberIdx]);
+  lmState.clashes.push({
+    t1MemberIdx, t2MemberIdx,
+    t1BeyIdx: t1Bey, t2BeyIdx: t2Bey,
+    finishes: [], // { side, finish, pts, bey, opponent }
+    done: false,
+  });
+  lmState.activeClashIdx = lmState.clashes.length - 1;
+}
+
+function lmFirstAvailBey(member) {
+  // pick first build that hasn't had an L yet
+  if (!member || !member.builds) return 0;
+  for (let i = 0; i < member.builds.length; i++) {
+    if (!member.builds[i].finishes.includes('L')) return i;
+  }
+  return 0;
+}
+
+function closeLiveMode() {
+  document.getElementById('live-mode-overlay').style.display = 'none';
+  lmState = null;
+}
+
+function lmBackdropClick(e) {
+  if (e.target === document.getElementById('live-mode-overlay')) closeLiveMode();
+}
+
+function lmSetScoringSide(side) {
+  if (!lmState) return;
+  lmState.scoringSide = side;
+  document.getElementById('lm-side-t1-btn').className = `lm-side-btn t1${side==='t1'?' active':''}`;
+  document.getElementById('lm-side-t2-btn').className = `lm-side-btn t2${side==='t2'?' active':''}`;
+}
+
+// ── Apply a finish (S/O/E/B) from the scoring side ──
+function lmApplyFinish(type) {
+  if (!lmState) return;
+  const clash = lmState.clashes[lmState.activeClashIdx];
+  if (!clash || clash.done) return;
+
+  const scorerTeam = lmState.scoringSide;          // 't1' | 't2'
+  const loserTeam  = scorerTeam === 't1' ? 't2' : 't1';
+  const pts = FINISH_PTS[type] || 0;
+
+  // Save undo snapshot
+  lmState.undoStack.push(JSON.parse(JSON.stringify({
+    clash,
+    match: lmState.match,
+    history: [...lmState.history],
+    roundCount: lmState.roundCount,
+    shuffled: lmState.shuffled,
+  })));
+
+  const scorerMemberIdx = scorerTeam === 't1' ? clash.t1MemberIdx : clash.t2MemberIdx;
+  const loserMemberIdx  = loserTeam  === 't1' ? clash.t1MemberIdx : clash.t2MemberIdx;
+  const scorerBeyIdx    = scorerTeam === 't1' ? clash.t1BeyIdx    : clash.t2BeyIdx;
+  const loserBeyIdx     = loserTeam  === 't1' ? clash.t1BeyIdx    : clash.t2BeyIdx;
+
+  const scorerTeamKey = scorerTeam === 't1' ? 'team1' : 'team2';
+  const loserTeamKey  = loserTeam  === 't1' ? 'team1' : 'team2';
+
+  const scorerMember = lmState.match[scorerTeamKey].members[scorerMemberIdx];
+  const loserMember  = lmState.match[loserTeamKey].members[loserMemberIdx];
+
+  // Apply finish to scorer's bey
+  if (scorerMember.builds[scorerBeyIdx]) {
+    scorerMember.builds[scorerBeyIdx].finishes.push(type);
+    scorerMember.builds[scorerBeyIdx].deployed = true;
+  }
+  // Auto-apply L to loser's bey
+  if (loserMember.builds[loserBeyIdx] && !loserMember.builds[loserBeyIdx].finishes.includes('L')) {
+    loserMember.builds[loserBeyIdx].finishes.push('L');
+    loserMember.builds[loserBeyIdx].deployed = true;
+  }
+
+  const scorerBeyName = scorerMember.builds[scorerBeyIdx]?.build || '?';
+  const loserBeyName  = loserMember.builds[loserBeyIdx]?.build  || '?';
+
+  clash.finishes.push({ side: scorerTeam, type, pts, scorerBeyName, loserBeyName });
+
+  // Log entry
+  const dotColor = scorerTeam === 't1' ? '#4a9eff' : '#d4af37';
+  lmState.history.unshift({
+    html: `<span class="lm-hi-dot" style="background:${dotColor}"></span>
+           <span style="color:${dotColor}">${escHtml(scorerMember.player)}</span>
+           <span class="finish-tag ${type}" style="font-size:9px;padding:1px 5px">${type}</span>
+           <span>${escHtml(scorerBeyName)}</span>
+           <span style="color:var(--muted2)">vs</span>
+           <span>${escHtml(loserBeyName)}</span>
+           <span style="color:var(--muted2)">→ +${pts}pt</span>`
+  });
+
+  lmState.roundCount++;
+
+  // Check shuffle (every 3 clashes)
+  if (lmState.roundCount % 3 === 0 && lmState.roundCount > 0) {
+    lmState.shuffled = true;
+  } else {
+    lmState.shuffled = false;
+  }
+
+  // Auto-check win thresholds
+  flattenMatchesToResults();
+  autoCheckTeamWin(lmState.match);
+  markDirty();
+
+  lmRender();
+}
+
+// ── Undo last finish ──
+function lmUndo() {
+  if (!lmState || !lmState.undoStack.length) return;
+  const snap = lmState.undoStack.pop();
+
+  // Restore match member builds from snapshot
+  const snapMatch = snap.match;
+  for (const tk of ['team1','team2']) {
+    if (!lmState.match[tk]) continue;
+    lmState.match[tk].members.forEach((mem, i) => {
+      if (snapMatch[tk]?.members[i]) {
+        mem.builds = JSON.parse(JSON.stringify(snapMatch[tk].members[i].builds));
+        mem.win    = snapMatch[tk].members[i].win;
+      }
+    });
+  }
+  // Restore clash finishes
+  const clash = lmState.clashes[lmState.activeClashIdx];
+  if (clash && snap.clash) clash.finishes = snap.clash.finishes;
+  lmState.history = snap.history;
+  lmState.roundCount = snap.roundCount;
+  lmState.shuffled   = snap.shuffled;
+
+  flattenMatchesToResults();
+  markDirty();
+  lmRender();
+}
+
+// ── Move to next clash (pick new beys / players) ──
+function lmNextClash() {
+  if (!lmState) return;
+  const clash = lmState.clashes[lmState.activeClashIdx];
+  if (clash) clash.done = true;
+
+  // default: same matchup, advance to next available bey
+  const t1Idx = clash ? clash.t1MemberIdx : 0;
+  const t2Idx = clash ? clash.t2MemberIdx : 0;
+  lmPushClash(t1Idx, t2Idx);
+  lmRender();
+}
+
+// ── Commit & close — saves state, closes modal ──
+function lmCommitAndClose() {
+  if (!lmState) return;
+  const { match } = lmState;
+
+  // If this was a 1v1 proxy, write builds/win back to the real solo match
+  if (match._isSolo && match._soloRef) {
+    const real = match._soloRef;
+    const m1 = match.team1.members[0];
+    const m2 = match.team2 ? match.team2.members[0] : null;
+    real.p1.builds = JSON.parse(JSON.stringify(m1.builds));
+    real.p1.win    = m1.win;
+    if (m2 && real.p2) {
+      real.p2.builds = JSON.parse(JSON.stringify(m2.builds));
+      real.p2.win    = m2.win;
+    }
+  }
+
+  flattenMatchesToResults();
+  markDirty();
+  renderResults();
+  closeLiveMode();
+  showToast('⚡ Live scoring committed!', 'success');
+}
+
+// ── Select which bey slot to use for a side in current clash ──
+function lmSelectBey(side, beyIdx) {
+  if (!lmState) return;
+  const clash = lmState.clashes[lmState.activeClashIdx];
+  if (!clash || clash.done) return;
+  if (side === 't1') clash.t1BeyIdx = beyIdx;
+  else clash.t2BeyIdx = beyIdx;
+  lmRender();
+}
+
+// ── Select which player (member) to use for a side ──
+function lmSelectMember(side, memberIdx) {
+  if (!lmState) return;
+  const clash = lmState.clashes[lmState.activeClashIdx];
+  if (!clash || clash.done) return;
+  const teamKey = side === 't1' ? 'team1' : 'team2';
+  if (side === 't1') { clash.t1MemberIdx = memberIdx; clash.t1BeyIdx = lmFirstAvailBey(lmState.match[teamKey].members[memberIdx]); }
+  else               { clash.t2MemberIdx = memberIdx; clash.t2BeyIdx = lmFirstAvailBey(lmState.match[teamKey].members[memberIdx]); }
+  lmRender();
+}
+
+// ── Main render ──
+function lmRender() {
+  if (!lmState) return;
+  const { match, clashes, activeClashIdx, scoringSide, shuffled, history } = lmState;
+  const clash = clashes[activeClashIdx];
+
+  // Determine display sides based on swap
+  // leftKey/rightKey are 't1'/'t2' — lmSwapped flips them
+  const leftKey  = lmSwapped ? 't2' : 't1';
+  const rightKey = lmSwapped ? 't1' : 't2';
+  const leftTeam  = match[leftKey  === 't1' ? 'team1' : 'team2'];
+  const rightTeam = match[rightKey === 't1' ? 'team1' : 'team2'];
+
+  const isFinals = match.round === 'F';
+  const threshold = isFinals ? 7 : 4;
+
+  // Header labels
+  document.getElementById('lm-match-label').textContent =
+    `${match.round} · ${match.team1?.teamName || '?'} vs ${match.team2?.teamName || '?'}  (win at ${threshold} pts)`;
+
+  // Score bar — always shows LEFT team pts on left, RIGHT on right
+  const leftPts  = (match[leftKey  === 't1' ? 'team1' : 'team2']?.members || []).reduce((s,m) => s + calcPoints(m.builds), 0);
+  const rightPts = (match[rightKey === 't1' ? 'team1' : 'team2']?.members || []).reduce((s,m) => s + calcPoints(m.builds), 0);
+
+  const leftEl  = document.getElementById('lm-total-t1'); // left slot in DOM
+  const rightEl = document.getElementById('lm-total-t2'); // right slot in DOM
+  leftEl.textContent  = leftPts;
+  rightEl.textContent = rightPts;
+  leftEl.className  = `lm-score-t1${leftPts  >= threshold ? ' winning' : ''}`;
+  rightEl.className = `lm-score-t2${rightPts >= threshold ? ' winning' : ''}`;
+
+  // Shuffle notice
+  document.getElementById('lm-shuffle-notice').style.display = shuffled ? '' : 'none';
+
+  if (!clash) return;
+
+  const leftMemberIdx  = lmSwapped ? clash.t2MemberIdx : clash.t1MemberIdx;
+  const rightMemberIdx = lmSwapped ? clash.t1MemberIdx : clash.t2MemberIdx;
+  const leftMember  = leftTeam  ? leftTeam.members[leftMemberIdx]   : null;
+  const rightMember = rightTeam ? rightTeam.members[rightMemberIdx] : null;
+
+  // Player name headers
+  document.getElementById('lm-label-t1').textContent = leftTeam?.teamName  || '';
+  document.getElementById('lm-label-t2').textContent = rightTeam?.teamName || '';
+  document.getElementById('lm-name-t1').textContent  = leftMember?.player  || '—';
+  document.getElementById('lm-name-t2').textContent  = rightMember?.player || '—';
+
+  // Clash pts — show left/right according to swap
+  const clashPtsLeft  = clash.finishes.filter(f => f.side === leftKey ).reduce((s,f) => s+f.pts, 0);
+  const clashPtsRight = clash.finishes.filter(f => f.side === rightKey).reduce((s,f) => s+f.pts, 0);
+  document.getElementById('lm-clash-pts-t1').textContent = clashPtsLeft;
+  document.getElementById('lm-clash-pts-t2').textContent = clashPtsRight;
+
+  // Bey / member chips (pass actual team key, not display key)
+  lmRenderMemberSelector('t1', leftTeam,  clash, leftKey);
+  lmRenderMemberSelector('t2', rightTeam, clash, rightKey);
+
+  // Scoring side buttons — label them by display position
+  const leftSideActive  = scoringSide === leftKey;
+  const rightSideActive = scoringSide === rightKey;
+  const lBtn = document.getElementById('lm-side-t1-btn');
+  const rBtn = document.getElementById('lm-side-t2-btn');
+  lBtn.textContent = `◀ ${leftTeam?.teamName  || 'LEFT'}`;
+  rBtn.textContent = `${rightTeam?.teamName || 'RIGHT'} ▶`;
+  lBtn.className = `lm-side-btn t1${leftSideActive  ? ' active' : ''}`;
+  rBtn.className = `lm-side-btn t2${rightSideActive ? ' active' : ''}`;
+  lBtn.onclick = () => lmSetScoringSide(leftKey);
+  rBtn.onclick = () => lmSetScoringSide(rightKey);
+
+  // History
+  const histEl = document.getElementById('lm-history');
+  histEl.innerHTML = '<div style="font-family:\'Share Tech Mono\',monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">CLASH LOG</div>' +
+    (history.length
+      ? history.map(h => `<div class="lm-history-item">${h.html}</div>`).join('')
+      : '<div style="font-family:\'Share Tech Mono\',monospace;font-size:10px;color:var(--muted2)">No clashes yet</div>');
+}
+
+function lmRenderMemberSelector(domSlot, team, clash, actualKey) {
+  // domSlot: 't1' | 't2' — which DOM column to render into
+  // actualKey: 't1' | 't2' — the real data side (for clash idx lookups)
+  const containerId = `lm-beys-${domSlot}`;
+  const container = document.getElementById(containerId);
+  if (!container || !team) return;
+
+  const activeMemberIdx = actualKey === 't1' ? clash.t1MemberIdx : clash.t2MemberIdx;
+  const activeBeyIdx    = actualKey === 't1' ? clash.t1BeyIdx    : clash.t2BeyIdx;
+
+  // Member pill row
+  const memberHtml = team.members.map((m, i) => {
+    const pts = calcPoints(m.builds);
+    const isActive = i === activeMemberIdx;
+    const won = m.win;
+    return `<span onclick="lmSelectMember('${actualKey}',${i})"
+      style="display:inline-block;cursor:pointer;font-family:'Share Tech Mono',monospace;
+      font-size:9px;padding:2px 7px;border-radius:10px;margin:0 3px 4px 0;border:1px solid ${isActive?'var(--gold)':'var(--border2)'};
+      background:${isActive?'rgba(212,175,55,0.12)':'var(--surface2)'};
+      color:${isActive?'var(--gold2)':won?'#66bb6a':'var(--muted)'};
+      ${won?'text-decoration:line-through;':''}"
+      title="${escHtml(m.player)} · ${pts}pts">${escHtml(m.player)}</span>`;
+  }).join('');
+
+  const activeMember = team.members[activeMemberIdx];
+  if (!activeMember) { container.innerHTML = memberHtml; return; }
+
+  const beyHtml = (activeMember.builds || []).map((b, bi) => {
+    const isActiveB = bi === activeBeyIdx;
+    const hasL = b.finishes.includes('L');
+    return `<div class="lm-bey-chip ${isActiveB?'active':''} ${hasL?'used':''}"
+      onclick="${hasL?'':'lmSelectBey(\''+actualKey+'\','+bi+')'}">
+      <span class="lm-bey-name">${escHtml(b.build)||'(unnamed)'}</span>
+      <span class="lm-bey-pts">${b.finishes.map(f=>`<span class="finish-tag ${f}" style="font-size:8px;padding:1px 4px">${f}</span>`).join('')}</span>
+    </div>`;
+  }).join('') || '<div style="font-family:\'Share Tech Mono\',monospace;font-size:10px;color:var(--muted2)">No builds</div>';
+
+  container.innerHTML = memberHtml + beyHtml;
+}
+
+function lmRenderBeyChips(side, team, clash) {
+  // handled inside lmRenderMemberSelector now
 }
 
 // ─────────────────────────────────────────────
