@@ -1001,6 +1001,10 @@
   .clw-warn {
     display: none; position: absolute; top: 8px;
     text-align: center; z-index: 2;
+    pointer-events: none;
+  }
+  .clw-warn.visible {
+    display: block !important;
   }
   #clw-warn-left  { right: 10px; }
   #clw-warn-right { left: 10px; }
@@ -1733,7 +1737,7 @@
           <div class="lcfb-pts">+2pt</div>
         </button>
         <button class="btn danger" style="font-size:18px;padding:0;border-radius:8px;touch-action:manipulation;display:flex;align-items:center;justify-content:center" onclick="lmUndo()" title="Undo">↩</button>
-        <button class="btn" style="font-size:10px;padding:0;font-family:'Barlow Condensed',sans-serif;font-weight:800;border-radius:8px;touch-action:manipulation;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.1" onclick="lmBackToPick()">🔄<br>NEXT</button>
+        <button class="btn" id="lm-next-btn" style="font-size:10px;padding:0;font-family:'Barlow Condensed',sans-serif;font-weight:800;border-radius:8px;touch-action:manipulation;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.1" onclick="lmBackToPick()">🔄<br>NEXT</button>
       </div>
     </div>
 
@@ -2775,6 +2779,17 @@ function renderTeamMatchCard(match) {
 
   const maxMembers = Math.max(t1.members.length, t2.members.length);
 
+  // Build index pairs sorted so finished matchups appear first
+  const indexPairs = Array.from({length: maxMembers}, (_, i) => i);
+  indexPairs.sort((a, b) => {
+    const m1a = t1.members[a], m2a = t2.members[a];
+    const m1b = t1.members[b], m2b = t2.members[b];
+    const finishedA = (m1a?.win || m2a?.win) ? 1 : 0;
+    const finishedB = (m1b?.win || m2b?.win) ? 1 : 0;
+    // Finished goes to top (higher sort priority)
+    return finishedB - finishedA;
+  });
+
   return `
   <div class="match-card" id="match-${mid}">
     <div style="display:flex;align-items:stretch;border-bottom:1px solid var(--border)">
@@ -2800,15 +2815,24 @@ function renderTeamMatchCard(match) {
       <div style="padding:4px 10px;background:rgba(212,175,55,0.06);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;color:var(--gold2);letter-spacing:1px">${escHtml(t2.teamName)}</div>
     </div>
     <!-- Per-player matchup rows — each row aligns team1[i] with team2[i] -->
-    ${Array.from({length: maxMembers}, (_,i) => {
+    ${indexPairs.map(i => {
       const m1 = t1.members[i];
       const m2 = t2.members[i];
-      return `<div style="display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--border)">
-        <div style="border-right:1px solid var(--border)">
-          ${m1 ? renderTeamMemberSide(match, 'team1', i, mid, 'p1') : '<div style="padding:8px;color:var(--muted2);font-size:11px">—</div>'}
+      const rowFinished = (m1?.win || m2?.win);
+      const rowNum = i + 1;
+      const rowLabel = rowNum === 1 ? '1ST MATCH' : rowNum === 2 ? '2ND MATCH' : rowNum === 3 ? '3RD MATCH' : `${rowNum}TH MATCH`;
+      return `<div style="border-top:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:6px;padding:2px 10px;background:${rowFinished?'rgba(76,175,80,0.06)':'var(--surface2)'};border-bottom:1px solid var(--border)">
+          <span style="font-family:'Share Tech Mono',monospace;font-size:8px;color:${rowFinished?'#66bb6a':'var(--muted2)'};letter-spacing:1px">${rowLabel}</span>
+          ${rowFinished ? `<span style="font-family:'Share Tech Mono',monospace;font-size:8px;color:#66bb6a">✓ DONE</span>` : ''}
         </div>
-        <div>
-          ${m2 ? renderTeamMemberSide(match, 'team2', i, mid, 'p2') : '<div style="padding:8px;color:var(--muted2);font-size:11px">—</div>'}
+        <div style="display:grid;grid-template-columns:1fr 1fr">
+          <div style="border-right:1px solid var(--border)">
+            ${m1 ? renderTeamMemberSide(match, 'team1', i, mid, 'p1') : '<div style="padding:8px;color:var(--muted2);font-size:11px">—</div>'}
+          </div>
+          <div>
+            ${m2 ? renderTeamMemberSide(match, 'team2', i, mid, 'p2') : '<div style="padding:8px;color:var(--muted2);font-size:11px">—</div>'}
+          </div>
         </div>
       </div>`;
     }).join('')}
@@ -2862,7 +2886,7 @@ function renderTeamMemberSide(match, teamKey, memberIdx, mid, colorSide) {
   return `
   <div class="match-player-side">
     <div class="match-player-name ${colorSide}">
-      <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);margin-right:4px">${pos}</span>
+      <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);background:var(--surface3);padding:1px 5px;border-radius:3px;margin-right:5px;letter-spacing:0.5px">${pos}</span>
       ${escHtml(member.player)}
       <button class="round-win-badge ${member.win ? 'win' : isPending ? 'pending' : 'loss'}"
         onclick="mToggleTeamWin(${mid},'${teamKey}',${memberIdx})"
@@ -3741,10 +3765,38 @@ function clwRender() {
   const warns = clash.warnings || { t1:0, t2:0 };
   const lwc = warns[leftKey]  || 0;
   const rwc = warns[rightKey] || 0;
-  el('clw-warn-left').style.display  = lwc > 0 ? '' : 'none';
-  el('clw-warn-right').style.display = rwc > 0 ? '' : 'none';
+  const warnLeft = el('clw-warn-left');
+  const warnRight = el('clw-warn-right');
+  if (lwc > 0) warnLeft.classList.add('visible'); else warnLeft.classList.remove('visible');
+  if (rwc > 0) warnRight.classList.add('visible'); else warnRight.classList.remove('visible');
   el('clw-warn-left-num').textContent  = lwc;
   el('clw-warn-right-num').textContent = rwc;
+
+  // Check if match already has a winner — disable Next if so
+  const isFinals_clw = match.round === 'F';
+  const isBestOf5_clw = ['TC','QF','SF','F'].includes(match.round);
+  const ptThresh_clw = isFinals_clw ? 7 : 4;
+  const winThresh_clw = isBestOf5_clw ? 3 : 2;
+  const t1wins_clw = (match.team1?.members||[]).filter(m => calcPoints(m.builds) >= ptThresh_clw || m.win).length;
+  const t2wins_clw = (match.team2?.members||[]).filter(m => calcPoints(m.builds) >= ptThresh_clw || m.win).length;
+  const matchWon_clw = t1wins_clw >= winThresh_clw || t2wins_clw >= winThresh_clw;
+  const nextBtn = document.getElementById('clw-next-btn');
+  if (nextBtn) {
+    nextBtn.disabled = matchWon_clw;
+    nextBtn.title = matchWon_clw ? 'Match is finished' : 'Next round';
+    if (matchWon_clw) {
+      const winner = t1wins_clw >= winThresh_clw ? (match.team1?.teamName||'T1') : (match.team2?.teamName||'T2');
+      nextBtn.innerHTML = `🏆<br><span style="font-size:8px">DONE</span>`;
+      nextBtn.style.background = 'rgba(76,175,80,0.15)';
+      nextBtn.style.borderColor = 'rgba(76,175,80,0.4)';
+      nextBtn.style.color = '#66bb6a';
+    } else {
+      nextBtn.innerHTML = `🔄<br>NEXT`;
+      nextBtn.style.background = '';
+      nextBtn.style.borderColor = '';
+      nextBtn.style.color = '';
+    }
+  }
 
   // Team score bar (player wins)
   clwUpdateScoreBar();
@@ -3940,6 +3992,30 @@ function lmRenderClashScreen() {
   // Re-apply panel highlight based on current scoring side
   const leftSideActive = scoringSide === leftKey;
   lmSetScoringSideAndHighlight(leftSideActive ? 'left' : 'right');
+
+  // Disable Next button if match already has a winner
+  const isFinals_lm = match.round === 'F';
+  const isBestOf5_lm = ['TC','QF','SF','F'].includes(match.round);
+  const ptThresh_lm = isFinals_lm ? 7 : 4;
+  const winThresh_lm = isBestOf5_lm ? 3 : 2;
+  const t1w_lm = (match.team1?.members||[]).filter(m => calcPoints(m.builds) >= ptThresh_lm || m.win).length;
+  const t2w_lm = (match.team2?.members||[]).filter(m => calcPoints(m.builds) >= ptThresh_lm || m.win).length;
+  const matchWon_lm = t1w_lm >= winThresh_lm || t2w_lm >= winThresh_lm;
+  const lmNextBtn = document.getElementById('lm-next-btn');
+  if (lmNextBtn) {
+    lmNextBtn.disabled = matchWon_lm;
+    if (matchWon_lm) {
+      lmNextBtn.innerHTML = `🏆<br><span style="font-size:8px">DONE</span>`;
+      lmNextBtn.style.background = 'rgba(76,175,80,0.15)';
+      lmNextBtn.style.borderColor = 'rgba(76,175,80,0.4)';
+      lmNextBtn.style.color = '#66bb6a';
+    } else {
+      lmNextBtn.innerHTML = `🔄<br>NEXT`;
+      lmNextBtn.style.background = '';
+      lmNextBtn.style.borderColor = '';
+      lmNextBtn.style.color = '';
+    }
+  }
 
   lmUpdateScoreBar();
 }
