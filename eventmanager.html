@@ -3229,40 +3229,38 @@ async function removeMatch(mid) {
   const match = matchesState.find(m => m.id === mid);
   if (!match) return;
   const msg = match.submitted
-    ? 'This match is already submitted. Remove it completely? This will push the deletion to the server immediately.'
-    : 'Remove this match?';
+    ? 'This match is already submitted. Remove it completely? This will be deleted from the server immediately.'
+    : 'Remove this match? It will be deleted from the server immediately.';
   if (!confirm(msg)) return;
 
   matchesState = matchesState.filter(m => m.id !== mid);
   flattenMatchesToResults();
   markDirty();
-
-  // If it was submitted, push deletion to server immediately
-  if (match.submitted && currentEvent) {
-    try {
-      const res = await fetch('/api/beyresults', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          adminUsername: adminUser,
-          adminPassword: adminPass,
-          eventId: currentEvent.id,
-          builds: buildsState,
-          beyResults: resultsState
-        })
-      });
-      if (res.ok) {
-        _lastSyncHash = JSON.stringify(resultsState);
-        showToast('🗑️ Submitted match removed from server.', 'success');
-      } else {
-        showToast('⚠️ Removed locally — hit 💾 Finalize to sync.', '');
-      }
-    } catch(e) {
-      showToast('⚠️ Removed locally — hit 💾 Finalize to sync.', '');
-    }
-  }
-
   renderResults();
+
+  // Always push deletion to server immediately so live sync doesn't bring it back
+  if (!currentEvent) return;
+  try {
+    const res = await fetch('/api/beyresults', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        adminUsername: adminUser,
+        adminPassword: adminPass,
+        eventId: currentEvent.id,
+        builds: buildsState,
+        beyResults: resultsState
+      })
+    });
+    if (res.ok) {
+      _lastSyncHash = JSON.stringify(resultsState); // prevent sync from re-adding it
+      showToast('🗑️ Match removed.', 'success');
+    } else {
+      showToast('⚠️ Removed locally but server push failed — try Finalize.', '');
+    }
+  } catch(e) {
+    showToast('⚠️ Removed locally but server push failed — try Finalize.', '');
+  }
 }
 
 function mToggleWin(mid, side) {
