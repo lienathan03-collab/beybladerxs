@@ -2651,6 +2651,24 @@ function lmFirstAvailBey(member) {
 }
 
 function closeLiveMode() {
+  // Commit any in-progress scores back to the real match before closing
+  if (lmState) {
+    const { match } = lmState;
+    if (match._isSolo && match._soloRef) {
+      const real = match._soloRef;
+      const m1 = match.team1.members[0];
+      const m2 = match.team2 ? match.team2.members[0] : null;
+      real.p1.builds = JSON.parse(JSON.stringify(m1.builds));
+      real.p1.win    = m1.win;
+      if (m2 && real.p2) {
+        real.p2.builds = JSON.parse(JSON.stringify(m2.builds));
+        real.p2.win    = m2.win;
+      }
+    }
+    flattenMatchesToResults();
+    markDirty();
+    renderResults();
+  }
   document.getElementById('live-mode-overlay').style.display = 'none';
   lmState = null;
 }
@@ -2787,19 +2805,15 @@ function lmUpdateScoreBar() {
   const leftKey  = lmSwapped ? 't2' : 't1';
   const rightKey = lmSwapped ? 't1' : 't2';
 
-  // Count clash wins: each finished clash contributes 1 win to the side that scored
+  // Count how many bey clashes each side has WON in this match session
+  // A clash is won by the side that scored (has finishes) — includes active clash
   let leftWins = 0, rightWins = 0;
   for (const clash of clashes) {
-    if (!clash.done && clash !== clashes[lmState.activeClashIdx]) continue;
-    // A clash is won by the side with more points in that clash
     const lPts = clash.finishes.filter(f => f.side === leftKey ).reduce((s,f) => s+f.pts, 0);
     const rPts = clash.finishes.filter(f => f.side === rightKey).reduce((s,f) => s+f.pts, 0);
-    if (lPts > 0 && lPts > rPts) leftWins++;
+    if (lPts > 0 && lPts >= rPts) leftWins++;
     else if (rPts > 0 && rPts > lPts) rightWins++;
   }
-  // Also count wins from builds marked win on team members (handles manual toggles)
-  const leftTeam  = match[leftKey  === 't1' ? 'team1' : 'team2'];
-  const rightTeam = match[rightKey === 't1' ? 'team1' : 'team2'];
 
   const lEl = document.getElementById('lm-total-t1');
   const rEl = document.getElementById('lm-total-t2');
@@ -2883,14 +2897,15 @@ function lmSetScoringSideAndHighlight(displaySide) {
   if (stripLabel) stripLabel.textContent = `SCORER: ${scorerName || displaySide.toUpperCase()}`;
 }
 
-// ── Add warning to the SCORER's opponent — badge shows on scorer's side ──
+// ── Add warning to the SCORER's opponent — badge shows on OPPONENT's panel ──
 function lmAddWarning() {
   if (!lmState) return;
   const clash = lmState.clashes[lmState.activeClashIdx];
   if (!clash || clash.done) return;
 
-  const scorerKey = lmState.scoringSide;   // scorer = who clicked their panel
-  const loserKey  = scorerKey === 't1' ? 't2' : 't1'; // opponent gets the warning
+  // scorerKey is whoever is currently active (set by clicking a panel)
+  const scorerKey = lmState.scoringSide;   // 't1' | 't2' actual data key
+  const loserKey  = scorerKey === 't1' ? 't2' : 't1'; // OPPONENT gets the warning
 
   lmState.undoStack.push(JSON.parse(JSON.stringify({
     clash, match: lmState.match, history: [...lmState.history],
@@ -3020,10 +3035,11 @@ function lmRenderClashScreen() {
   scoreLeftEl.style.color  = leftPts  > rightPts ? '#66bb6a' : leftPts  > 0 ? 'var(--blue)'  : 'var(--muted)';
   scoreRightEl.style.color = rightPts > leftPts  ? '#66bb6a' : rightPts > 0 ? 'var(--gold2)' : 'var(--muted)';
 
-  // Warnings — show on the panel of whoever RECEIVED the warning (the loser key)
-  // Map t1/t2 warnings to left/right display
+  // Warnings — show on the panel of whoever RECEIVED the warning
+  // warns[key] = how many warnings that key (t1/t2) received
+  // leftKey received warnings = show on LEFT panel
   const warns = clash.warnings || { t1: 0, t2: 0 };
-  const leftWarnCount  = warns[leftKey]  || 0;   // leftKey received this many warnings
+  const leftWarnCount  = warns[leftKey]  || 0;
   const rightWarnCount = warns[rightKey] || 0;
   const warnLeftEl  = document.getElementById('clash-warn-left');
   const warnRightEl = document.getElementById('clash-warn-right');
