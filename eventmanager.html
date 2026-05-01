@@ -1068,10 +1068,22 @@
     flex-direction: column !important;
     overflow: hidden !important;
   }
-  /* Header shrinks to a thin strip */
+  /* Header shrinks to a thin strip and locks to top of viewport */
   .lm-modal.clash-active .lm-header {
     padding: 4px 10px !important;
     flex-shrink: 0;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 600 !important;
+    width: 100% !important;
+    background: var(--surface) !important;
+    border-bottom: 1px solid var(--border) !important;
+  }
+  /* Push clash content below the fixed header */
+  .lm-modal.clash-active #lm-screen-clash {
+    margin-top: 36px !important;
   }
   .lm-modal.clash-active .lm-title { font-size: 12px !important; }
   .lm-modal.clash-active #lm-match-label { font-size: 7px !important; }
@@ -1240,6 +1252,7 @@
     #lm-beys-t1, #lm-beys-t2 { overflow: hidden; }
 
     /* Clash screen — handled by .clash-active class */
+    .lm-modal.clash-active #lm-screen-clash { margin-top: 32px !important; }
     #clash-score-left, #clash-score-right {
       font-size: clamp(80px, 20vw, 140px) !important;
     }
