@@ -2253,7 +2253,7 @@ function autoCheckTeamWin(m) {
   const isFinals = m.round === 'F';
   const ptThreshold = isFinals ? 7 : 4;
   // Each player wins their individual match when they reach the point threshold
-  // Finals = Best of 5 (first to 3 player wins, 7pts each); all others = Best of 3 (first to 2, 4pts)
+  // TC/QF/SF/F = Best of 5 (first to 3 player wins); R1-R7 = Best of 3 (first to 2)
   // All matches always play out — never block
   for (const mem of [...m.team1.members, ...m.team2.members]) {
     const pts = calcPoints(mem.builds);
@@ -3147,7 +3147,7 @@ function lmSwapSides() {
   if (wrap?.classList.contains('active')) { clwRender(); }
   else {
     const clashScreen = document.getElementById('lm-screen-clash');
-    if (clashScreen && clashScreen.style.display !== 'none') lmRenderClashScreen(); if(document.getElementById("clash-landscape-wrap")?.classList.contains("active")) clwRender();
+    if (clashScreen && clashScreen.style.display !== 'none') lmRenderClashScreen();
     else lmRender();
   }
   showToast(lmSwapped ? '⇄ Sides swapped' : '⇄ Sides restored', '');
@@ -3353,11 +3353,16 @@ function lmApplyFinish(type) {
   markDirty();
 
   // Re-render whichever screen is active
-  const clashScreen = document.getElementById('lm-screen-clash');
-  if (clashScreen && clashScreen.style.display !== 'none') {
-    lmRenderClashScreen(); if(document.getElementById("clash-landscape-wrap")?.classList.contains("active")) clwRender();
+  const wrap = document.getElementById('clash-landscape-wrap');
+  if (wrap?.classList.contains('active')) {
+    clwRender(); // landscape mobile clash screen
   } else {
-    lmRender();
+    const clashScreen = document.getElementById('lm-screen-clash');
+    if (clashScreen && clashScreen.style.display !== 'none') {
+      lmRenderClashScreen();
+    } else {
+      lmRender();
+    }
   }
   lmUpdateScoreBar();
 }
@@ -3365,9 +3370,10 @@ function lmApplyFinish(type) {
 function lmUpdateScoreBar() {
   if (!lmState) return;
   const { match } = lmState;
-  const isFinals = match.round === 'F';
-  const ptThreshold = isFinals ? 7 : 4;         // pts to win individual player match
-  const teamWinThreshold = isFinals ? 3 : 2;    // Finals = best of 5 (first to 3), others = best of 3 (first to 2)
+  const isFinals   = match.round === 'F';
+  const isBestOf5  = ['TC','QF','SF','F'].includes(match.round);
+  const ptThreshold     = isFinals ? 7 : 4;
+  const teamWinThreshold = isBestOf5 ? 3 : 2;
 
   const leftKey  = lmSwapped ? 't2' : 't1';
   const rightKey = lmSwapped ? 't1' : 't2';
@@ -3418,9 +3424,14 @@ function lmUndo() {
   flattenMatchesToResults();
   markDirty();
 
-  const clashScreen = document.getElementById('lm-screen-clash');
-  if (clashScreen && clashScreen.style.display !== 'none') lmRenderClashScreen(); if(document.getElementById("clash-landscape-wrap")?.classList.contains("active")) clwRender();
-  else lmRender();
+  const wrap2 = document.getElementById('clash-landscape-wrap');
+  if (wrap2?.classList.contains('active')) {
+    clwRender();
+  } else {
+    const clashScreen = document.getElementById('lm-screen-clash');
+    if (clashScreen && clashScreen.style.display !== 'none') lmRenderClashScreen();
+    else lmRender();
+  }
   lmUpdateScoreBar();
 }
 
@@ -3534,7 +3545,9 @@ function lmAddWarning() {
   flattenMatchesToResults();
   autoCheckTeamWin(lmState.match);
   markDirty();
-  lmRenderClashScreen(); if(document.getElementById("clash-landscape-wrap")?.classList.contains("active")) clwRender();
+  const wrap3 = document.getElementById('clash-landscape-wrap');
+  if (wrap3?.classList.contains('active')) clwRender();
+  else lmRenderClashScreen();
   lmUpdateScoreBar();
 }
 
@@ -3561,7 +3574,7 @@ function lmStartClash() {
     const overlay = document.getElementById('live-mode-overlay');
     if (modal) modal.classList.add('clash-active');
     if (overlay) overlay.classList.add('clash-active');
-    lmRenderClashScreen(); if(document.getElementById("clash-landscape-wrap")?.classList.contains("active")) clwRender();
+    lmRenderClashScreen();
   }
 }
 
@@ -3668,9 +3681,10 @@ function clwRender() {
 function clwUpdateScoreBar() {
   if (!lmState) return;
   const { match } = lmState;
-  const isFinals = match.round === 'F';
-  const ptThreshold = isFinals ? 7 : 4;
-  const teamWinThreshold = isFinals ? 3 : 2;
+  const isFinals   = match.round === 'F';
+  const isBestOf5  = ['TC','QF','SF','F'].includes(match.round);
+  const ptThreshold      = isFinals ? 7 : 4;
+  const teamWinThreshold = isBestOf5 ? 3 : 2;
   const leftKey  = lmSwapped ? 't2' : 't1';
   const rightKey = lmSwapped ? 't1' : 't2';
   const leftTeam  = match[leftKey  === 't1' ? 'team1' : 'team2'];
@@ -3798,6 +3812,18 @@ function lmSelectMember(side, memberIdx) {
   const clash = lmState.clashes[lmState.activeClashIdx];
   if (!clash || clash.done) return;
   const teamKey = side === 't1' ? 'team1' : 'team2';
+  const member = lmState.match[teamKey]?.members[memberIdx];
+  if (!member) return;
+
+  const round = lmState.match.round;
+  const isBestOf5Round = ['TC','QF','SF','F'].includes(round);
+
+  // For R1-R7: block if player already played (has finishes) or already won
+  if (!isBestOf5Round) {
+    const hasPlayed = member.builds.some(b => (b.finishes||[]).length > 0);
+    if (hasPlayed || member.win) return; // cannot replay in R1-R7
+  }
+
   if (side === 't1') { clash.t1MemberIdx = memberIdx; clash.t1BeyIdx = lmFirstAvailBey(lmState.match[teamKey].members[memberIdx]); }
   else               { clash.t2MemberIdx = memberIdx; clash.t2BeyIdx = lmFirstAvailBey(lmState.match[teamKey].members[memberIdx]); }
   lmRender();
@@ -3808,11 +3834,11 @@ function lmRender() {
   if (!lmState) return;
   const { match, clashes, activeClashIdx, scoringSide, history } = lmState;
   const clash = clashes[activeClashIdx];
-  const isFinals = match.round === 'F';
-
+  const isFinals   = match.round === 'F';
+  const isBestOf5  = ['TC','QF','SF','F'].includes(match.round);
   const ptThreshold = isFinals ? 7 : 4;
-  const teamWins = isFinals ? 3 : 2;
-  const format = isFinals ? 'Best of 5' : 'Best of 3';
+  const teamWins   = isBestOf5 ? 3 : 2;
+  const format     = isBestOf5 ? 'Best of 5' : 'Best of 3';
   const labelSuffix = match._isSolo
     ? `(win at ${ptThreshold} pts)`
     : `(player wins at ${ptThreshold} pts · ${format} · first to ${teamWins} player wins)`;
@@ -3850,26 +3876,57 @@ function lmRender() {
 }
 
 function lmRenderMemberSelector(domSlot, team, clash, actualKey) {
-  // domSlot: 't1' | 't2' — which DOM column to render into
-  // actualKey: 't1' | 't2' — the real data side (for clash idx lookups)
   const containerId = `lm-beys-${domSlot}`;
   const container = document.getElementById(containerId);
   if (!container || !team) return;
 
   const activeMemberIdx = actualKey === 't1' ? clash.t1MemberIdx : clash.t2MemberIdx;
   const activeBeyIdx    = actualKey === 't1' ? clash.t1BeyIdx    : clash.t2BeyIdx;
+  const match = lmState.match;
+  const round = match.round;
+
+  // Determine if this is a re-playable round (TC/QF/SF/F = best of 5, players can cycle)
+  const isBestOf5Round = ['TC','QF','SF','F'].includes(round);
+
+  // For best-of-5 rounds: a player is "used this cycle" only if _usedInCycle is set
+  // For R1-R7: a player who has played (has any build with finishes) cannot play again
+  const memberCanPlay = (m) => {
+    if (isBestOf5Round) {
+      // In best-of-5, player can play again after cycle reset (shuffle)
+      return !m.builds.every(b => lmBeyIsUsed(b)) || m.builds.every(b => !lmBeyIsUsed(b));
+    } else {
+      // R1-R7: player cannot play again once they've played (have any finish)
+      return !m.builds.some(b => (b.finishes||[]).length > 0);
+    }
+  };
 
   // Member pill row
   const memberHtml = team.members.map((m, i) => {
     const pts = calcPoints(m.builds);
     const isActive = i === activeMemberIdx;
-    const won = m.win;
-    return `<span onclick="lmSelectMember('${actualKey}',${i})"
-      style="display:inline-block;cursor:pointer;font-family:'Share Tech Mono',monospace;
-      font-size:9px;padding:2px 7px;border-radius:10px;margin:0 3px 4px 0;border:1px solid ${isActive?'var(--gold)':'var(--border2)'};
-      background:${isActive?'rgba(212,175,55,0.12)':'var(--surface2)'};
-      color:${isActive?'var(--gold2)':won?'#66bb6a':'var(--muted)'};
-      ${won?'text-decoration:line-through;':''}"
+    const won  = m.win;
+    // A player "lost" if they have finishes but haven't won (only for R1-R7)
+    const hasPlayed = m.builds.some(b => (b.finishes||[]).length > 0);
+    const lost = !isBestOf5Round && hasPlayed && !won;
+    const canPlay = isBestOf5Round ? true : !hasPlayed || won === true;
+
+    let color, textDeco, cursor, border, bg;
+    if (isActive) {
+      border = 'var(--gold)'; bg = 'rgba(212,175,55,0.12)'; color = 'var(--gold2)'; textDeco = 'none'; cursor = 'pointer';
+    } else if (won) {
+      border = 'rgba(76,175,80,0.4)'; bg = 'rgba(76,175,80,0.08)'; color = '#66bb6a'; textDeco = 'line-through'; cursor = 'not-allowed';
+    } else if (lost) {
+      border = 'rgba(229,57,53,0.4)'; bg = 'rgba(229,57,53,0.08)'; color = 'var(--red)'; textDeco = 'line-through'; cursor = 'not-allowed';
+    } else {
+      border = 'var(--border2)'; bg = 'var(--surface2)'; color = 'var(--muted)'; textDeco = 'none'; cursor = 'pointer';
+    }
+
+    const clickable = !won && !lost;
+    return `<span ${clickable ? `onclick="lmSelectMember('${actualKey}',${i})"` : ''}
+      style="display:inline-block;cursor:${cursor};font-family:'Share Tech Mono',monospace;
+      font-size:9px;padding:2px 7px;border-radius:10px;margin:0 3px 4px 0;
+      border:1px solid ${border};background:${bg};color:${color};
+      text-decoration:${textDeco};"
       title="${escHtml(m.player)} · ${pts}pts">${escHtml(m.player)}</span>`;
   }).join('');
 
