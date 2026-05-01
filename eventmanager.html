@@ -1173,42 +1173,63 @@
     ════════════════════════════════ -->
     <div id="lm-screen-clash" style="display:none">
 
-      <!-- Big bey names -->
-      <div style="display:grid;grid-template-columns:1fr auto 1fr;min-height:140px">
-        <!-- Left bey -->
-        <div style="padding:18px 16px;display:flex;flex-direction:column;justify-content:center;border-right:1px solid var(--border);background:rgba(74,158,255,0.04)">
-          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:4px" id="clash-left-player"></div>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:900;color:var(--blue);line-height:1.1;word-break:break-word" id="clash-left-bey">—</div>
-          <div style="margin-top:8px" id="clash-left-finishes"></div>
+      <!-- Two clickable halves — click side = that side is scoring -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;min-height:170px;cursor:pointer">
+
+        <!-- LEFT panel — click to score for left -->
+        <div id="clash-panel-left"
+          onclick="lmSetScoringSideAndHighlight('left')"
+          style="padding:18px 16px;display:flex;flex-direction:column;justify-content:space-between;border-right:1px solid var(--border);background:rgba(74,158,255,0.04);transition:background .12s;user-select:none">
+          <div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:4px" id="clash-left-player"></div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:var(--blue);line-height:1.1;word-break:break-word" id="clash-left-bey">—</div>
+            <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:3px;align-items:center" id="clash-left-finishes"></div>
+          </div>
+          <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-top:10px">
+            <div>
+              <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2)">SCORE</div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:64px;font-weight:900;line-height:1" id="clash-score-left">0</div>
+            </div>
+            <div id="clash-warn-left" style="display:none;text-align:right">
+              <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--red);letter-spacing:1px">WARN</div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:var(--red)" id="clash-warn-left-count">0</div>
+            </div>
+          </div>
         </div>
 
-        <!-- Centre score -->
-        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 14px;gap:4px;min-width:80px">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:44px;font-weight:900;color:var(--blue);line-height:1" id="clash-score-left">0</div>
-          <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted2)">PTS</div>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:44px;font-weight:900;color:var(--gold2);line-height:1" id="clash-score-right">0</div>
-        </div>
-
-        <!-- Right bey -->
-        <div style="padding:18px 16px;display:flex;flex-direction:column;justify-content:center;background:rgba(212,175,55,0.04)">
-          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:4px" id="clash-right-player"></div>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:900;color:var(--gold2);line-height:1.1;word-break:break-word" id="clash-right-bey">—</div>
-          <div style="margin-top:8px" id="clash-right-finishes"></div>
+        <!-- RIGHT panel — click to score for right -->
+        <div id="clash-panel-right"
+          onclick="lmSetScoringSideAndHighlight('right')"
+          style="padding:18px 16px;display:flex;flex-direction:column;justify-content:space-between;background:rgba(212,175,55,0.04);transition:background .12s;user-select:none">
+          <div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:4px" id="clash-right-player"></div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:var(--gold2);line-height:1.1;word-break:break-word" id="clash-right-bey">—</div>
+            <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:3px;align-items:center" id="clash-right-finishes"></div>
+          </div>
+          <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-top:10px">
+            <div>
+              <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2)">SCORE</div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:64px;font-weight:900;line-height:1" id="clash-score-right">0</div>
+            </div>
+            <div id="clash-warn-right" style="display:none;text-align:right">
+              <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--red);letter-spacing:1px">WARN</div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:var(--red)" id="clash-warn-right-count">0</div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Scorer toggle -->
-      <div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 14px;border-top:1px solid var(--border);background:var(--surface2)">
-        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted)">SCORER:</span>
-        <div class="lm-side-toggle">
-          <button class="lm-side-btn t1 active" id="lm-side-t1-btn">◀ LEFT</button>
-          <button class="lm-side-btn t2" id="lm-side-t2-btn">RIGHT ▶</button>
+      <!-- Active scorer indicator strip -->
+      <div id="clash-scorer-strip" style="padding:6px 14px;background:var(--surface2);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted)">TAP A SIDE TO SELECT SCORER</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn" style="padding:3px 10px;font-size:11px" onclick="lmAddWarning()" title="Add warning to opponent">⚠️ Warning</button>
+          <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2)">L = auto on opponent · 2 warns = win</span>
         </div>
-        <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2)">L = auto on opponent</span>
       </div>
 
       <!-- BIG finish buttons -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;padding:14px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;padding:12px 14px;">
         <button class="lm-clash-finish-btn S" onclick="lmApplyFinish('S')">
           <div class="lcfb-letter">S</div>
           <div class="lcfb-label">Spin</div>
@@ -2705,7 +2726,10 @@ function lmUndo() {
   }
   // Restore clash finishes
   const clash = lmState.clashes[lmState.activeClashIdx];
-  if (clash && snap.clash) clash.finishes = snap.clash.finishes;
+  if (clash && snap.clash) {
+    clash.finishes = snap.clash.finishes;
+    clash.warnings = snap.clash.warnings || { t1: 0, t2: 0 };
+  }
   lmState.history = snap.history;
   lmState.roundCount = snap.roundCount;
   lmState.shuffled   = snap.shuffled;
@@ -2716,6 +2740,104 @@ function lmUndo() {
   const clashScreen = document.getElementById('lm-screen-clash');
   if (clashScreen && clashScreen.style.display !== 'none') lmRenderClashScreen();
   else lmRender();
+  lmUpdateScoreBar();
+}
+
+// ── Click a panel side to set scoring side ──
+function lmSetScoringSideAndHighlight(displaySide) {
+  if (!lmState) return;
+  const actualKey = displaySide === 'left'
+    ? (lmSwapped ? 't2' : 't1')
+    : (lmSwapped ? 't1' : 't2');
+  lmState.scoringSide = actualKey;
+
+  const leftPanel  = document.getElementById('clash-panel-left');
+  const rightPanel = document.getElementById('clash-panel-right');
+  const strip      = document.getElementById('clash-scorer-strip');
+
+  if (leftPanel && rightPanel) {
+    if (displaySide === 'left') {
+      leftPanel.style.background  = 'rgba(74,158,255,0.14)';
+      leftPanel.style.outline     = '2px solid rgba(74,158,255,0.5)';
+      rightPanel.style.background = 'rgba(212,175,55,0.04)';
+      rightPanel.style.outline    = 'none';
+      if (strip) strip.style.background = 'rgba(74,158,255,0.08)';
+    } else {
+      rightPanel.style.background = 'rgba(212,175,55,0.14)';
+      rightPanel.style.outline    = '2px solid rgba(212,175,55,0.5)';
+      leftPanel.style.background  = 'rgba(74,158,255,0.04)';
+      leftPanel.style.outline     = 'none';
+      if (strip) strip.style.background = 'rgba(212,175,55,0.08)';
+    }
+  }
+
+  const leftKey = lmSwapped ? 't2' : 't1';
+  const leftTeam  = lmState.match[leftKey  === 't1' ? 'team1' : 'team2'];
+  const rightTeam = lmState.match[leftKey  === 't1' ? 'team2' : 'team1'];
+  const scorerName = displaySide === 'left' ? leftTeam?.teamName : rightTeam?.teamName;
+  const stripLabel = strip?.querySelector('span');
+  if (stripLabel) stripLabel.textContent = `SCORER: ${scorerName || displaySide.toUpperCase()}`;
+}
+
+// ── Add warning to opponent (2 warnings = win for scorer) ──
+function lmAddWarning() {
+  if (!lmState) return;
+  const clash = lmState.clashes[lmState.activeClashIdx];
+  if (!clash || clash.done) return;
+
+  const scorerKey = lmState.scoringSide;
+  const loserKey  = scorerKey === 't1' ? 't2' : 't1';
+
+  lmState.undoStack.push(JSON.parse(JSON.stringify({
+    clash, match: lmState.match, history: [...lmState.history],
+    roundCount: lmState.roundCount, shuffled: lmState.shuffled,
+  })));
+
+  clash.warnings = clash.warnings || { t1: 0, t2: 0 };
+  clash.warnings[loserKey] = (clash.warnings[loserKey] || 0) + 1;
+
+  const loserTeamKey  = loserKey  === 't1' ? 'team1' : 'team2';
+  const scorerTeamKey = scorerKey === 't1' ? 'team1' : 'team2';
+  const loserMemberIdx  = loserKey  === 't1' ? clash.t1MemberIdx : clash.t2MemberIdx;
+  const scorerMemberIdx = scorerKey === 't1' ? clash.t1MemberIdx : clash.t2MemberIdx;
+  const loserMember  = lmState.match[loserTeamKey].members[loserMemberIdx];
+  const scorerMember = lmState.match[scorerTeamKey].members[scorerMemberIdx];
+  const dotColor = scorerKey === 't1' ? '#4a9eff' : '#d4af37';
+
+  lmState.history.unshift({
+    html: `<span class="lm-hi-dot" style="background:${dotColor}"></span>
+           <span style="color:var(--red)">⚠️ WARNING</span>
+           <span style="color:var(--muted)">on ${escHtml(loserMember?.player || '?')}</span>
+           <span style="color:var(--muted2)">(${clash.warnings[loserKey]}/2)</span>`
+  });
+
+  if (clash.warnings[loserKey] >= 2) {
+    const scorerBeyIdx = scorerKey === 't1' ? clash.t1BeyIdx : clash.t2BeyIdx;
+    const loserBeyIdx  = loserKey  === 't1' ? clash.t1BeyIdx : clash.t2BeyIdx;
+    if (scorerMember?.builds[scorerBeyIdx]) {
+      scorerMember.builds[scorerBeyIdx].finishes.push('S');
+      scorerMember.builds[scorerBeyIdx].deployed = true;
+    }
+    if (loserMember?.builds[loserBeyIdx]) {
+      if (!loserMember.builds[loserBeyIdx].finishes.includes('L')) {
+        loserMember.builds[loserBeyIdx].finishes.push('L');
+        loserMember.builds[loserBeyIdx]._lAddedAtRound = lmState.roundCount + 1;
+      }
+      loserMember.builds[loserBeyIdx].deployed = true;
+    }
+    clash.finishes.push({ side: scorerKey, type: 'S', pts: 1, scorerBeyName: '(2×warn)', loserBeyName: '(2×warn)' });
+    lmState.history.unshift({
+      html: `<span class="lm-hi-dot" style="background:#f44336"></span>
+             <span style="color:#f44336">⚠️⚠️ 2 WARNINGS → </span>
+             <span style="color:#66bb6a">${escHtml(scorerMember?.player || '?')} wins clash!</span>`
+    });
+    lmState.roundCount++;
+  }
+
+  flattenMatchesToResults();
+  autoCheckTeamWin(lmState.match);
+  markDirty();
+  lmRenderClashScreen();
   lmUpdateScoreBar();
 }
 
@@ -2778,30 +2900,29 @@ function lmRenderClashScreen() {
   document.getElementById('clash-left-finishes').innerHTML  = mkTags(leftBey);
   document.getElementById('clash-right-finishes').innerHTML = mkTags(rightBey);
 
-  // Clash points (running pts for THIS clash's scorer side)
+  // Clash points
   const leftPts  = clash.finishes.filter(f => f.side === leftKey ).reduce((s,f) => s+f.pts, 0);
   const rightPts = clash.finishes.filter(f => f.side === rightKey).reduce((s,f) => s+f.pts, 0);
-  document.getElementById('clash-score-left').textContent  = leftPts;
-  document.getElementById('clash-score-right').textContent = rightPts;
+  const scoreLeftEl  = document.getElementById('clash-score-left');
+  const scoreRightEl = document.getElementById('clash-score-right');
+  scoreLeftEl.textContent  = leftPts;
+  scoreRightEl.textContent = rightPts;
+  scoreLeftEl.style.color  = leftPts  > rightPts ? '#66bb6a' : leftPts  > 0 ? 'var(--blue)'  : 'var(--muted)';
+  scoreRightEl.style.color = rightPts > leftPts  ? '#66bb6a' : rightPts > 0 ? 'var(--gold2)' : 'var(--muted)';
 
-  // Colour winning score green
-  document.getElementById('clash-score-left').style.color  = leftPts  > rightPts ? '#66bb6a' : leftPts  > 0 ? 'var(--blue)'  : 'var(--muted)';
-  document.getElementById('clash-score-right').style.color = rightPts > leftPts  ? '#66bb6a' : rightPts > 0 ? 'var(--gold2)' : 'var(--muted)';
+  // Warnings (per-clash, resets each new bey pick)
+  const warns = clash.warnings || { t1: 0, t2: 0 };
+  const leftWarnCount  = warns[leftKey]  || 0;
+  const rightWarnCount = warns[rightKey] || 0;
+  const warnLeftEl  = document.getElementById('clash-warn-left');
+  const warnRightEl = document.getElementById('clash-warn-right');
+  if (warnLeftEl)  { warnLeftEl.style.display  = leftWarnCount  > 0 ? '' : 'none'; document.getElementById('clash-warn-left-count').textContent  = leftWarnCount; }
+  if (warnRightEl) { warnRightEl.style.display = rightWarnCount > 0 ? '' : 'none'; document.getElementById('clash-warn-right-count').textContent = rightWarnCount; }
 
-  // Scorer buttons
-  const lBtn = document.getElementById('lm-side-t1-btn');
-  const rBtn = document.getElementById('lm-side-t2-btn');
-  const lName = leftTeam?.teamName  || 'LEFT';
-  const rName = rightTeam?.teamName || 'RIGHT';
-  lBtn.textContent = `◀ ${lName}`;
-  rBtn.textContent = `${rName} ▶`;
-  const leftSideActive  = scoringSide === leftKey;
-  lBtn.className = `lm-side-btn t1${leftSideActive  ? ' active' : ''}`;
-  rBtn.className = `lm-side-btn t2${!leftSideActive ? ' active' : ''}`;
-  lBtn.onclick = () => lmSetScoringSide(leftKey);
-  rBtn.onclick = () => lmSetScoringSide(rightKey);
+  // Re-apply panel highlight based on current scoring side
+  const leftSideActive = scoringSide === leftKey;
+  lmSetScoringSideAndHighlight(leftSideActive ? 'left' : 'right');
 
-  // Total score bar
   lmUpdateScoreBar();
 }
 
@@ -2920,14 +3041,8 @@ function lmRenderMemberSelector(domSlot, team, clash, actualKey) {
 
   const beyHtml = (activeMember.builds || []).map((b, bi) => {
     const isActiveB = bi === activeBeyIdx;
-    // A bey is "used up" (locked out) only if it has an L AND we haven't shuffled since
-    // lmState.lastShuffleAt tracks the roundCount when the last shuffle happened
-    const lastShuffle = lmState.lastShuffleAt || 0;
-    const hasL = b.finishes.includes('L');
-    // Count Ls added after the last shuffle by checking b._lAddedAtRound array
-    const lockedOut = hasL && (b._lAddedAtRound || 0) > lastShuffle;
-    return `<div class="lm-bey-chip ${isActiveB?'active':''} ${lockedOut?'used':''}"
-      onclick="${lockedOut?'':'lmSelectBey(\''+actualKey+'\','+bi+')'}">
+    return `<div class="lm-bey-chip ${isActiveB?'active':''}"
+      onclick="lmSelectBey('${actualKey}',${bi})">
       <span class="lm-bey-name">${escHtml(b.build)||'(unnamed)'}</span>
       <span class="lm-bey-pts">${b.finishes.map(f=>`<span class="finish-tag ${f}" style="font-size:8px;padding:1px 4px">${f}</span>`).join('')}</span>
     </div>`;
