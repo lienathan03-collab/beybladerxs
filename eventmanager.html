@@ -887,6 +887,71 @@
     .lm-overlay { padding: 0; align-items: stretch; }
   }
 
+  /* ── CLASH LANDSCAPE MODE (portrait phones → rotate full screen) ──
+     Applied via JS class .clash-landscape-active on the overlay
+     when the clash screen is shown on a portrait mobile device.
+     We rotate the overlay 90° so the clash fills the full landscape width.
+  ── */
+  .clash-landscape-active {
+    transform: rotate(90deg);
+    transform-origin: center center;
+    width: 100vh !important;
+    height: 100vw !important;
+    top: calc(50vw - 50vh) !important;
+    left: calc(50vh - 50vw) !important;
+    padding: 0 !important;
+    align-items: stretch !important;
+  }
+  .clash-landscape-active .lm-modal {
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: 100% !important;
+    height: 100% !important;
+    border-radius: 0 !important;
+    overflow-y: auto;
+  }
+  /* In rotated landscape: clash screen fills full height, use horizontal layout */
+  .clash-landscape-active #lm-screen-clash {
+    display: flex !important;
+    flex-direction: column;
+    height: calc(100% - 56px); /* minus header */
+  }
+  /* Compact header in landscape */
+  .clash-landscape-active .lm-header {
+    padding: 6px 12px !important;
+  }
+  .clash-landscape-active .lm-title { font-size: 13px !important; }
+  .clash-landscape-active #lm-match-label { font-size: 8px !important; }
+
+  /* Player panels side by side, compact */
+  .clash-landscape-active #lm-screen-clash > div:first-child {
+    min-height: 50px !important;
+  }
+  .clash-landscape-active #clash-left-bey,
+  .clash-landscape-active #clash-right-bey { font-size: 13px !important; }
+
+  /* Big scores — smaller in landscape to fit */
+  .clash-landscape-active #clash-score-left,
+  .clash-landscape-active #clash-score-right {
+    font-size: clamp(48px, 12vw, 80px) !important;
+  }
+
+  /* Finish buttons — single row of 4 in landscape */
+  .clash-landscape-active #lm-screen-clash > div:nth-child(4) {
+    grid-template-columns: 1fr 1fr 1fr 1fr !important;
+    gap: 6px !important;
+    padding: 6px 8px !important;
+  }
+  .clash-landscape-active .lm-clash-finish-btn { padding: 10px 4px !important; }
+  .clash-landscape-active .lcfb-letter { font-size: 28px !important; }
+  .clash-landscape-active .lcfb-label  { font-size: 9px !important; }
+  .clash-landscape-active .lcfb-pts    { font-size: 8px !important; }
+
+  /* Bottom row compact */
+  .clash-landscape-active #lm-screen-clash > div:last-child {
+    padding: 0 8px 6px !important;
+  }
+
   /* ══════════════════════════════════════
      MOBILE RESPONSIVE — ≤ 600px
   ══════════════════════════════════════ */
@@ -1902,14 +1967,14 @@ function flattenMatchesToResults() {
 function autoCheckTeamWin(m) {
   if (!m.team1 || !m.team2) return;
   const isFinals = m.round === 'F';
-  const ptThreshold = isFinals ? 7 : 4; // points needed for a player to WIN their individual match
-
-  // Each member wins their individual match when they reach the point threshold
+  const ptThreshold = isFinals ? 7 : 4;
+  // Each player wins their individual match when they reach the point threshold
+  // Finals = Best of 5 (first to 3 player wins, 7pts each); all others = Best of 3 (first to 2, 4pts)
+  // All matches always play out — never block
   for (const mem of [...m.team1.members, ...m.team2.members]) {
     const pts = calcPoints(mem.builds);
     if (pts >= ptThreshold) mem.win = true;
   }
-  // NOTE: 3rd match always plays regardless of team score — never block it
 }
 
 // ─────────────────────────────────────────────
@@ -2801,12 +2866,37 @@ function lmPushClash(t1MemberIdx, t2MemberIdx) {
 }
 
 function lmFirstAvailBey(member) {
-  // pick first build that hasn't had an L yet
+  // Pick first build that hasn't been used yet (no finishes at all)
   if (!member || !member.builds) return 0;
   for (let i = 0; i < member.builds.length; i++) {
-    if (!member.builds[i].finishes.includes('L')) return i;
+    if ((member.builds[i].finishes || []).length === 0) return i;
   }
+  // All used — fallback to index 0
   return 0;
+}
+
+// A bey is "used this cycle" if it has finishes added since the last shuffle
+// We track this with _usedInCycle flag, set when a bey is played, cleared on shuffle
+function lmBeyIsUsed(build) {
+  return build && build._usedInCycle === true;
+}
+
+// On shuffle: unlock all beys (clear _usedInCycle) so they can be selected again
+// Points/finishes are KEPT — only the lock is removed
+function lmDoShuffle() {
+  const { match } = lmState;
+  for (const tk of ['team1','team2']) {
+    if (!match[tk]) continue;
+    for (const mem of match[tk].members) {
+      for (const b of (mem.builds || [])) {
+        b._usedInCycle = false; // unlock for next cycle
+      }
+    }
+  }
+  lmState.history.unshift({
+    html: `<span class="lm-hi-dot" style="background:#9c27b0"></span>
+           <span style="color:#ce93d8">🔀 SHUFFLE — all beys unlocked & available again!</span>`
+  });
 }
 
 function closeLiveMode() {
@@ -2829,6 +2919,7 @@ function closeLiveMode() {
     renderResults();
   }
   document.getElementById('live-mode-overlay').style.display = 'none';
+  lmRemoveLandscape();
   lmState = null;
 }
 
@@ -2877,12 +2968,14 @@ function lmApplyFinish(type) {
   if (scorerMember.builds[scorerBeyIdx]) {
     scorerMember.builds[scorerBeyIdx].finishes.push(type);
     scorerMember.builds[scorerBeyIdx].deployed = true;
+    scorerMember.builds[scorerBeyIdx]._usedInCycle = true; // lock until next shuffle
   }
   // Auto-apply L to loser's bey, stamp round count for shuffle tracking
   if (loserMember.builds[loserBeyIdx] && !loserMember.builds[loserBeyIdx].finishes.includes('L')) {
     loserMember.builds[loserBeyIdx].finishes.push('L');
     loserMember.builds[loserBeyIdx].deployed = true;
     loserMember.builds[loserBeyIdx]._lAddedAtRound = lmState.roundCount + 1;
+    loserMember.builds[loserBeyIdx]._usedInCycle = true; // lock until next shuffle
   }
 
   const scorerBeyName = scorerMember.builds[scorerBeyIdx]?.build || '?';
@@ -2904,10 +2997,11 @@ function lmApplyFinish(type) {
 
   lmState.roundCount++;
 
-  // Check shuffle (every 3 clashes)
+  // Check shuffle (every 3 clashes) — reset all beys so they're usable again
   if (lmState.roundCount % 3 === 0 && lmState.roundCount > 0) {
     lmState.shuffled = true;
     lmState.lastShuffleAt = lmState.roundCount;
+    lmDoShuffle(); // clear all bey finishes so they're available again
   } else {
     lmState.shuffled = false;
   }
@@ -2955,15 +3049,14 @@ function lmUpdateScoreBar() {
   if (!lmState) return;
   const { match } = lmState;
   const isFinals = match.round === 'F';
-  const ptThreshold = isFinals ? 7 : 4; // pts to win an individual player match
-  const teamWinThreshold = 2; // team needs 2 player wins to win the match
+  const ptThreshold = isFinals ? 7 : 4;         // pts to win individual player match
+  const teamWinThreshold = isFinals ? 3 : 2;    // Finals = best of 5 (first to 3), others = best of 3 (first to 2)
 
   const leftKey  = lmSwapped ? 't2' : 't1';
   const rightKey = lmSwapped ? 't1' : 't2';
   const leftTeam  = match[leftKey  === 't1' ? 'team1' : 'team2'];
   const rightTeam = match[rightKey === 't1' ? 'team1' : 'team2'];
 
-  // Count how many players on each team have reached the point threshold (player wins)
   const leftPlayerWins  = (leftTeam?.members  || []).filter(mem => calcPoints(mem.builds) >= ptThreshold || mem.win).length;
   const rightPlayerWins = (rightTeam?.members || []).filter(mem => calcPoints(mem.builds) >= ptThreshold || mem.win).length;
 
@@ -2972,7 +3065,7 @@ function lmUpdateScoreBar() {
   if (lEl) { lEl.textContent = leftPlayerWins;  lEl.className = `lm-score-t1${leftPlayerWins  >= teamWinThreshold ? ' winning' : ''}`; }
   if (rEl) { rEl.textContent = rightPlayerWins; rEl.className = `lm-score-t2${rightPlayerWins >= teamWinThreshold ? ' winning' : ''}`; }
 
-  // Shuffle notice on both screens
+  // Shuffle notice
   const sn = document.getElementById('lm-shuffle-notice');
   if (sn) sn.style.display = lmState.shuffled ? '' : 'none';
 }
@@ -3089,6 +3182,7 @@ function lmAddWarning() {
     if (scorerMember?.builds[scorerBeyIdx]) {
       scorerMember.builds[scorerBeyIdx].finishes.push('S');
       scorerMember.builds[scorerBeyIdx].deployed = true;
+      scorerMember.builds[scorerBeyIdx]._usedInCycle = true;
     }
     if (loserMember?.builds[loserBeyIdx]) {
       if (!loserMember.builds[loserBeyIdx].finishes.includes('L')) {
@@ -3096,6 +3190,7 @@ function lmAddWarning() {
         loserMember.builds[loserBeyIdx]._lAddedAtRound = lmState.roundCount + 1;
       }
       loserMember.builds[loserBeyIdx].deployed = true;
+      loserMember.builds[loserBeyIdx]._usedInCycle = true;
     }
     clash.finishes.push({ side: scorerKey, type: 'S', pts: 1, scorerBeyName: '(2×warn)', loserBeyName: '(2×warn)' });
     lmState.history.unshift({
@@ -3104,6 +3199,11 @@ function lmAddWarning() {
              <span style="color:#66bb6a">${escHtml(scorerMember?.player || '?')} wins clash!</span>`
     });
     lmState.roundCount++;
+    // Check shuffle after warning-triggered win
+    if (lmState.roundCount % 3 === 0 && lmState.roundCount > 0) {
+      lmState.shuffled = true;
+      lmDoShuffle();
+    }
   }
 
   flattenMatchesToResults();
@@ -3120,11 +3220,35 @@ function lmStartClash() {
   if (!clash) return;
   document.getElementById('lm-screen-pick').style.display = 'none';
   document.getElementById('lm-screen-clash').style.display = '';
-  // Lock to landscape on mobile
+
+  // Try native landscape lock first (Android Chrome supports this)
   if (screen.orientation && screen.orientation.lock) {
     screen.orientation.lock('landscape').catch(() => {});
   }
+  // CSS rotation fallback for iOS and unsupported browsers:
+  // Only rotate if we're on a small portrait screen (phone)
+  lmApplyLandscape();
   lmRenderClashScreen();
+}
+
+function lmApplyLandscape() {
+  const overlay = document.getElementById('live-mode-overlay');
+  if (!overlay) return;
+  const isPortrait = window.innerHeight > window.innerWidth;
+  const isSmall = window.innerWidth <= 768;
+  if (isPortrait && isSmall) {
+    overlay.classList.add('clash-landscape-active');
+  } else {
+    overlay.classList.remove('clash-landscape-active');
+  }
+}
+
+function lmRemoveLandscape() {
+  const overlay = document.getElementById('live-mode-overlay');
+  if (overlay) overlay.classList.remove('clash-landscape-active');
+  if (screen.orientation && screen.orientation.unlock) {
+    screen.orientation.unlock();
+  }
 }
 
 // ── Go back to pick screen (after a finish or "Next Bey Pick") ──
@@ -3137,10 +3261,7 @@ function lmBackToPick() {
   lmPushClash(t1Idx, t2Idx);
   document.getElementById('lm-screen-clash').style.display = 'none';
   document.getElementById('lm-screen-pick').style.display = '';
-  // Unlock orientation
-  if (screen.orientation && screen.orientation.unlock) {
-    screen.orientation.unlock();
-  }
+  lmRemoveLandscape();
   lmRender();
 }
 
@@ -3235,6 +3356,11 @@ function lmSelectBey(side, beyIdx) {
   if (!lmState) return;
   const clash = lmState.clashes[lmState.activeClashIdx];
   if (!clash || clash.done) return;
+  const teamKey = side === 't1' ? 'team1' : 'team2';
+  const memberIdx = side === 't1' ? clash.t1MemberIdx : clash.t2MemberIdx;
+  const member = lmState.match[teamKey]?.members[memberIdx];
+  // Block if bey is already used
+  if (member && lmBeyIsUsed(member.builds[beyIdx])) return;
   if (side === 't1') clash.t1BeyIdx = beyIdx;
   else clash.t2BeyIdx = beyIdx;
   lmRender();
@@ -3259,9 +3385,11 @@ function lmRender() {
   const isFinals = match.round === 'F';
 
   const ptThreshold = isFinals ? 7 : 4;
+  const teamWins = isFinals ? 3 : 2;
+  const format = isFinals ? 'Best of 5' : 'Best of 3';
   const labelSuffix = match._isSolo
     ? `(win at ${ptThreshold} pts)`
-    : `(player wins at ${ptThreshold} pts · first to 2 player wins)`;
+    : `(player wins at ${ptThreshold} pts · ${format} · first to ${teamWins} player wins)`;
 
   document.getElementById('lm-match-label').textContent =
     `${match.round} · ${match.team1?.teamName || '?'} vs ${match.team2?.teamName || '?'}  ${labelSuffix}`;
@@ -3324,10 +3452,15 @@ function lmRenderMemberSelector(domSlot, team, clash, actualKey) {
 
   const beyHtml = (activeMember.builds || []).map((b, bi) => {
     const isActiveB = bi === activeBeyIdx;
-    return `<div class="lm-bey-chip ${isActiveB?'active':''}"
-      onclick="lmSelectBey('${actualKey}',${bi})">
-      <span class="lm-bey-name">${escHtml(b.build)||'(unnamed)'}</span>
-      <span class="lm-bey-pts">${b.finishes.map(f=>`<span class="finish-tag ${f}" style="font-size:8px;padding:1px 4px">${f}</span>`).join('')}</span>
+    const used = lmBeyIsUsed(b);
+    const chipClass = `lm-bey-chip ${isActiveB ? 'active' : ''} ${used ? 'used' : ''}`;
+    const clickHandler = used ? '' : `onclick="lmSelectBey('${actualKey}',${bi})"`;
+    const usedLabel = used
+      ? `<span style="font-size:8px;color:var(--muted2);margin-left:4px">[used]</span>`
+      : '';
+    return `<div class="${chipClass}" ${clickHandler} style="${used ? 'cursor:not-allowed;' : ''}">
+      <span class="lm-bey-name">${escHtml(b.build)||'(unnamed)'}${usedLabel}</span>
+      <span class="lm-bey-pts">${(b.finishes||[]).map(f=>`<span class="finish-tag ${f}" style="font-size:8px;padding:1px 4px">${f}</span>`).join('')}</span>
     </div>`;
   }).join('') || '<div style="font-family:\'Share Tech Mono\',monospace;font-size:10px;color:var(--muted2)">No builds</div>';
 
@@ -4006,6 +4139,20 @@ function escId(s) {
 }
 
 // Warn on unsaved changes + auto-save draft
+// Re-check landscape mode if device is rotated or window resized
+window.addEventListener('resize', () => {
+  if (lmState && document.getElementById('lm-screen-clash')?.style.display !== 'none') {
+    lmApplyLandscape();
+  }
+});
+window.addEventListener('orientationchange', () => {
+  setTimeout(() => {
+    if (lmState && document.getElementById('lm-screen-clash')?.style.display !== 'none') {
+      lmApplyLandscape();
+    }
+  }, 300); // small delay for orientation to settle
+});
+
 window.addEventListener('beforeunload', e => {
   if (dirty) {
     localAutoSave();
