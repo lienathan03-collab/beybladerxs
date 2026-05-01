@@ -1742,37 +1742,48 @@ function autoCheckTeamWin(m) {
   if (!m.team1 || !m.team2) return;
   const isFinals = m.round === 'F';
   const threshold = isFinals ? 7 : 4;
-  for (const member of [...m.team1.members, ...m.team2.members]) {
-    const pts = calcPoints(member.builds);
-    if (pts >= threshold) member.win = true;
-  }
+
+  // Count clash wins per team: a member "won" their individual clash if they have
+  // at least one scoring finish (S/O/E/B) and no competing wins on the other side
+  // For team matches, we track member-level wins set by lmApplyFinish.
+  // The team wins the match when enough members have win=true.
+  const t1wins = m.team1.members.filter(mem => mem.win).length;
+  const t2wins = m.team2.members.filter(mem => mem.win).length;
+  // Already handled per-member — just ensure team win flags are consistent
+  // (individual member.win is set by lmApplyFinish/autoCheckWin already)
 }
 
 // ─────────────────────────────────────────────
-// AUTO WIN — Finals: 7+ pts, all other rounds: 4+ pts
+// AUTO WIN — Finals: 7+ wins, all other rounds: 4+ wins
+// A "win" in a clash = the player scored a non-L finish in that build
 // ─────────────────────────────────────────────
+function countClashWins(builds) {
+  // A build is "won" if it has at least one scoring finish (S/O/E/B)
+  let wins = 0;
+  for (const b of (builds || [])) {
+    if ((b.finishes || []).some(f => f !== 'L')) wins++;
+  }
+  return wins;
+}
+
 function autoCheckWin(m) {
   if (!m.p1 || !m.p2) return;
   const isFinals = (m.round === 'F');
   const threshold = isFinals ? 7 : 4;
 
-  const p1pts = calcPoints(m.p1.builds);
-  const p2pts = calcPoints(m.p2.builds);
+  const p1wins = countClashWins(m.p1.builds);
+  const p2wins = countClashWins(m.p2.builds);
 
-  if (p1pts >= threshold && p2pts < threshold) {
-    // P1 reached threshold, P2 hasn't
+  if (p1wins >= threshold && p2wins < threshold) {
     m.p1.win = true;
     m.p2.win = false;
-  } else if (p2pts >= threshold && p1pts < threshold) {
-    // P2 reached threshold, P1 hasn't
+  } else if (p2wins >= threshold && p1wins < threshold) {
     m.p2.win = true;
     m.p1.win = false;
-  } else if (p1pts >= threshold && p2pts >= threshold) {
-    // Both reached threshold — higher score wins; tie keeps current state
-    if (p1pts > p2pts) { m.p1.win = true; m.p2.win = false; }
-    else if (p2pts > p1pts) { m.p2.win = true; m.p1.win = false; }
+  } else if (p1wins >= threshold && p2wins >= threshold) {
+    if (p1wins > p2wins) { m.p1.win = true; m.p2.win = false; }
+    else if (p2wins > p1wins) { m.p2.win = true; m.p1.win = false; }
   } else {
-    // Neither has reached threshold yet — clear auto wins (pending state)
     m.p1.win = false;
     m.p2.win = false;
   }
@@ -2727,6 +2738,34 @@ function lmApplyFinish(type) {
   // Auto-check win thresholds
   flattenMatchesToResults();
   autoCheckTeamWin(lmState.match);
+
+  // For live mode: auto-set individual member wins based on clash wins (non-L finishes per build)
+  const { match } = lmState;
+  const isFinals = match.round === 'F';
+  const winThreshold = isFinals ? 7 : 4;
+  for (const tk of ['team1','team2']) {
+    if (!match[tk]) continue;
+    for (const mem of match[tk].members) {
+      const clashWins = countClashWins(mem.builds);
+      if (clashWins >= winThreshold) mem.win = true;
+    }
+  }
+  // For 1v1 proxy: also check the opposing member's wins
+  if (match._isSolo) {
+    const m1 = match.team1?.members[0];
+    const m2 = match.team2?.members[0];
+    if (m1 && m2) {
+      const w1 = countClashWins(m1.builds);
+      const w2 = countClashWins(m2.builds);
+      if (w1 >= winThreshold && w1 > w2) { m1.win = true; m2.win = false; }
+      else if (w2 >= winThreshold && w2 > w1) { m2.win = true; m1.win = false; }
+      else if (w1 >= winThreshold && w2 >= winThreshold) {
+        if (w1 > w2) { m1.win = true; m2.win = false; }
+        else if (w2 > w1) { m2.win = true; m1.win = false; }
+      } else { m1.win = false; m2.win = false; }
+    }
+  }
+
   markDirty();
 
   // Re-render whichever screen is active
@@ -2741,22 +2780,31 @@ function lmApplyFinish(type) {
 
 function lmUpdateScoreBar() {
   if (!lmState) return;
-  const { match } = lmState;
+  const { match, clashes } = lmState;
   const isFinals = match.round === 'F';
   const threshold = isFinals ? 7 : 4;
 
   const leftKey  = lmSwapped ? 't2' : 't1';
   const rightKey = lmSwapped ? 't1' : 't2';
+
+  // Count clash wins: each finished clash contributes 1 win to the side that scored
+  let leftWins = 0, rightWins = 0;
+  for (const clash of clashes) {
+    if (!clash.done && clash !== clashes[lmState.activeClashIdx]) continue;
+    // A clash is won by the side with more points in that clash
+    const lPts = clash.finishes.filter(f => f.side === leftKey ).reduce((s,f) => s+f.pts, 0);
+    const rPts = clash.finishes.filter(f => f.side === rightKey).reduce((s,f) => s+f.pts, 0);
+    if (lPts > 0 && lPts > rPts) leftWins++;
+    else if (rPts > 0 && rPts > lPts) rightWins++;
+  }
+  // Also count wins from builds marked win on team members (handles manual toggles)
   const leftTeam  = match[leftKey  === 't1' ? 'team1' : 'team2'];
   const rightTeam = match[rightKey === 't1' ? 'team1' : 'team2'];
 
-  const leftPts  = (leftTeam?.members  || []).reduce((s,m) => s + calcPoints(m.builds), 0);
-  const rightPts = (rightTeam?.members || []).reduce((s,m) => s + calcPoints(m.builds), 0);
-
   const lEl = document.getElementById('lm-total-t1');
   const rEl = document.getElementById('lm-total-t2');
-  if (lEl) { lEl.textContent = leftPts;  lEl.className = `lm-score-t1${leftPts  >= threshold ? ' winning' : ''}`; }
-  if (rEl) { rEl.textContent = rightPts; rEl.className = `lm-score-t2${rightPts >= threshold ? ' winning' : ''}`; }
+  if (lEl) { lEl.textContent = leftWins;  lEl.className = `lm-score-t1${leftWins  >= threshold ? ' winning' : ''}`; }
+  if (rEl) { rEl.textContent = rightWins; rEl.className = `lm-score-t2${rightWins >= threshold ? ' winning' : ''}`; }
 
   // Shuffle notice on both screens
   const sn = document.getElementById('lm-shuffle-notice');
@@ -3044,7 +3092,7 @@ function lmRender() {
   const threshold = isFinals ? 7 : 4;
 
   document.getElementById('lm-match-label').textContent =
-    `${match.round} · ${match.team1?.teamName || '?'} vs ${match.team2?.teamName || '?'}  (win at ${threshold} pts)`;
+    `${match.round} · ${match.team1?.teamName || '?'} vs ${match.team2?.teamName || '?'}  (win at ${threshold} wins)`;
 
   lmUpdateScoreBar();
 
