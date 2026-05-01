@@ -2536,11 +2536,11 @@ function flattenMatchesToResults() {
 
 function autoCheckTeamWin(m) {
   if (!m.team1 || !m.team2) return;
-  const isFinals = m.round === 'F';
+  const isFinals   = m.round === 'F';
+  const isTopcut   = ['TC','QF','SF','F'].includes(m.round);
   const ptThreshold = isFinals ? 7 : 4;
-  // Each player wins their individual match when they reach the point threshold
-  // TC/QF/SF/F = Best of 5 (first to 3 player wins); R1-R7 = Best of 3 (first to 2)
-  // All matches always play out — never block
+  // Regular rounds (R1-R7): all 3 individual matches always play out for points — result is always 2/1 or 3/0
+  // Topcut rounds (TC/QF/SF/F): match ends when a team reaches the win threshold
   for (const mem of [...m.team1.members, ...m.team2.members]) {
     const pts = calcPoints(mem.builds);
     if (pts >= ptThreshold) mem.win = true;
@@ -3007,9 +3007,21 @@ function renderTeamMatchCard(match) {
   const memberCount = Math.max(t1.members.length, t2.members.length);
   const majority = Math.ceil(memberCount / 2);
 
-  let summary = `<span style="color:var(--muted)">pending</span>`;
-  if (t1wins >= majority) summary = `<span style="color:var(--green)">${escHtml(t1.teamName)} WIN</span>`;
-  else if (t2wins >= majority) summary = `<span style="color:var(--green)">${escHtml(t2.teamName)} WIN</span>`;
+  const isTopcutRound = ['TC','QF','SF','F'].includes(match.round);
+  // Regular rounds: always show score (all 3 play out); Topcut: show WIN when threshold reached
+  let summary = `<span style="color:var(--muted)">${t1wins}-${t2wins}</span>`;
+  if (isTopcutRound) {
+    const topcutThreshold = 2; // first to 2 individual wins (best of 3 players)
+    if (t1wins >= topcutThreshold) summary = `<span style="color:var(--green)">${escHtml(t1.teamName)} WIN</span>`;
+    else if (t2wins >= topcutThreshold) summary = `<span style="color:var(--green)">${escHtml(t2.teamName)} WIN</span>`;
+    else summary = `<span style="color:var(--muted)">${t1wins}-${t2wins}</span>`;
+  } else {
+    // Regular round: final score shown, WIN label only when all members have played
+    const allPlayed = [...t1.members, ...t2.members].every(mem => mem.win || calcPoints(mem.builds) > 0);
+    if (allPlayed && (t1wins > t2wins)) summary = `<span style="color:var(--green)">${escHtml(t1.teamName)} WIN</span> <span style="color:var(--muted)">${t1wins}-${t2wins}</span>`;
+    else if (allPlayed && (t2wins > t1wins)) summary = `<span style="color:var(--green)">${escHtml(t2.teamName)} WIN</span> <span style="color:var(--muted)">${t1wins}-${t2wins}</span>`;
+    else summary = `<span style="color:var(--muted)">${t1wins}-${t2wins}</span>`;
+  }
 
   if (match.collapsed) {
     return `
@@ -3242,7 +3254,6 @@ async function removeMatch(mid) {
 
   matchesState = matchesState.filter(m => m.id !== mid);
   flattenMatchesToResults();
-  markDirty();
   renderResults();
 
   // Always push deletion to server immediately so live sync doesn't bring it back
@@ -3261,12 +3272,19 @@ async function removeMatch(mid) {
       })
     });
     if (res.ok) {
-      _lastSyncHash = JSON.stringify(resultsState); // prevent sync from re-adding it
+      // Clear dirty so other clients' sync sees the deletion instead of being blocked by the dirty-branch merge
+      dirty = false;
+      localClearDraft(currentEvent.id);
+      document.getElementById('draft-banner').style.display = 'none';
+      _lastSyncHash = JSON.stringify(resultsState);
       showToast('🗑️ Match removed.', 'success');
     } else {
+      // Push failed — mark dirty so user knows to save manually
+      markDirty();
       showToast('⚠️ Removed locally but server push failed — try Finalize.', '');
     }
   } catch(e) {
+    markDirty();
     showToast('⚠️ Removed locally but server push failed — try Finalize.', '');
   } finally {
     _syncPaused = false;
@@ -3815,7 +3833,16 @@ function _syncNextBtnState(match, ptThreshold, teamWinThreshold) {
   const t1wins = (match.team1?.members||[]).filter(m => calcPoints(m.builds) >= ptThreshold || m.win).length;
   const t2wins = (match.team2?.members||[]).filter(m => calcPoints(m.builds) >= ptThreshold || m.win).length;
   const soloWon = match._isSolo && ((match.team1?.members[0]?.win) || (match.team2?.members[0]?.win));
-  const teamMatchWon = !match._isSolo && (t1wins >= teamWinThreshold || t2wins >= teamWinThreshold);
+  const isTopcutRound = ['TC','QF','SF','F'].includes(match.round);
+  let teamMatchWon;
+  if (isTopcutRound) {
+    // Topcut: done when a team reaches the win threshold
+    teamMatchWon = !match._isSolo && (t1wins >= teamWinThreshold || t2wins >= teamWinThreshold);
+  } else {
+    // Regular round: all individual matches must finish (result is always 2/1 or 3/0)
+    const allMembers = [...(match.team1?.members||[]), ...(match.team2?.members||[])];
+    teamMatchWon = !match._isSolo && allMembers.length > 0 && allMembers.every(m => calcPoints(m.builds) >= ptThreshold || m.win);
+  }
   const won = soloWon || teamMatchWon;
 
   const winStyle = { bg: 'rgba(76,175,80,0.15)', border: 'rgba(76,175,80,0.4)', color: '#66bb6a', html: `🏆<br><span style="font-size:8px">DONE</span>`, title: 'Match finished — press ✅ to commit' };
@@ -4748,25 +4775,34 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
     }
   }
 
-  // If user has unsaved dirty changes, only add NEW matches from server, don't overwrite local edits
+  // If user has unsaved dirty changes, add NEW matches from server and remove deleted ones,
+  // but don't overwrite local edits to existing matches
   if (dirty) {
-    let added = false;
-    const localSids = new Set(matchesState.map(m => m._sid).filter(Boolean));
+    let changed = false;
+    const serverSids = new Set(serverMatches.map(m => m._sid).filter(Boolean));
+    const localSids  = new Set(matchesState.map(m => m._sid).filter(Boolean));
+
+    // Remove any local matches that have been deleted on the server
+    const before = matchesState.length;
+    matchesState = matchesState.filter(m => !m._sid || serverSids.has(m._sid));
+    if (matchesState.length !== before) changed = true;
+
+    // Add any new matches that appeared on the server
     for (const sm of serverMatches) {
       if (!localSids.has(sm._sid)) {
         sm.id = _matchIdCounter++;
         sm.collapsed = true;
         sm.submitted = false;
         matchesState.push(sm);
-        added = true;
+        changed = true;
       } else {
         // Preserve submitted flag on existing local match
         const local = matchesState.find(m => m._sid === sm._sid);
         if (local && local.submitted) sm.submitted = true;
       }
     }
-    if (added) flattenMatchesToResults();
-    return added;
+    if (changed) flattenMatchesToResults();
+    return changed;
   }
 
   // If user has no unsaved changes, do a full replace from server
