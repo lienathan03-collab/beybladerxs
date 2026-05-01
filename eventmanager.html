@@ -839,6 +839,7 @@
           <option value="R5">R5</option>
           <option value="R6">R6</option>
           <option value="R7">R7</option>
+          <option value="TC">Top Cut</option>
           <option value="QF">Quarterfinals</option>
           <option value="SF">Semifinals</option>
           <option value="F">Finals</option>
@@ -1463,41 +1464,99 @@ function openNewMatchModal() {
 function nmSelectTeam(slot, teamName) {
   const section = document.getElementById('nm-team-section');
   const teamsData = section._teamsData || {};
-  const rosterEl = document.getElementById(`nm-team${slot}-roster`);
-  const nameEl   = document.getElementById(`nm-team${slot}-name`);
-  const membersEl = document.getElementById(`nm-team${slot}-members`);
+  const rosterEl  = document.getElementById(`nm-team${slot}-roster`);
+  const nameEl    = document.getElementById(`nm-team${slot}-name`);
 
   if (!teamName) {
     if (slot === 1) _nmTeam1 = null;
     else _nmTeam2 = null;
     rosterEl.style.display = 'none';
+    // re-enable all options on the other select
+    const otherSel = document.getElementById(`nm-team${slot===1?2:1}-select`);
+    Array.from(otherSel.options).forEach(opt => { opt.disabled = false; });
     return;
   }
 
   const memberNames = teamsData[teamName] || [];
-  const members = memberNames.map(name => {
+  // Build ordered member list (default order from roster)
+  const orderedNames = [...memberNames];
+
+  const teamData = { teamName, members: orderedNames.map(name => {
     const builds = (buildsState[playerKey(name)] || []).filter(Boolean);
     return { player: name, builds: builds.map(b => ({ build: b, finishes: [], deployed: false })) };
-  });
+  })};
 
-  const teamData = { teamName, members };
   if (slot === 1) _nmTeam1 = teamData;
   else _nmTeam2 = teamData;
 
   nameEl.textContent = teamName;
-  membersEl.innerHTML = members.map((m, i) => `
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-      <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);width:28px">${i+1}${i===0?'st':i===1?'nd':'rd'}</span>
-      <span style="font-weight:700;font-size:13px;color:${slot===1?'var(--blue)':'var(--gold2)'}">${escHtml(m.player)}</span>
-      <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted)">${m.builds.length ? m.builds.map(b=>b.build).join(' · ') : 'no builds'}</span>
-    </div>`).join('');
+  nmRenderTeamSlots(slot, teamData, memberNames);
   rosterEl.style.display = '';
 
-  // Refresh other select to disable this team
+  // Disable picked team on the other select
   const otherSel = document.getElementById(`nm-team${slot===1?2:1}-select`);
   Array.from(otherSel.options).forEach(opt => {
     opt.disabled = (opt.value === teamName);
   });
+}
+
+function nmRenderTeamSlots(slot, teamData, allNames) {
+  const membersEl = document.getElementById(`nm-team${slot}-members`);
+  const color = slot === 1 ? 'var(--blue)' : 'var(--gold2)';
+  const bgColor = slot === 1 ? 'rgba(74,158,255,0.08)' : 'rgba(212,175,55,0.08)';
+  const borderColor = slot === 1 ? 'rgba(74,158,255,0.2)' : 'rgba(212,175,55,0.2)';
+
+  membersEl.innerHTML = teamData.members.map((m, i) => {
+    const pos = i === 0 ? '1ST' : i === 1 ? '2ND' : '3RD';
+    // Build dropdown options — all team members selectable
+    const opts = allNames.map(name =>
+      `<option value="${escHtml(name)}" ${name === m.player ? 'selected' : ''}>${escHtml(name)}</option>`
+    ).join('');
+    return `
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;background:${bgColor};border:1px solid ${borderColor};border-radius:6px;padding:5px 8px">
+      <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:${color};font-weight:700;min-width:26px">${pos}</span>
+      <select class="event-select" style="flex:1;font-size:12px;padding:4px 8px;min-width:0;border-color:${borderColor}"
+        onchange="nmReorderTeamMember(${slot}, ${i}, this.value)">
+        ${opts}
+      </select>
+      <div style="display:flex;flex-direction:column;gap:1px">
+        <button class="btn" style="padding:1px 6px;font-size:10px;line-height:1.4" ${i===0?'disabled':''} onclick="nmMoveTeamMember(${slot},${i},-1)">▲</button>
+        <button class="btn" style="padding:1px 6px;font-size:10px;line-height:1.4" ${i===teamData.members.length-1?'disabled':''} onclick="nmMoveTeamMember(${slot},${i},1)">▼</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function nmReorderTeamMember(slot, idx, newName) {
+  const teamData = slot === 1 ? _nmTeam1 : _nmTeam2;
+  if (!teamData) return;
+
+  // Swap: find the current holder of newName and swap with idx
+  const currentIdx = teamData.members.findIndex(m => m.player === newName);
+  const oldName = teamData.members[idx].player;
+
+  if (currentIdx !== -1 && currentIdx !== idx) {
+    // Swap the two members
+    const tmp = teamData.members[idx];
+    teamData.members[idx] = teamData.members[currentIdx];
+    teamData.members[currentIdx] = tmp;
+  }
+
+  const section = document.getElementById('nm-team-section');
+  const allNames = (section._teamsData || {})[teamData.teamName] || [];
+  nmRenderTeamSlots(slot, teamData, allNames);
+}
+
+function nmMoveTeamMember(slot, idx, dir) {
+  const teamData = slot === 1 ? _nmTeam1 : _nmTeam2;
+  if (!teamData) return;
+  const members = teamData.members;
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= members.length) return;
+  [members[idx], members[newIdx]] = [members[newIdx], members[idx]];
+  const section = document.getElementById('nm-team-section');
+  const allNames = (section._teamsData || {})[teamData.teamName] || [];
+  nmRenderTeamSlots(slot, teamData, allNames);
 }
 
 function closeNewMatchModal() {
@@ -1620,7 +1679,7 @@ function setRoundFilter(round) {
 
 function renderRoundFilter() {
   const rounds = ['ALL', ...[...new Set(matchesState.map(m => m.round))].sort((a,b) => {
-    const order = ['R1','R2','R3','R4','R5','R6','R7','QF','SF','F'];
+    const order = ['R1','R2','R3','R4','R5','R6','R7','TC','QF','SF','F'];
     return (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99);
   })];
   const el = document.getElementById('round-filter-row');
