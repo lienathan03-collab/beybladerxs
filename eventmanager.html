@@ -729,7 +729,15 @@
     display:flex;align-items:center;justify-content:space-between;
     padding:14px 18px 10px;border-bottom:1px solid var(--border);
     position:sticky;top:0;background:var(--surface);z-index:2;
+    gap:10px;
   }
+  .lm-header-top {
+    display:flex;align-items:center;justify-content:space-between;
+    gap:10px;width:100%;
+  }
+  .lm-header-title { flex:1;min-width:0; }
+  .lm-header-controls { display:flex;align-items:center;gap:8px;flex-shrink:0; }
+  .lm-hbtn { padding:5px 10px;font-size:13px; }
   .lm-title { font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;letter-spacing:2px;color:var(--gold); }
   .lm-score-bar {
     display:flex;align-items:center;gap:0;border:1px solid var(--border2);border-radius:8px;overflow:hidden;
@@ -918,10 +926,10 @@
   }
   /* Compact header in landscape */
   .clash-landscape-active .lm-header {
-    padding: 6px 12px !important;
+    padding: 4px 10px !important;
   }
-  .clash-landscape-active .lm-title { font-size: 13px !important; }
-  .clash-landscape-active #lm-match-label { font-size: 8px !important; }
+  .clash-landscape-active .lm-title { font-size: 12px !important; }
+  .clash-landscape-active #lm-match-label { font-size: 7px !important; }
 
   /* Player panels side by side, compact */
   .clash-landscape-active #lm-screen-clash > div:first-child {
@@ -1022,64 +1030,97 @@
     /* RESULTS TABLE */
     .results-table { font-size: 11px; min-width: 480px; }
 
-    /* ── LIVE MODE MODAL ── */
-    .lm-overlay { padding: 0; align-items: flex-end; }
+    /* ── LIVE MODE MODAL — full screen on mobile ── */
+    .lm-overlay {
+      padding: 0 !important;
+      align-items: stretch !important;
+    }
     .lm-modal {
-      max-width: 100%;
-      width: 100%;
-      max-height: 96vh;
-      border-radius: 16px 16px 0 0;
+      max-width: 100% !important;
+      width: 100% !important;
+      max-height: 100vh !important;
+      height: 100vh !important;
+      border-radius: 0 !important;
+      overflow-y: auto;
     }
 
-    /* Live header */
-    .lm-header { padding: 10px 12px 8px; gap: 8px; }
-    .lm-title  { font-size: 15px; }
-    #lm-match-label { font-size: 9px; max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .lm-score-bar { font-size: 18px; }
-    .lm-score-t1, .lm-score-t2 { padding: 4px 12px; }
-    .lm-header > div:last-child { gap: 5px; }
-    .lm-header .btn { padding: 4px 8px; font-size: 10px; }
+    /* Header — two rows on mobile */
+    .lm-header {
+      padding: 8px 10px 6px !important;
+      flex-direction: column !important;
+      gap: 6px !important;
+      align-items: stretch !important;
+    }
+    .lm-header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      width: 100%;
+    }
+    .lm-header-title { flex: 1; min-width: 0; }
+    .lm-title { font-size: 14px !important; }
+    #lm-match-label {
+      font-size: 8px !important;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+    .lm-header-controls {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+    .lm-score-bar { font-size: 16px !important; }
+    .lm-score-t1, .lm-score-t2 { padding: 4px 10px !important; }
+    .lm-score-sep { padding: 4px 6px !important; }
+    .lm-hbtn { padding: 5px 9px !important; font-size: 11px !important; }
 
-    /* Live arena (pick screen) */
-    .lm-arena { grid-template-columns: 1fr 24px 1fr; }
-    .lm-player-col { padding: 8px 8px; }
-    .lm-player-name { font-size: 13px; }
-    .lm-vs-badge { font-size: 14px; }
-    .lm-bey-chip { padding: 5px 7px; font-size: 10px; }
+    /* Pick screen arena */
+    .lm-arena { grid-template-columns: 1fr 20px 1fr !important; }
+    .lm-player-col { padding: 8px 6px !important; }
+    .lm-player-name { font-size: 12px !important; margin-bottom: 4px !important; }
+    .lm-player-label { font-size: 8px !important; }
+    .lm-vs-badge { font-size: 12px !important; }
+    .lm-bey-chip { padding: 5px 6px !important; font-size: 9px !important; margin-bottom: 3px !important; }
 
-    /* Clash screen — player panels */
-    #lm-screen-clash .clash-panel-left,
-    #lm-screen-clash .clash-panel-right { min-height: 55px; padding: 7px 8px; }
-    #clash-left-bey, #clash-right-bey { font-size: 14px !important; }
+    /* Member pills — wrap properly */
+    #lm-beys-t1, #lm-beys-t2 { overflow: hidden; }
+
+    /* Clash screen panels */
+    #clash-left-bey, #clash-right-bey { font-size: 13px !important; word-break: break-word; }
+    #clash-left-player, #clash-right-player { font-size: 8px !important; }
 
     /* Big score numbers */
     #clash-score-left, #clash-score-right {
-      font-size: clamp(56px, 18vw, 90px) !important;
+      font-size: clamp(52px, 18vw, 88px) !important;
     }
 
     /* Scorer strip */
-    #clash-scorer-strip { padding: 3px 8px; min-height: 28px; }
-    #clash-scorer-strip span { font-size: 8px; }
-    #clash-scorer-strip .btn { font-size: 10px; padding: 3px 8px; }
+    #clash-scorer-strip { padding: 3px 8px !important; min-height: 26px !important; flex-wrap: wrap; gap: 4px; }
+    #clash-scorer-strip > span { font-size: 8px !important; }
+    #clash-scorer-strip .btn { font-size: 10px !important; padding: 3px 8px !important; }
 
-    /* Finish buttons — 2×2 grid on mobile for bigger tap targets */
+    /* Finish buttons — 2×2 on mobile */
     #lm-screen-clash > div:nth-child(4) {
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      padding: 8px;
+      grid-template-columns: 1fr 1fr !important;
+      gap: 6px !important;
+      padding: 6px 8px !important;
     }
-    .lm-clash-finish-btn { padding: 14px 6px; border-radius: 10px; }
-    .lcfb-letter { font-size: 36px !important; }
-    .lcfb-label  { font-size: 10px; }
-    .lcfb-pts    { font-size: 9px; }
+    .lm-clash-finish-btn { padding: 12px 4px !important; border-radius: 10px !important; }
+    .lcfb-letter { font-size: 32px !important; }
+    .lcfb-label  { font-size: 9px !important; }
+    .lcfb-pts    { font-size: 8px !important; }
 
-    /* Bottom row (Undo + Next) */
-    #lm-screen-clash > div:last-child { padding: 0 8px 10px; gap: 6px; }
-    #lm-screen-clash > div:last-child .btn { font-size: 12px; padding: 9px 10px; }
+    /* Bottom row */
+    #lm-screen-clash > div:last-child { padding: 0 8px 8px !important; gap: 6px !important; }
+    #lm-screen-clash > div:last-child .btn { font-size: 12px !important; padding: 9px 10px !important; }
 
-    /* History log */
-    .lm-history { max-height: 90px; padding: 6px 10px; }
-    .lm-history-item { font-size: 9px; }
+    /* History */
+    .lm-history { max-height: 80px !important; padding: 5px 10px !important; }
+    .lm-history-item { font-size: 9px !important; }
 
     /* NEW MATCH MODAL */
     #new-match-modal > div {
@@ -1384,19 +1425,21 @@
 
     <!-- ── SHARED HEADER (always visible) ── -->
     <div class="lm-header">
-      <div>
-        <div class="lm-title">⚡ LIVE SCORING</div>
-        <div id="lm-match-label" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);margin-top:2px"></div>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <div class="lm-score-bar">
-          <div class="lm-score-t1" id="lm-total-t1">0</div>
-          <div class="lm-score-sep">/</div>
-          <div class="lm-score-t2" id="lm-total-t2">0</div>
+      <div class="lm-header-top">
+        <div class="lm-header-title">
+          <div class="lm-title">⚡ LIVE SCORING</div>
+          <div id="lm-match-label" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);margin-top:2px"></div>
         </div>
-        <button class="btn" style="padding:5px 10px;font-size:13px" onclick="lmSwapSides()" title="Swap sides">⇄</button>
-        <button class="btn primary" style="padding:5px 10px;font-size:11px" onclick="lmCommitAndClose()">✅ Done</button>
-        <button class="btn" style="padding:4px 10px;font-size:12px" onclick="closeLiveMode()">✕</button>
+        <div class="lm-header-controls">
+          <div class="lm-score-bar">
+            <div class="lm-score-t1" id="lm-total-t1">0</div>
+            <div class="lm-score-sep">/</div>
+            <div class="lm-score-t2" id="lm-total-t2">0</div>
+          </div>
+          <button class="btn lm-hbtn" onclick="lmSwapSides()" title="Swap sides">⇄</button>
+          <button class="btn primary lm-hbtn" onclick="lmCommitAndClose()">✅ Done</button>
+          <button class="btn lm-hbtn" onclick="closeLiveMode()">✕</button>
+        </div>
       </div>
     </div>
 
@@ -2366,6 +2409,7 @@ function renderMatchCard(match) {
         <span style="color:var(--gold2)">${match.p2 ? match.p2.player : '?'}</span>
       </span>
       <span class="match-result-summary">${summary}</span>
+      <button class="btn" style="font-size:10px;padding:2px 8px;margin-left:4px;background:rgba(74,158,255,0.15);border-color:rgba(74,158,255,0.4);color:var(--blue)" onclick="event.stopPropagation();openLiveModeSolo(${mid},'p1')" title="⚡ Open Live Scoring">⚡ Live</button>
       ${match.submitted
         ? `<span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:#4caf50;padding:2px 6px;border:1px solid rgba(76,175,80,0.4);border-radius:4px;margin-left:4px">✓ SUBMITTED</span>`
         : `<button class="btn success" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();submitMatch(${mid})" title="Submit this match to server now">⬆ Submit</button>`}
@@ -2410,6 +2454,7 @@ function renderTeamMatchCard(match) {
           <span style="color:var(--gold2)">${escHtml(t2.teamName)}</span>
         </span>
         <span class="match-result-summary">${summary}</span>
+        <button class="btn" style="font-size:10px;padding:2px 8px;margin-left:4px;background:rgba(74,158,255,0.15);border-color:rgba(74,158,255,0.4);color:var(--blue)" onclick="event.stopPropagation();openLiveMode(${mid},'team1',0)" title="⚡ Open Live Scoring">⚡ Live</button>
         ${match.submitted
           ? `<span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:#4caf50;padding:2px 6px;border:1px solid rgba(76,175,80,0.4);border-radius:4px;margin-left:4px">✓ SUBMITTED</span>`
           : `<button class="btn success" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();submitMatch(${mid})">⬆ Submit</button>`}
@@ -2453,6 +2498,7 @@ function renderTeamMatchCard(match) {
         <span style="color:var(--gold2)">${escHtml(t2.teamName)}</span>
       </span>
       <span class="match-result-summary">${summary}</span>
+      <button class="btn" style="font-size:10px;padding:2px 8px;margin-left:4px;background:rgba(74,158,255,0.15);border-color:rgba(74,158,255,0.4);color:var(--blue)" onclick="event.stopPropagation();openLiveMode(${mid},'team1',0)" title="⚡ Open Live Scoring">⚡ Live</button>
       ${match.submitted
         ? `<span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:#4caf50;padding:2px 6px;border:1px solid rgba(76,175,80,0.4);border-radius:4px;margin-left:4px">✓ SUBMITTED</span>`
         : `<button class="btn success" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();submitMatch(${mid})">⬆ Submit</button>`}
