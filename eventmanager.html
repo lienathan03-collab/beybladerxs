@@ -1020,7 +1020,7 @@
   /* Bottom control bar */
   #clw-controls {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr 1fr 1fr 40px 40px 40px;
+    grid-template-columns: 1fr 1fr 1fr 1fr 44px 44px 44px;
     gap: 5px; padding: 5px 8px 6px;
     background: var(--surface2);
     border-top: 1px solid var(--border);
@@ -3321,13 +3321,23 @@ function lmApplyFinish(type) {
   const pts = FINISH_PTS[type] || 0;
 
   // Save undo snapshot
-  lmState.undoStack.push(JSON.parse(JSON.stringify({
-    clash,
-    match: lmState.match,
-    history: [...lmState.history],
-    roundCount: lmState.roundCount,
-    shuffled: lmState.shuffled,
-  })));
+  try {
+    const memberSnap = {};
+    for (const tk of ['team1','team2']) {
+      if (!lmState.match[tk]) continue;
+      memberSnap[tk] = { members: lmState.match[tk].members.map(m => ({
+        builds: JSON.parse(JSON.stringify(m.builds)),
+        win: m.win
+      }))};
+    }
+    lmState.undoStack.push({
+      clash: JSON.parse(JSON.stringify(clash)),
+      members: memberSnap,
+      history: [...lmState.history],
+      roundCount: lmState.roundCount,
+      shuffled: lmState.shuffled,
+    });
+  } catch(e) { /* non-fatal */ }
 
   const scorerMemberIdx = scorerTeam === 't1' ? clash.t1MemberIdx : clash.t2MemberIdx;
   const loserMemberIdx  = loserTeam  === 't1' ? clash.t1MemberIdx : clash.t2MemberIdx;
@@ -3460,13 +3470,15 @@ function lmUndo() {
   const snap = lmState.undoStack.pop();
 
   // Restore match member builds from snapshot
-  const snapMatch = snap.match;
+  const snapMembers = snap.members || snap.match; // support both old and new format
   for (const tk of ['team1','team2']) {
     if (!lmState.match[tk]) continue;
+    const snapTeam = snapMembers?.[tk];
+    if (!snapTeam) continue;
     lmState.match[tk].members.forEach((mem, i) => {
-      if (snapMatch[tk]?.members[i]) {
-        mem.builds = JSON.parse(JSON.stringify(snapMatch[tk].members[i].builds));
-        mem.win    = snapMatch[tk].members[i].win;
+      if (snapTeam.members?.[i]) {
+        mem.builds = JSON.parse(JSON.stringify(snapTeam.members[i].builds));
+        mem.win    = snapTeam.members[i].win;
       }
     });
   }
@@ -3476,7 +3488,7 @@ function lmUndo() {
     clash.finishes = snap.clash.finishes;
     clash.warnings = snap.clash.warnings || { t1: 0, t2: 0 };
   }
-  lmState.history = snap.history;
+  lmState.history    = snap.history;
   lmState.roundCount = snap.roundCount;
   lmState.shuffled   = snap.shuffled;
 
@@ -3547,10 +3559,23 @@ function lmAddWarning() {
   const loserKey  = lmState.scoringSide;              // highlighted player receives the warning
   const scorerKey = loserKey === 't1' ? 't2' : 't1'; // opponent benefits (gets the win if 2 warns)
 
-  lmState.undoStack.push(JSON.parse(JSON.stringify({
-    clash, match: lmState.match, history: [...lmState.history],
-    roundCount: lmState.roundCount, shuffled: lmState.shuffled,
-  })));
+  try {
+    const memberSnap = {};
+    for (const tk of ['team1','team2']) {
+      if (!lmState.match[tk]) continue;
+      memberSnap[tk] = { members: lmState.match[tk].members.map(m => ({
+        builds: JSON.parse(JSON.stringify(m.builds)),
+        win: m.win
+      }))};
+    }
+    lmState.undoStack.push({
+      clash: JSON.parse(JSON.stringify(clash)),
+      members: memberSnap,
+      history: [...lmState.history],
+      roundCount: lmState.roundCount,
+      shuffled: lmState.shuffled,
+    });
+  } catch(e) { /* non-fatal */ }
 
   clash.warnings = clash.warnings || { t1: 0, t2: 0 };
   // WARNING is given TO the loser (opponent), shown on their display panel
