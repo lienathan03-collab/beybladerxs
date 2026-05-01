@@ -1194,8 +1194,6 @@
       <span id="live-label">LIVE</span>
     </span>
     <span id="save-status">—</span>
-    <button class="btn" id="import-btn" onclick="openImportModal()" title="Import matches from file" style="display:none">📥 <span class="btn-long">Import</span></button>
-    <button class="btn" id="export-btn" onclick="exportMatches()" title="Export matches to file" style="display:none">📤 <span class="btn-long">Export</span></button>
     <button class="btn success" id="save-btn" onclick="saveAll()" disabled>💾 <span class="btn-long">Finalize</span></button>
     <button class="btn gold" onclick="window.location.href='index.html'">← <span class="btn-long">Back</span></button>
   </div>
@@ -1723,10 +1721,6 @@ function loadEvent(id) {
   // Set initial sync hash so first poll doesn't trigger a false "updated"
   _lastSyncHash = JSON.stringify(currentEvent.beyResults || []);
   startLiveSync();
-
-  // Show import/export buttons
-  document.getElementById('import-btn').style.display = '';
-  document.getElementById('export-btn').style.display = '';
 }
 
 // ─────────────────────────────────────────────
@@ -3643,7 +3637,7 @@ let _syncErrorCount = 0;
 function startLiveSync() {
   stopLiveSync();
   setLiveIndicator('live');
-  _syncInterval = setInterval(doLiveSync, 15000);
+  _syncInterval = setInterval(doLiveSync, 5000); // poll every 5s for fast updates
 }
 
 function stopLiveSync() {
@@ -3710,7 +3704,7 @@ async function doLiveSync() {
 
     if (merged) {
       setLiveIndicator('updated');
-      showToast('🔄 New match data synced from server.', '');
+      showToast('📥 New match results received!', 'success');
       renderBuilds();
       renderResults();
     } else {
@@ -3862,7 +3856,7 @@ async function submitMatch(mid) {
     _lastSyncHash = JSON.stringify(resultsState);
     markDirty(); // still dirty until Finalize runs archive+stats
     renderResults();
-    showToast(`✅ Match submitted! Other judges will see it within 15s.`, 'success');
+    showToast(`✅ Match submitted! All devices will update within 5 seconds.`, 'success');
   } catch (e) {
     showToast('❌ Submit failed: ' + e.message, 'error');
     if (btn) { btn.textContent = '⬆ Submit'; btn.disabled = false; }
@@ -4241,6 +4235,11 @@ window.addEventListener('orientationchange', () => {
       lmApplyLandscape();
     }
   }, 300); // small delay for orientation to settle
+});
+
+// Sync immediately when user switches back to this tab/app
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && currentEvent) doLiveSync();
 });
 
 window.addEventListener('beforeunload', e => {
