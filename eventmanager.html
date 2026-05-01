@@ -602,9 +602,35 @@
     display: flex;
     flex-direction: column;
     gap: 5px;
-    z-index: 200;
+    z-index: 1000;
     box-shadow: 0 8px 32px rgba(0,0,0,0.6);
     min-width: 150px;
+  }
+  /* On mobile: show as a full-width bottom sheet */
+  @media (max-width: 600px) {
+    .finish-picker {
+      position: fixed !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      top: auto !important;
+      width: 100% !important;
+      border-radius: 14px 14px 0 0 !important;
+      padding: 16px 12px 24px !important;
+      flex-direction: row !important;
+      flex-wrap: wrap !important;
+      gap: 8px !important;
+      justify-content: stretch !important;
+      box-shadow: 0 -4px 24px rgba(0,0,0,0.7) !important;
+      border-bottom: none !important;
+    }
+    .finish-picker-btn {
+      flex: 1 1 calc(33% - 8px) !important;
+      font-size: 15px !important;
+      padding: 12px 8px !important;
+      text-align: center !important;
+      min-height: 48px !important;
+    }
   }
   .finish-picker-btn {
     font-family: 'Share Tech Mono', monospace;
@@ -615,6 +641,8 @@
     border: 1px solid transparent;
     cursor: pointer;
     transition: all .12s;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
   .finish-picker-btn.S { background: rgba(74,158,255,0.15);  color: var(--finish-s); border-color: rgba(74,158,255,0.4); }
   .finish-picker-btn.S:hover { background: rgba(74,158,255,0.3); }
@@ -926,7 +954,12 @@
     flex-direction: column;
     transform: rotate(90deg);
     transform-origin: center center;
-    /* Use dynamic viewport units to account for browser chrome (address bar, nav bar) */
+    /* Fallback for browsers without dvh/dvw support */
+    width: 100vh;
+    height: 100vw;
+    top: calc((100vh - 100vw) / 2);
+    left: calc((100vw - 100vh) / 2);
+    /* Override with dynamic viewport units where supported */
     width: 100dvh;
     height: 100dvw;
     top: calc((100dvh - 100dvw) / 2);
@@ -1312,6 +1345,25 @@
 
     /* TOAST */
     #toast { bottom: 12px; right: 12px; left: 12px; text-align: center; font-size: 12px; }
+
+    /* MATCH CARD HEADER — wrap action buttons on their own line */
+    .match-card-header { flex-wrap: wrap; row-gap: 4px; }
+    .match-vs-label { width: 100%; order: 1; }
+    .match-round-badge { order: 0; }
+    .match-result-summary { order: 2; flex: 1; font-size: 9px; }
+    .match-card-header .btn { font-size: 9px !important; padding: 2px 5px !important; margin-left: 2px !important; }
+    .match-card-header span[style*="font-size:12px"] { font-size: 11px !important; }
+
+    /* BUILDS TAB header */
+    #tab-builds > div:first-child { flex-direction: column; align-items: flex-start; }
+    #submit-builds-btn { width: 100%; }
+
+    /* TEAM SECTION in new match modal — stack vertically */
+    #nm-team-section > div { grid-template-columns: 1fr !important; }
+    #nm-team-section > div > div:nth-child(2) { display: none; } /* hide VS divider */
+
+    /* FINISH PICKER backdrop on mobile */
+    .finish-picker-backdrop { display: block !important; }
   }
 
   /* ── Tablets 601–900px ── */
@@ -1580,6 +1632,7 @@
 </div>
 
 <!-- Finish Picker Popup -->
+<div id="finish-picker-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999" onclick="closePicker()"></div>
 <div class="finish-picker" id="finish-picker" style="display:none">
   <button class="finish-picker-btn S" onclick="pickFinish('S')">S — Spin</button>
   <button class="finish-picker-btn O" onclick="pickFinish('O')">O — Over</button>
@@ -2443,6 +2496,7 @@ function loadMatchesFromResults() {
         const t1members = t1entries.map(e => ({ player: e.player, builds: e.builds || [], win: e.win }));
         const t2members = t2entries.map(e => ({ player: e.player, builds: e.builds || [], win: e.win }));
         const playOrderEntry = t1entries.find(e => e._playOrder);
+        const submittedEntry = t1entries.find(e => e._submitted);
         matchesState.push({
           id: _matchIdCounter++,
           round, isTeamMatch: true,
@@ -2450,6 +2504,7 @@ function loadMatchesFromResults() {
           team2: t2name ? { teamName: t2name, members: t2members } : null,
           p1: t1members[0] || null, p2: t2members[0] || null,
           _playOrder: playOrderEntry ? playOrderEntry._playOrder : undefined,
+          submitted: submittedEntry ? true : false,
           collapsed: true
         });
       }
@@ -2465,6 +2520,7 @@ function loadMatchesFromResults() {
         round,
         p1: { player: p1.player, builds: p1.builds || [], pointsTotal: p1.pointsTotal || 0, win: p1.win },
         p2: p2 ? { player: p2.player, builds: p2.builds || [], pointsTotal: p2.pointsTotal || 0, win: p2.win } : null,
+        submitted: p1._submitted ? true : false,
         collapsed: true
       });
     }
@@ -2480,18 +2536,22 @@ function flattenMatchesToResults() {
   resultsState = [];
   for (const m of matchesState) {
     if (m.isTeamMatch) {
-      // Flatten all team members — include _playOrder on team1's first entry for persistence
+      // Flatten all team members — include _playOrder and submitted on team1's first entry
       let firstT1 = true;
       for (const member of (m.team1 ? m.team1.members : [])) {
         const entry = { player: member.player, round: m.round, builds: member.builds, pointsTotal: calcPoints(member.builds), win: member.win, team: m.team1.teamName };
-        if (firstT1 && m._playOrder) { entry._playOrder = m._playOrder; firstT1 = false; }
+        if (firstT1) {
+          if (m._playOrder) entry._playOrder = m._playOrder;
+          if (m.submitted)  entry._submitted = true;
+          firstT1 = false;
+        }
         resultsState.push(entry);
       }
       for (const member of (m.team2 ? m.team2.members : [])) {
         resultsState.push({ player: member.player, round: m.round, builds: member.builds, pointsTotal: calcPoints(member.builds), win: member.win, team: m.team2.teamName });
       }
     } else {
-      if (m.p1) resultsState.push({ player: m.p1.player, round: m.round, builds: m.p1.builds, pointsTotal: calcPoints(m.p1.builds), win: m.p1.win });
+      if (m.p1) resultsState.push({ player: m.p1.player, round: m.round, builds: m.p1.builds, pointsTotal: calcPoints(m.p1.builds), win: m.p1.win, _submitted: m.submitted || undefined });
       if (m.p2) resultsState.push({ player: m.p2.player, round: m.round, builds: m.p2.builds, pointsTotal: calcPoints(m.p2.builds), win: m.p2.win });
     }
   }
@@ -3292,33 +3352,42 @@ function openTeamPicker(event, mid, teamKey, memberIdx, buildIdx) {
   event.stopPropagation();
   _pickerTarget = { mid, side: null, buildIdx, teamKey, memberIdx, isTeam: true };
   const picker = document.getElementById('finish-picker');
+  const backdrop = document.getElementById('finish-picker-backdrop');
+  const isMobileDevice = window.innerWidth <= 600;
   picker.style.display = 'flex';
-  const rect = event.target.getBoundingClientRect();
-  const pickerW = 170, pickerH = 180;
-  let top = rect.bottom + 6;
-  let left = rect.left;
-  if (top + pickerH > window.innerHeight) top = rect.top - pickerH - 6;
-  if (left + pickerW > window.innerWidth) left = window.innerWidth - pickerW - 8;
-  if (left < 8) left = 8;
-  picker.style.top = top + 'px';
-  picker.style.left = left + 'px';
+  if (backdrop) backdrop.style.display = isMobileDevice ? 'block' : 'none';
+  if (!isMobileDevice) {
+    const rect = event.target.getBoundingClientRect();
+    const pickerW = 170, pickerH = 230;
+    let top = rect.bottom + 6;
+    let left = rect.left;
+    if (top + pickerH > window.innerHeight) top = rect.top - pickerH - 6;
+    if (left + pickerW > window.innerWidth) left = window.innerWidth - pickerW - 8;
+    if (left < 8) left = 8;
+    picker.style.top = top + 'px';
+    picker.style.left = left + 'px';
+  }
 }
 
 function openPicker(event, mid, side, buildIdx) {
   event.stopPropagation();
   _pickerTarget = { mid, side, buildIdx };
   const picker = document.getElementById('finish-picker');
+  const backdrop = document.getElementById('finish-picker-backdrop');
+  const isMobileDevice = window.innerWidth <= 600;
   picker.style.display = 'flex';
-  const rect = event.target.getBoundingClientRect();
-  const pickerW = 170;
-  const pickerH = 180;
-  let top = rect.bottom + 6;
-  let left = rect.left;
-  if (top + pickerH > window.innerHeight) top = rect.top - pickerH - 6;
-  if (left + pickerW > window.innerWidth) left = window.innerWidth - pickerW - 8;
-  if (left < 8) left = 8;
-  picker.style.top = top + 'px';
-  picker.style.left = left + 'px';
+  if (backdrop) backdrop.style.display = isMobileDevice ? 'block' : 'none';
+  if (!isMobileDevice) {
+    const rect = event.target.getBoundingClientRect();
+    const pickerW = 170, pickerH = 230;
+    let top = rect.bottom + 6;
+    let left = rect.left;
+    if (top + pickerH > window.innerHeight) top = rect.top - pickerH - 6;
+    if (left + pickerW > window.innerWidth) left = window.innerWidth - pickerW - 8;
+    if (left < 8) left = 8;
+    picker.style.top = top + 'px';
+    picker.style.left = left + 'px';
+  }
 }
 
 function pickFinish(type) {
@@ -3444,7 +3513,7 @@ function openLiveMode(mid, teamKey, memberIdx) {
 
 // ── Show pick screen: landscape on mobile, portrait modal on desktop ──
 function lmOpenPickScreen() {
-  const isMobile = window.innerWidth <= 768;
+  const isMobile = ('ontouchstart' in window || navigator.maxTouchPoints > 0) && window.innerWidth <= 900;
   document.body.style.overflow = 'hidden';
 
   if (isMobile) {
@@ -3943,7 +4012,7 @@ function lmStartClash() {
     if (!realMatch._playOrder.team2.includes(t2i)) realMatch._playOrder.team2.push(t2i);
   }
 
-  const isMobile = window.innerWidth <= 768;
+  const isMobile = ('ontouchstart' in window || navigator.maxTouchPoints > 0) && window.innerWidth <= 900;
   if (isMobile) {
     // Switch landscape wrap from pick → clash screen
     document.getElementById('clw-pick-screen').classList.remove('visible');
@@ -4499,12 +4568,19 @@ function getRounds() {
 
 function closePicker() {
   document.getElementById('finish-picker').style.display = 'none';
+  const backdrop = document.getElementById('finish-picker-backdrop');
+  if (backdrop) backdrop.style.display = 'none';
   _pickerTarget = null;
 }
 
 document.addEventListener('click', (e) => {
   const picker = document.getElementById('finish-picker');
-  if (picker && picker.style.display !== 'none' && !picker.contains(e.target)) closePicker();
+  const backdrop = document.getElementById('finish-picker-backdrop');
+  if (picker && picker.style.display !== 'none'
+      && !picker.contains(e.target)
+      && e.target !== backdrop) {
+    closePicker();
+  }
 
   // Close player dropdowns — only if click is outside the entire player picker section
   const modal = document.getElementById('new-match-modal');
@@ -4640,11 +4716,13 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
         const t2members = t2name ? teamEntries.filter(e => e.team === t2name).map(e => ({ player: e.player, builds: e.builds || [], win: e.win })) : [];
         // Restore _playOrder from first team1 entry that has it
         const playOrderEntry = teamEntries.find(e => e.team === t1name && e._playOrder);
+        const submittedEntry = teamEntries.find(e => e.team === t1name && e._submitted);
         serverMatches.push({ _sid: `${round}|T|${t1name}|${t2name||''}`, round, isTeamMatch: true,
           team1: { teamName: t1name, members: t1members },
           team2: t2name ? { teamName: t2name, members: t2members } : null,
           p1: t1members[0] || null, p2: t2members[0] || null,
-          _playOrder: playOrderEntry ? playOrderEntry._playOrder : undefined
+          _playOrder: playOrderEntry ? playOrderEntry._playOrder : undefined,
+          submitted: submittedEntry ? true : false
         });
       }
     }
@@ -4656,7 +4734,8 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
       serverMatches.push({ _sid: `${round}|${p1.player}|${p2 ? p2.player : ''}`,
         round,
         p1: { player: p1.player, builds: p1.builds || [], win: p1.win },
-        p2: p2 ? { player: p2.player, builds: p2.builds || [], win: p2.win } : null
+        p2: p2 ? { player: p2.player, builds: p2.builds || [], win: p2.win } : null,
+        submitted: p1._submitted ? true : false
       });
     }
   }
@@ -4669,8 +4748,13 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
       if (!localSids.has(sm._sid)) {
         sm.id = _matchIdCounter++;
         sm.collapsed = true;
+        sm.submitted = false;
         matchesState.push(sm);
         added = true;
+      } else {
+        // Preserve submitted flag on existing local match
+        const local = matchesState.find(m => m._sid === sm._sid);
+        if (local && local.submitted) sm.submitted = true;
       }
     }
     if (added) flattenMatchesToResults();
@@ -4678,11 +4762,12 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
   }
 
   // If user has no unsaved changes, do a full replace from server
-  // (preserve local match IDs where possible to avoid re-render flicker)
+  // (preserve local match IDs, collapse state, and submitted flag to avoid flicker)
   const newState = serverMatches.map(sm => {
     const existing = matchesState.find(m => m._sid === sm._sid);
-    sm.id        = existing ? existing.id : _matchIdCounter++;
+    sm.id        = existing ? existing.id        : _matchIdCounter++;
     sm.collapsed = existing ? existing.collapsed : true;
+    sm.submitted = existing ? existing.submitted : false;
     return sm;
   });
 
@@ -4737,6 +4822,7 @@ async function submitMatch(mid) {
     const existingIdx = matchesState.findIndex(m => m.id === mid);
     if (existingIdx === -1) matchesState.push(match);
     match.submitted = true;
+    match.collapsed = false; // keep expanded so you can see the submitted results
 
     // 4. Flatten and push
     flattenMatchesToResults();
