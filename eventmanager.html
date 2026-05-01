@@ -910,6 +910,200 @@
     font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);
   }
 
+  /* ── TRUE LANDSCAPE CLASH MODE ──
+     Rotates the entire page 90° so the phone genuinely looks landscape.
+     Touch coordinates rotate with it so all buttons work perfectly.
+  ── */
+  #clash-landscape-wrap {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 600;
+    background: var(--bg);
+  }
+  #clash-landscape-wrap.active {
+    display: flex;
+    flex-direction: column;
+    /* Rotate the whole thing 90° — width becomes height and vice versa */
+    transform: rotate(90deg);
+    transform-origin: center center;
+    width: 100vh;
+    height: 100vw;
+    /* Reposition to fill the screen after rotation */
+    top: calc((100vh - 100vw) / 2);
+    left: calc((100vw - 100vh) / 2);
+  }
+
+  /* Header strip — very thin */
+  #clw-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 10px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    gap: 8px;
+  }
+  #clw-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 13px; font-weight: 800;
+    color: var(--gold); letter-spacing: 2px;
+  }
+  #clw-scorebar {
+    display: flex; align-items: center; gap: 0;
+    border: 1px solid var(--border2); border-radius: 6px; overflow: hidden;
+    font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 900;
+  }
+  #clw-s1 { padding: 3px 12px; background: rgba(74,158,255,0.12); color: var(--blue); }
+  #clw-sep { padding: 3px 6px; background: var(--surface2); color: var(--muted2); font-size: 12px; }
+  #clw-s2 { padding: 3px 12px; background: rgba(212,175,55,0.12); color: var(--gold2); }
+  #clw-s1.winning, #clw-s2.winning { background: rgba(76,175,80,0.18); color: #66bb6a; }
+  #clw-matchlabel {
+    font-family: 'Share Tech Mono', monospace; font-size: 7px;
+    color: var(--muted); flex: 1; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+  .clw-hbtn {
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 5px; color: var(--text);
+    font-family: 'Rajdhani', sans-serif; font-size: 10px; font-weight: 700;
+    padding: 3px 8px; cursor: pointer;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  }
+  .clw-hbtn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+  /* Two score halves */
+  #clw-arena {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    flex: 1;
+    min-height: 0;
+  }
+  .clw-half {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    position: relative; cursor: pointer;
+    user-select: none; overflow: hidden;
+    transition: background .12s;
+    touch-action: manipulation;
+  }
+  #clw-left  { background: rgba(74,158,255,0.05); border-right: 2px solid var(--border); }
+  #clw-right { background: rgba(212,175,55,0.05); }
+  .clw-half.selected-left  { background: rgba(74,158,255,0.16) !important; outline: 3px solid rgba(74,158,255,0.6); outline-offset: -3px; }
+  .clw-half.selected-right { background: rgba(212,175,55,0.16) !important; outline: 3px solid rgba(212,175,55,0.6); outline-offset: -3px; }
+  .clw-warn {
+    display: none; position: absolute; top: 8px;
+    text-align: center; z-index: 2;
+  }
+  #clw-warn-left  { right: 10px; }
+  #clw-warn-right { left: 10px; }
+  .clw-warn-label { font-family: 'Share Tech Mono', monospace; font-size: 7px; color: var(--red); letter-spacing: 1px; }
+  .clw-warn-num   { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 900; color: var(--red); line-height: 1; }
+  .clw-player { font-family: 'Share Tech Mono', monospace; font-size: 9px; color: var(--muted2); letter-spacing: 1px; margin-bottom: 2px; text-align: center; }
+  .clw-bey    { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 800; text-align: center; word-break: break-word; line-height: 1.1; margin-bottom: 5px; }
+  #clw-bey-left  { color: var(--blue); }
+  #clw-bey-right { color: var(--gold2); }
+  .clw-finishes { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; margin-bottom: 6px; }
+  .clw-score {
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 900; line-height: 1;
+    font-size: clamp(80px, 18vh, 160px);
+    color: var(--muted);
+  }
+
+  /* Bottom control bar */
+  #clw-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr 1fr 40px 40px 40px;
+    gap: 5px; padding: 5px 8px 6px;
+    background: var(--surface2);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+    align-items: stretch;
+  }
+  #clw-strip {
+    grid-column: 1 / -1;
+    font-family: 'Share Tech Mono', monospace; font-size: 8px;
+    color: var(--muted); padding: 0 2px 3px;
+  }
+  .clw-finish-btn {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border-radius: 8px; border: 2px solid transparent;
+    cursor: pointer; padding: 6px 4px; gap: 1px;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    transition: filter .1s;
+  }
+  .clw-finish-btn:active { filter: brightness(1.3); transform: scale(0.96); }
+  .clw-finish-btn.S { background: rgba(74,158,255,0.15);  border-color: rgba(74,158,255,0.4); }
+  .clw-finish-btn.O { background: rgba(255,152,0,0.15);   border-color: rgba(255,152,0,0.4); }
+  .clw-finish-btn.E { background: rgba(233,30,99,0.15);   border-color: rgba(233,30,99,0.4); }
+  .clw-finish-btn.B { background: rgba(156,39,176,0.15);  border-color: rgba(156,39,176,0.4); }
+  .clw-fb-letter { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 900; line-height: 1; }
+  .clw-finish-btn.S .clw-fb-letter { color: var(--finish-s); }
+  .clw-finish-btn.O .clw-fb-letter { color: var(--finish-o); }
+  .clw-finish-btn.E .clw-fb-letter { color: var(--finish-e); }
+  .clw-finish-btn.B .clw-fb-letter { color: var(--finish-b); }
+  .clw-fb-pts { font-family: 'Share Tech Mono', monospace; font-size: 8px; color: var(--muted2); }
+  .clw-icon-btn {
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 8px; cursor: pointer; font-size: 14px;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    border: 1px solid var(--border2); background: var(--surface);
+    color: var(--text); font-family: 'Rajdhani', sans-serif; font-weight: 700;
+  }
+  #clw-warn-btn { background: rgba(229,57,53,0.12); border-color: rgba(229,57,53,0.4); color: var(--red); font-size: 12px; }
+  #clw-undo-btn { background: rgba(229,57,53,0.08); border-color: rgba(229,57,53,0.3); color: var(--red); }
+  #clw-next-btn { background: rgba(74,158,255,0.1); border-color: rgba(74,158,255,0.3); color: var(--blue); font-size: 10px; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; text-align: center; line-height: 1.1; }
+  .lm-overlay.clash-active {
+    padding: 0 !important;
+    align-items: stretch !important;
+  }
+  .lm-modal.clash-active {
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: 100vh !important;
+    height: 100vh !important;
+    border-radius: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+  /* Header shrinks to a thin strip */
+  .lm-modal.clash-active .lm-header {
+    padding: 4px 10px !important;
+    flex-shrink: 0;
+  }
+  .lm-modal.clash-active .lm-title { font-size: 12px !important; }
+  .lm-modal.clash-active #lm-match-label { font-size: 7px !important; }
+  .lm-modal.clash-active .lm-score-bar { font-size: 14px !important; }
+  .lm-modal.clash-active .lm-score-t1,
+  .lm-modal.clash-active .lm-score-t2 { padding: 3px 8px !important; }
+  .lm-modal.clash-active .lm-hbtn { padding: 3px 7px !important; font-size: 10px !important; }
+  /* Clash screen fills all remaining height */
+  .lm-modal.clash-active #lm-screen-clash {
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+  /* Two halves stretch to fill height */
+  .lm-modal.clash-active #lm-screen-clash > div:first-child {
+    height: 100%;
+  }
+  .lm-modal.clash-active #clash-panel-left,
+  .lm-modal.clash-active #clash-panel-right {
+    height: 100%;
+  }
+  /* Score numbers fill the space */
+  .lm-modal.clash-active #clash-score-left,
+  .lm-modal.clash-active #clash-score-right {
+    font-size: clamp(100px, 22vh, 200px) !important;
+  }
+  /* Bey name and player name bigger */
+  .lm-modal.clash-active #clash-left-bey,
+  .lm-modal.clash-active #clash-right-bey { font-size: 16px !important; }
+  .lm-modal.clash-active #clash-left-player,
+  .lm-modal.clash-active #clash-right-player { font-size: 10px !important; }
+
   /* ── LANDSCAPE LOCK for clash screen ── */
   @media (max-height: 500px) and (orientation: landscape) {
     .lm-modal { max-height: 100vh; border-radius: 0; }
@@ -1045,28 +1239,15 @@
     /* Member pills — wrap properly */
     #lm-beys-t1, #lm-beys-t2 { overflow: hidden; }
 
-    /* Clash screen — score fills each half */
-    #clash-left-bey, #clash-right-bey { font-size: 12px !important; }
-    #clash-left-player, #clash-right-player { font-size: 8px !important; }
+    /* Clash screen — handled by .clash-active class */
     #clash-score-left, #clash-score-right {
-      font-size: clamp(72px, 22vw, 120px) !important;
+      font-size: clamp(80px, 20vw, 140px) !important;
     }
-
-    /* Scorer strip compact */
-    #clash-scorer-strip { padding: 2px 8px !important; min-height: 24px !important; }
+    #clash-scorer-strip { padding: 2px 8px !important; }
     #clash-scorer-strip > span { font-size: 7px !important; }
-    #clash-scorer-strip .btn { font-size: 10px !important; padding: 2px 7px !important; }
-
-    /* S/O/E/B + Undo + Next row — all in one line */
-    #lm-screen-clash > div:last-child {
-      gap: 4px !important;
-      padding: 5px 6px !important;
-    }
-    .lm-clash-finish-btn { padding: 6px 2px !important; }
-    .lcfb-letter { font-size: 20px !important; }
+    .lm-clash-finish-btn { padding: 8px 4px !important; }
+    .lcfb-letter { font-size: 22px !important; }
     .lcfb-pts    { font-size: 8px !important; }
-
-    /* History */
     .lm-history { max-height: 70px !important; padding: 5px 10px !important; }
     .lm-history-item { font-size: 9px !important; }
 
@@ -1430,89 +1611,162 @@
 
     <!-- ════════════════════════════════
          SCREEN B: CLASH SCREEN
-         Big real-time scoring view
     ════════════════════════════════ -->
-    <div id="lm-screen-clash" style="display:none">
+    <div id="lm-screen-clash" style="display:none;flex-direction:column;flex:1">
 
-      <!-- MAIN CLASH ARENA — landscape style, two halves side by side -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;min-height:0;flex:1">
+      <!-- TWO HALVES — side by side, score dominates -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;flex:1;min-height:0">
 
-        <!-- LEFT HALF — tap to select -->
+        <!-- LEFT HALF -->
         <div id="clash-panel-left" onclick="lmSetScoringSideAndHighlight('left')"
           style="display:flex;flex-direction:column;align-items:center;justify-content:center;
-          padding:10px 8px 6px;border-right:2px solid var(--border);
-          background:rgba(74,158,255,0.04);transition:background .12s;
-          user-select:none;cursor:pointer;min-height:220px;position:relative">
-          <!-- warn badge top-right -->
-          <div id="clash-warn-left" style="display:none;position:absolute;top:6px;right:8px;text-align:center">
+                 padding:12px 10px 8px;border-right:2px solid var(--border);
+                 background:rgba(74,158,255,0.05);transition:background .12s;
+                 user-select:none;cursor:pointer;position:relative;overflow:hidden">
+          <!-- WARN badge -->
+          <div id="clash-warn-left" style="display:none;position:absolute;top:8px;right:10px;text-align:center;z-index:2">
             <div style="font-family:'Share Tech Mono',monospace;font-size:7px;color:var(--red);letter-spacing:1px">WARN</div>
-            <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:900;color:var(--red);line-height:1" id="clash-warn-left-count">0</div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:900;color:var(--red);line-height:1" id="clash-warn-left-count">0</div>
           </div>
-          <!-- player name -->
-          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:2px;text-align:center" id="clash-left-player"></div>
-          <!-- bey name -->
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;color:var(--blue);text-align:center;word-break:break-word;margin-bottom:4px;line-height:1.1" id="clash-left-bey">—</div>
-          <!-- finish tags -->
-          <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center;margin-bottom:4px" id="clash-left-finishes"></div>
-          <!-- BIG SCORE -->
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:clamp(80px,22vw,140px);font-weight:900;line-height:0.9;color:var(--muted)" id="clash-score-left">0</div>
+          <!-- Team label -->
+          <div id="clash-left-player" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted2);letter-spacing:1px;margin-bottom:3px;text-align:center"></div>
+          <!-- Bey name -->
+          <div id="clash-left-bey" style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;color:var(--blue);text-align:center;word-break:break-word;line-height:1.1;margin-bottom:6px">—</div>
+          <!-- Finish tags -->
+          <div id="clash-left-finishes" style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center;margin-bottom:8px"></div>
+          <!-- THE BIG SCORE -->
+          <div id="clash-score-left"
+            style="font-family:'Barlow Condensed',sans-serif;font-weight:900;line-height:1;
+                   font-size:clamp(90px,28vw,180px);color:var(--muted)">0</div>
         </div>
 
-        <!-- RIGHT HALF — tap to select -->
+        <!-- RIGHT HALF -->
         <div id="clash-panel-right" onclick="lmSetScoringSideAndHighlight('right')"
           style="display:flex;flex-direction:column;align-items:center;justify-content:center;
-          padding:10px 8px 6px;
-          background:rgba(212,175,55,0.04);transition:background .12s;
-          user-select:none;cursor:pointer;min-height:220px;position:relative">
-          <!-- warn badge top-left -->
-          <div id="clash-warn-right" style="display:none;position:absolute;top:6px;left:8px;text-align:center">
+                 padding:12px 10px 8px;
+                 background:rgba(212,175,55,0.05);transition:background .12s;
+                 user-select:none;cursor:pointer;position:relative;overflow:hidden">
+          <!-- WARN badge -->
+          <div id="clash-warn-right" style="display:none;position:absolute;top:8px;left:10px;text-align:center;z-index:2">
             <div style="font-family:'Share Tech Mono',monospace;font-size:7px;color:var(--red);letter-spacing:1px">WARN</div>
-            <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:900;color:var(--red);line-height:1" id="clash-warn-right-count">0</div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:900;color:var(--red);line-height:1" id="clash-warn-right-count">0</div>
           </div>
-          <!-- player name -->
-          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:2px;text-align:center" id="clash-right-player"></div>
-          <!-- bey name -->
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;color:var(--gold2);text-align:center;word-break:break-word;margin-bottom:4px;line-height:1.1" id="clash-right-bey">—</div>
-          <!-- finish tags -->
-          <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center;margin-bottom:4px" id="clash-right-finishes"></div>
-          <!-- BIG SCORE -->
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:clamp(80px,22vw,140px);font-weight:900;line-height:0.9;color:var(--muted)" id="clash-score-right">0</div>
+          <!-- Team label -->
+          <div id="clash-right-player" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted2);letter-spacing:1px;margin-bottom:3px;text-align:center"></div>
+          <!-- Bey name -->
+          <div id="clash-right-bey" style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;color:var(--gold2);text-align:center;word-break:break-word;line-height:1.1;margin-bottom:6px">—</div>
+          <!-- Finish tags -->
+          <div id="clash-right-finishes" style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center;margin-bottom:8px"></div>
+          <!-- THE BIG SCORE -->
+          <div id="clash-score-right"
+            style="font-family:'Barlow Condensed',sans-serif;font-weight:900;line-height:1;
+                   font-size:clamp(90px,28vw,180px);color:var(--muted)">0</div>
         </div>
       </div>
 
-      <!-- SELECTED PLAYER STRIP -->
-      <div id="clash-scorer-strip" style="padding:3px 10px;background:var(--surface2);border-top:1px solid var(--border);
-        display:flex;align-items:center;justify-content:space-between;min-height:28px">
+      <!-- SELECTED STRIP + WARN BUTTON -->
+      <div id="clash-scorer-strip"
+        style="display:flex;align-items:center;justify-content:space-between;
+               padding:4px 10px;background:var(--surface2);border-top:1px solid var(--border);
+               flex-shrink:0">
         <span style="font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--muted)">TAP A SIDE TO SELECT PLAYER</span>
-        <div style="display:flex;gap:5px;align-items:center">
-          <button class="btn" style="padding:2px 8px;font-size:10px;touch-action:manipulation" onclick="lmAddWarning()">⚠️ Warn</button>
-          <span style="font-family:'Share Tech Mono',monospace;font-size:7px;color:var(--muted2)">2 warns = win</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn" style="padding:3px 10px;font-size:11px;touch-action:manipulation" onclick="lmAddWarning()">⚠️ Warn</button>
+          <span style="font-family:'Share Tech Mono',monospace;font-size:7px;color:var(--muted2)">2=win</span>
         </div>
       </div>
 
-      <!-- COMPACT S/O/E/B ROW + UNDO + NEXT -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto auto;gap:5px;padding:6px 8px;background:var(--surface2);border-top:1px solid var(--border);align-items:stretch">
-        <button class="lm-clash-finish-btn S" onclick="lmApplyFinish('S')" style="padding:8px 4px">
-          <div class="lcfb-letter" style="font-size:22px">S</div>
+      <!-- BOTTOM BAR: S O E B | ↩ | NEXT -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 44px 44px;
+                  gap:6px;padding:6px 8px 8px;background:var(--surface2);
+                  border-top:1px solid var(--border);flex-shrink:0">
+        <button class="lm-clash-finish-btn S" onclick="lmApplyFinish('S')" style="padding:10px 4px">
+          <div class="lcfb-letter" style="font-size:24px">S</div>
           <div class="lcfb-pts">+1pt</div>
         </button>
-        <button class="lm-clash-finish-btn O" onclick="lmApplyFinish('O')" style="padding:8px 4px">
-          <div class="lcfb-letter" style="font-size:22px">O</div>
+        <button class="lm-clash-finish-btn O" onclick="lmApplyFinish('O')" style="padding:10px 4px">
+          <div class="lcfb-letter" style="font-size:24px">O</div>
           <div class="lcfb-pts">+2pt</div>
         </button>
-        <button class="lm-clash-finish-btn E" onclick="lmApplyFinish('E')" style="padding:8px 4px">
-          <div class="lcfb-letter" style="font-size:22px">E</div>
+        <button class="lm-clash-finish-btn E" onclick="lmApplyFinish('E')" style="padding:10px 4px">
+          <div class="lcfb-letter" style="font-size:24px">E</div>
           <div class="lcfb-pts">+3pt</div>
         </button>
-        <button class="lm-clash-finish-btn B" onclick="lmApplyFinish('B')" style="padding:8px 4px">
-          <div class="lcfb-letter" style="font-size:22px">B</div>
+        <button class="lm-clash-finish-btn B" onclick="lmApplyFinish('B')" style="padding:10px 4px">
+          <div class="lcfb-letter" style="font-size:24px">B</div>
           <div class="lcfb-pts">+2pt</div>
         </button>
-        <button class="btn danger" style="font-size:11px;padding:8px 10px;border-radius:8px;white-space:nowrap;touch-action:manipulation" onclick="lmUndo()">↩</button>
-        <button class="btn" style="font-size:11px;padding:8px 10px;font-family:'Barlow Condensed',sans-serif;font-weight:800;white-space:nowrap;touch-action:manipulation" onclick="lmBackToPick()">🔄 NEXT</button>
+        <button class="btn danger" style="font-size:18px;padding:0;border-radius:8px;touch-action:manipulation;display:flex;align-items:center;justify-content:center" onclick="lmUndo()" title="Undo">↩</button>
+        <button class="btn" style="font-size:10px;padding:0;font-family:'Barlow Condensed',sans-serif;font-weight:800;border-radius:8px;touch-action:manipulation;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.1" onclick="lmBackToPick()">🔄<br>NEXT</button>
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     LANDSCAPE CLASH SCREEN
+     Entire element rotates 90° — true landscape
+══════════════════════════════════════════ -->
+<div id="clash-landscape-wrap">
+  <!-- Header strip -->
+  <div id="clw-header">
+    <div id="clw-title">⚡ LIVE</div>
+    <div id="clw-matchlabel"></div>
+    <div id="clw-scorebar">
+      <div id="clw-s1">0</div>
+      <div id="clw-sep">/</div>
+      <div id="clw-s2">0</div>
+    </div>
+    <button class="clw-hbtn" onclick="lmSwapSides()" title="Swap">⇄</button>
+    <button class="clw-hbtn primary" onclick="lmCommitAndClose()">✅</button>
+    <button class="clw-hbtn" onclick="closeLiveMode()">✕</button>
+  </div>
+
+  <!-- Two score halves -->
+  <div id="clw-arena">
+    <!-- LEFT -->
+    <div class="clw-half" id="clw-left" onclick="lmSetScoringSideAndHighlight('left')">
+      <div class="clw-warn" id="clw-warn-left">
+        <div class="clw-warn-label">WARN</div>
+        <div class="clw-warn-num" id="clw-warn-left-num">0</div>
+      </div>
+      <div class="clw-player" id="clw-player-left"></div>
+      <div class="clw-bey" id="clw-bey-left">—</div>
+      <div class="clw-finishes" id="clw-finishes-left"></div>
+      <div class="clw-score" id="clw-score-left">0</div>
+    </div>
+    <!-- RIGHT -->
+    <div class="clw-half" id="clw-right" onclick="lmSetScoringSideAndHighlight('right')">
+      <div class="clw-warn" id="clw-warn-right">
+        <div class="clw-warn-label">WARN</div>
+        <div class="clw-warn-num" id="clw-warn-right-num">0</div>
+      </div>
+      <div class="clw-player" id="clw-player-right"></div>
+      <div class="clw-bey" id="clw-bey-right">—</div>
+      <div class="clw-finishes" id="clw-finishes-right"></div>
+      <div class="clw-score" id="clw-score-right">0</div>
+    </div>
+  </div>
+
+  <!-- Controls bottom bar -->
+  <div id="clw-controls">
+    <div id="clw-strip">TAP A SIDE TO SELECT PLAYER</div>
+    <button class="clw-finish-btn S" onclick="lmApplyFinish('S')">
+      <div class="clw-fb-letter">S</div><div class="clw-fb-pts">+1pt</div>
+    </button>
+    <button class="clw-finish-btn O" onclick="lmApplyFinish('O')">
+      <div class="clw-fb-letter">O</div><div class="clw-fb-pts">+2pt</div>
+    </button>
+    <button class="clw-finish-btn E" onclick="lmApplyFinish('E')">
+      <div class="clw-fb-letter">E</div><div class="clw-fb-pts">+3pt</div>
+    </button>
+    <button class="clw-finish-btn B" onclick="lmApplyFinish('B')">
+      <div class="clw-fb-letter">B</div><div class="clw-fb-pts">+2pt</div>
+    </button>
+    <button class="clw-icon-btn" id="clw-warn-btn" onclick="lmAddWarning()">⚠️<br><span style="font-size:7px">WARN</span></button>
+    <button class="clw-icon-btn" id="clw-undo-btn" onclick="lmUndo()">↩</button>
+    <button class="clw-icon-btn" id="clw-next-btn" onclick="lmBackToPick()">🔄<br>NEXT</button>
   </div>
 </div>
 
@@ -2889,9 +3143,13 @@ function openLiveMode(mid, teamKey, memberIdx) {
 // ── Swap left/right display sides ──
 function lmSwapSides() {
   lmSwapped = !lmSwapped;
-  const clashScreen = document.getElementById('lm-screen-clash');
-  if (clashScreen && clashScreen.style.display !== 'none') lmRenderClashScreen();
-  else lmRender();
+  const wrap = document.getElementById('clash-landscape-wrap');
+  if (wrap?.classList.contains('active')) { clwRender(); }
+  else {
+    const clashScreen = document.getElementById('lm-screen-clash');
+    if (clashScreen && clashScreen.style.display !== 'none') lmRenderClashScreen(); if(document.getElementById("clash-landscape-wrap")?.classList.contains("active")) clwRender();
+    else lmRender();
+  }
   showToast(lmSwapped ? '⇄ Sides swapped' : '⇄ Sides restored', '');
 }
 
@@ -2963,7 +3221,10 @@ function closeLiveMode() {
     renderResults();
   }
   document.getElementById('live-mode-overlay').style.display = 'none';
-  document.body.style.overflow = ''; // restore scrolling
+  document.getElementById('clash-landscape-wrap')?.classList.remove('active');
+  document.getElementById('live-mode-modal')?.classList.remove('clash-active');
+  document.getElementById('live-mode-overlay')?.classList.remove('clash-active');
+  document.body.style.overflow = '';
   lmRemoveLandscape();
   lmState = null;
 }
@@ -3094,7 +3355,7 @@ function lmApplyFinish(type) {
   // Re-render whichever screen is active
   const clashScreen = document.getElementById('lm-screen-clash');
   if (clashScreen && clashScreen.style.display !== 'none') {
-    lmRenderClashScreen();
+    lmRenderClashScreen(); if(document.getElementById("clash-landscape-wrap")?.classList.contains("active")) clwRender();
   } else {
     lmRender();
   }
@@ -3124,6 +3385,8 @@ function lmUpdateScoreBar() {
   // Shuffle notice
   const sn = document.getElementById('lm-shuffle-notice');
   if (sn) sn.style.display = lmState.shuffled ? '' : 'none';
+  // Update landscape bar too
+  if (document.getElementById('clash-landscape-wrap')?.classList.contains('active')) clwUpdateScoreBar();
 }
 
 // ── Undo last finish ──
@@ -3156,7 +3419,7 @@ function lmUndo() {
   markDirty();
 
   const clashScreen = document.getElementById('lm-screen-clash');
-  if (clashScreen && clashScreen.style.display !== 'none') lmRenderClashScreen();
+  if (clashScreen && clashScreen.style.display !== 'none') lmRenderClashScreen(); if(document.getElementById("clash-landscape-wrap")?.classList.contains("active")) clwRender();
   else lmRender();
   lmUpdateScoreBar();
 }
@@ -3196,6 +3459,12 @@ function lmSetScoringSideAndHighlight(displaySide) {
   const selectedName = displaySide === 'left' ? leftTeam?.teamName : rightTeam?.teamName;
   const stripLabel = strip?.querySelector('span');
   if (stripLabel) stripLabel.textContent = `SELECTED: ${selectedName || displaySide.toUpperCase()} — score/warn goes to this player`;
+  // Also update landscape panels
+  if (document.getElementById('clash-landscape-wrap')?.classList.contains('active')) {
+    clwHighlight(displaySide);
+    const clwStrip = document.getElementById('clw-strip');
+    if (clwStrip) clwStrip.textContent = `SELECTED: ${selectedName || displaySide.toUpperCase()} — score/warn goes to this player`;
+  }
 }
 
 // ── Add warning TO the highlighted/selected player (the one whose panel is active) ──
@@ -3265,7 +3534,7 @@ function lmAddWarning() {
   flattenMatchesToResults();
   autoCheckTeamWin(lmState.match);
   markDirty();
-  lmRenderClashScreen();
+  lmRenderClashScreen(); if(document.getElementById("clash-landscape-wrap")?.classList.contains("active")) clwRender();
   lmUpdateScoreBar();
 }
 
@@ -3274,16 +3543,31 @@ function lmStartClash() {
   if (!lmState) return;
   const clash = lmState.clashes[lmState.activeClashIdx];
   if (!clash) return;
-  document.getElementById('lm-screen-pick').style.display = 'none';
-  document.getElementById('lm-screen-clash').style.display = '';
-  lmRenderClashScreen();
+
+  const isMobile = window.innerWidth <= 768;
+  if (isMobile) {
+    // Use the true landscape rotation wrapper
+    document.getElementById('live-mode-overlay').style.display = 'none';
+    const wrap = document.getElementById('clash-landscape-wrap');
+    wrap.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    clwRender();
+  } else {
+    // Desktop: use the normal clash screen inside the modal
+    document.getElementById('lm-screen-pick').style.display = 'none';
+    const clashScreen = document.getElementById('lm-screen-clash');
+    clashScreen.style.display = 'flex';
+    const modal = document.getElementById('live-mode-modal');
+    const overlay = document.getElementById('live-mode-overlay');
+    if (modal) modal.classList.add('clash-active');
+    if (overlay) overlay.classList.add('clash-active');
+    lmRenderClashScreen(); if(document.getElementById("clash-landscape-wrap")?.classList.contains("active")) clwRender();
+  }
 }
 
-function lmApplyLandscape() {} // no-op — rotation removed, causes touch issues on mobile
+function lmApplyLandscape() {} // no-op
 function lmRemoveLandscape() {
-  if (screen.orientation && screen.orientation.unlock) {
-    try { screen.orientation.unlock(); } catch(e) {}
-  }
+  try { if (screen.orientation?.unlock) screen.orientation.unlock(); } catch(e) {}
 }
 
 // ── Go back to pick screen (after a finish or "Next Bey Pick") ──
@@ -3294,12 +3578,120 @@ function lmBackToPick() {
   const t1Idx = clash ? clash.t1MemberIdx : 0;
   const t2Idx = clash ? clash.t2MemberIdx : 0;
   lmPushClash(t1Idx, t2Idx);
-  document.getElementById('lm-screen-clash').style.display = 'none';
+
+  // Hide landscape wrap if active
+  const wrap = document.getElementById('clash-landscape-wrap');
+  if (wrap.classList.contains('active')) {
+    wrap.classList.remove('active');
+    // Re-show the live modal pick screen
+    document.getElementById('live-mode-overlay').style.display = 'flex';
+    document.getElementById('live-mode-overlay').style.zIndex = '500';
+  } else {
+    document.getElementById('lm-screen-clash').style.display = 'none';
+    document.getElementById('live-mode-modal')?.classList.remove('clash-active');
+    document.getElementById('live-mode-overlay')?.classList.remove('clash-active');
+  }
   document.getElementById('lm-screen-pick').style.display = '';
   lmRender();
 }
 
-// ── Render the big clash screen ──
+// ── Render the landscape clash wrapper (mobile full-screen) ──
+function clwRender() {
+  if (!lmState) return;
+  const { match, clashes, activeClashIdx } = lmState;
+  const clash = clashes[activeClashIdx];
+  if (!clash) return;
+
+  const leftKey  = lmSwapped ? 't2' : 't1';
+  const rightKey = lmSwapped ? 't1' : 't2';
+  const leftTeam  = match[leftKey  === 't1' ? 'team1' : 'team2'];
+  const rightTeam = match[rightKey === 't1' ? 'team1' : 'team2'];
+  const leftMemberIdx  = leftKey  === 't1' ? clash.t1MemberIdx : clash.t2MemberIdx;
+  const rightMemberIdx = rightKey === 't1' ? clash.t1MemberIdx : clash.t2MemberIdx;
+  const leftBeyIdx     = leftKey  === 't1' ? clash.t1BeyIdx    : clash.t2BeyIdx;
+  const rightBeyIdx    = rightKey === 't1' ? clash.t1BeyIdx    : clash.t2BeyIdx;
+  const leftMember  = leftTeam?.members[leftMemberIdx];
+  const rightMember = rightTeam?.members[rightMemberIdx];
+  const leftBey     = leftMember?.builds[leftBeyIdx];
+  const rightBey    = rightMember?.builds[rightBeyIdx];
+
+  // Match label
+  const isFinals = match.round === 'F';
+  const ptThreshold = isFinals ? 7 : 4;
+  const el = id => document.getElementById(id);
+  el('clw-matchlabel').textContent = `${match.round} · ${match.team1?.teamName||'?'} vs ${match.team2?.teamName||'?'} (${ptThreshold}pts)`;
+
+  // Player + bey names
+  el('clw-player-left').textContent  = leftMember?.player  || '—';
+  el('clw-player-right').textContent = rightMember?.player || '—';
+  el('clw-bey-left').textContent     = leftBey?.build  || '—';
+  el('clw-bey-right').textContent    = rightBey?.build || '—';
+
+  // Finish tags
+  const mkTags = b => b ? (b.finishes||[]).map(f=>`<span class="finish-tag ${f}" style="font-size:11px;padding:2px 6px">${f}</span>`).join('') : '';
+  el('clw-finishes-left').innerHTML  = mkTags(leftBey);
+  el('clw-finishes-right').innerHTML = mkTags(rightBey);
+
+  // Clash points (this clash)
+  const leftPts  = clash.finishes.filter(f=>f.side===leftKey ).reduce((s,f)=>s+f.pts,0);
+  const rightPts = clash.finishes.filter(f=>f.side===rightKey).reduce((s,f)=>s+f.pts,0);
+  const sL = el('clw-score-left');
+  const sR = el('clw-score-right');
+  sL.textContent = leftPts;
+  sR.textContent = rightPts;
+  sL.style.color = leftPts > rightPts ? '#66bb6a' : leftPts > 0 ? 'var(--blue)' : 'var(--muted)';
+  sR.style.color = rightPts > leftPts ? '#66bb6a' : rightPts > 0 ? 'var(--gold2)' : 'var(--muted)';
+
+  // Warnings
+  const warns = clash.warnings || { t1:0, t2:0 };
+  const lwc = warns[leftKey]  || 0;
+  const rwc = warns[rightKey] || 0;
+  el('clw-warn-left').style.display  = lwc > 0 ? '' : 'none';
+  el('clw-warn-right').style.display = rwc > 0 ? '' : 'none';
+  el('clw-warn-left-num').textContent  = lwc;
+  el('clw-warn-right-num').textContent = rwc;
+
+  // Team score bar (player wins)
+  clwUpdateScoreBar();
+
+  // Panel highlight
+  clwHighlight(lmState.scoringSide === leftKey ? 'left' : 'right');
+
+  // Strip label
+  const scorerKey = lmState.scoringSide;
+  const scorerTeamKey = scorerKey === 't1' ? 'team1' : 'team2';
+  const scorerMemberIdx = scorerKey === 't1' ? clash.t1MemberIdx : clash.t2MemberIdx;
+  const scorerName = match[scorerTeamKey]?.members[scorerMemberIdx]?.player || '—';
+  el('clw-strip').textContent = `SELECTED: ${scorerName} — score/warn goes to this player`;
+}
+
+function clwUpdateScoreBar() {
+  if (!lmState) return;
+  const { match } = lmState;
+  const isFinals = match.round === 'F';
+  const ptThreshold = isFinals ? 7 : 4;
+  const teamWinThreshold = isFinals ? 3 : 2;
+  const leftKey  = lmSwapped ? 't2' : 't1';
+  const rightKey = lmSwapped ? 't1' : 't2';
+  const leftTeam  = match[leftKey  === 't1' ? 'team1' : 'team2'];
+  const rightTeam = match[rightKey === 't1' ? 'team1' : 'team2'];
+  const lw = (leftTeam?.members  ||[]).filter(m=>calcPoints(m.builds)>=ptThreshold||m.win).length;
+  const rw = (rightTeam?.members ||[]).filter(m=>calcPoints(m.builds)>=ptThreshold||m.win).length;
+  const s1 = document.getElementById('clw-s1');
+  const s2 = document.getElementById('clw-s2');
+  if (s1) { s1.textContent = lw; s1.className = lw >= teamWinThreshold ? 'winning' : ''; }
+  if (s2) { s2.textContent = rw; s2.className = rw >= teamWinThreshold ? 'winning' : ''; }
+}
+
+function clwHighlight(side) {
+  const left  = document.getElementById('clw-left');
+  const right = document.getElementById('clw-right');
+  if (!left || !right) return;
+  left.className  = 'clw-half' + (side === 'left'  ? ' selected-left'  : '');
+  right.className = 'clw-half' + (side === 'right' ? ' selected-right' : '');
+}
+
+// ── Render the big clash screen (desktop modal) ──
 function lmRenderClashScreen() {
   if (!lmState) return;
   const { match, clashes, activeClashIdx, scoringSide } = lmState;
