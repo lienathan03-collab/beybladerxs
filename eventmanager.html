@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
 <title>RXS Event Manager</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;600;700;800&display=swap" rel="stylesheet" />
@@ -924,14 +924,13 @@
   #clash-landscape-wrap.active {
     display: flex;
     flex-direction: column;
-    /* Rotate the whole thing 90° — width becomes height and vice versa */
     transform: rotate(90deg);
     transform-origin: center center;
-    width: 100vh;
-    height: 100vw;
-    /* Reposition to fill the screen after rotation */
-    top: calc((100vh - 100vw) / 2);
-    left: calc((100vw - 100vh) / 2);
+    /* Use dynamic viewport units to account for browser chrome (address bar, nav bar) */
+    width: 100dvh;
+    height: 100dvw;
+    top: calc((100dvh - 100dvw) / 2);
+    left: calc((100dvw - 100dvh) / 2);
   }
   #clw-pick-screen { display: none; flex: 1; min-height: 0; flex-direction: column; overflow: hidden; }
   #clw-pick-screen.visible { display: flex; }
@@ -944,10 +943,13 @@
     align-items: center;
     justify-content: space-between;
     padding: 4px 10px;
+    padding-right: max(10px, env(safe-area-inset-bottom));
+    padding-left:  max(10px, env(safe-area-inset-top));
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
-    gap: 8px;
+    gap: 6px;
+    min-height: 34px;
   }
   #clw-title {
     font-family: 'Barlow Condensed', sans-serif;
