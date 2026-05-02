@@ -2304,7 +2304,30 @@ function rosterToggleAddTeam() {
   }
 }
 
-function rosterAddPlayer() {
+async function rosterSaveJoiners(successMsg) {
+  // Save updated joiners to /api/events so they persist after refresh
+  try {
+    const updatedEvents = allEvents.map(e => e.id === currentEvent.id ? currentEvent : e);
+    const res = await fetch('/api/events', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        adminUsername: adminUser,
+        adminPassword: adminPass,
+        events: updatedEvents
+      })
+    });
+    if (!res.ok) throw new Error('Server error');
+    // Keep allEvents in sync
+    const idx = allEvents.findIndex(e => e.id === currentEvent.id);
+    if (idx !== -1) allEvents[idx] = currentEvent;
+    showToast(successMsg, 'success');
+  } catch(e) {
+    showToast('⚠️ Saved locally but failed to persist to server. Try again.', '');
+  }
+}
+
+async function rosterAddPlayer() {
   if (!currentEvent) return;
   const nameInput = document.getElementById('roster-player-name-input');
   const name = nameInput.value.trim();
@@ -2317,11 +2340,10 @@ function rosterAddPlayer() {
   document.getElementById('roster-add-player-form').style.display = 'none';
   renderRoster();
   renderBuilds();
-  markDirty();
-  showToast(`✅ ${name} added to roster.`, 'success');
+  await rosterSaveJoiners(`✅ ${name} added to roster.`);
 }
 
-function rosterAddTeam() {
+async function rosterAddTeam() {
   if (!currentEvent) return;
   const teamName = document.getElementById('roster-team-name-input').value.trim();
   if (!teamName) { showToast('Enter a team name.', 'error'); return; }
@@ -2352,8 +2374,7 @@ function rosterAddTeam() {
 
   renderRoster();
   renderBuilds();
-  markDirty();
-  showToast(`✅ Team "${teamName}" added to roster.`, 'success');
+  await rosterSaveJoiners(`✅ Team "${teamName}" added to roster.`);
 }
 
 // ─────────────────────────────────────────────
