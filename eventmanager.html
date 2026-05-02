@@ -1481,6 +1481,46 @@
 
       <!-- ROSTER TAB -->
       <div class="tab-pane active" id="tab-roster">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:15px;font-weight:700;color:var(--text)">Roster</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">Players & teams registered for this event.</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" onclick="rosterToggleAddPlayer()" id="roster-add-player-btn">+ Add Player</button>
+            <button class="btn gold" onclick="rosterToggleAddTeam()" id="roster-add-team-btn">+ Add Team</button>
+          </div>
+        </div>
+
+        <!-- Add Solo Player form -->
+        <div id="roster-add-player-form" style="display:none;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:14px 16px;margin-bottom:14px">
+          <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">Add Solo Player</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input id="roster-player-name-input" class="form-input" style="flex:1;min-width:140px;font-size:13px" placeholder="Player name" />
+            <button class="btn primary" onclick="rosterAddPlayer()">Add</button>
+            <button class="btn" onclick="rosterToggleAddPlayer()">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Add Team form -->
+        <div id="roster-add-team-form" style="display:none;background:var(--surface2);border:1px solid rgba(212,175,55,0.3);border-radius:10px;padding:14px 16px;margin-bottom:14px">
+          <div style="font-size:13px;font-weight:700;color:var(--gold2);margin-bottom:10px">Add Team</div>
+          <div style="margin-bottom:10px">
+            <label style="font-size:11px;color:var(--muted);font-family:'Share Tech Mono',monospace;letter-spacing:1px;display:block;margin-bottom:4px">TEAM NAME</label>
+            <input id="roster-team-name-input" class="form-input" style="width:100%;font-size:13px;box-sizing:border-box" placeholder="e.g. Hydra Spinners" />
+          </div>
+          <div style="font-size:11px;color:var(--muted);font-family:'Share Tech Mono',monospace;letter-spacing:1px;margin-bottom:6px">MEMBERS (up to 3)</div>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
+            <input id="roster-team-m1" class="form-input" style="font-size:13px" placeholder="Member 1 name" />
+            <input id="roster-team-m2" class="form-input" style="font-size:13px" placeholder="Member 2 name" />
+            <input id="roster-team-m3" class="form-input" style="font-size:13px" placeholder="Member 3 name" />
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn gold" onclick="rosterAddTeam()">Add Team</button>
+            <button class="btn" onclick="rosterToggleAddTeam()">Cancel</button>
+          </div>
+        </div>
+
         <div id="roster-content"><div class="empty-state"><div class="icon">👥</div>Select an event to see the roster.</div></div>
       </div>
 
@@ -2238,6 +2278,82 @@ function renderRoster() {
         </div>
       </div>`).join('')}</div>`;
   }
+}
+
+
+// ─────────────────────────────────────────────
+// ROSTER — ADD PLAYER / ADD TEAM
+// ─────────────────────────────────────────────
+function rosterToggleAddPlayer() {
+  const form = document.getElementById('roster-add-player-form');
+  const isOpen = form.style.display !== 'none';
+  form.style.display = isOpen ? 'none' : '';
+  if (!isOpen) {
+    document.getElementById('roster-add-team-form').style.display = 'none';
+    setTimeout(() => document.getElementById('roster-player-name-input').focus(), 50);
+  }
+}
+
+function rosterToggleAddTeam() {
+  const form = document.getElementById('roster-add-team-form');
+  const isOpen = form.style.display !== 'none';
+  form.style.display = isOpen ? 'none' : '';
+  if (!isOpen) {
+    document.getElementById('roster-add-player-form').style.display = 'none';
+    setTimeout(() => document.getElementById('roster-team-name-input').focus(), 50);
+  }
+}
+
+function rosterAddPlayer() {
+  if (!currentEvent) return;
+  const nameInput = document.getElementById('roster-player-name-input');
+  const name = nameInput.value.trim();
+  if (!name) { showToast('Enter a player name.', 'error'); return; }
+  const existing = getPlayers().map(p => p.name.toLowerCase());
+  if (existing.includes(name.toLowerCase())) { showToast('Player already in roster.', 'error'); return; }
+  if (!currentEvent.joiners) currentEvent.joiners = [];
+  currentEvent.joiners.push({ displayName: name, type: 'solo' });
+  nameInput.value = '';
+  document.getElementById('roster-add-player-form').style.display = 'none';
+  renderRoster();
+  renderBuilds();
+  markDirty();
+  showToast(`✅ ${name} added to roster.`, 'success');
+}
+
+function rosterAddTeam() {
+  if (!currentEvent) return;
+  const teamName = document.getElementById('roster-team-name-input').value.trim();
+  if (!teamName) { showToast('Enter a team name.', 'error'); return; }
+  const members = [
+    document.getElementById('roster-team-m1').value.trim(),
+    document.getElementById('roster-team-m2').value.trim(),
+    document.getElementById('roster-team-m3').value.trim(),
+  ].filter(Boolean);
+  if (members.length < 2) { showToast('Add at least 2 members.', 'error'); return; }
+
+  // Check for duplicate names
+  const existing = getPlayers().map(p => p.name.toLowerCase());
+  for (const m of members) {
+    if (existing.includes(m.toLowerCase())) {
+      showToast(`"${m}" is already in the roster.`, 'error'); return;
+    }
+  }
+
+  if (!currentEvent.joiners) currentEvent.joiners = [];
+  currentEvent.joiners.push({ type: 'team', teamName, members: members.map(m => ({ displayName: m })) });
+
+  // Clear inputs and close form
+  document.getElementById('roster-team-name-input').value = '';
+  document.getElementById('roster-team-m1').value = '';
+  document.getElementById('roster-team-m2').value = '';
+  document.getElementById('roster-team-m3').value = '';
+  document.getElementById('roster-add-team-form').style.display = 'none';
+
+  renderRoster();
+  renderBuilds();
+  markDirty();
+  showToast(`✅ Team "${teamName}" added to roster.`, 'success');
 }
 
 // ─────────────────────────────────────────────
