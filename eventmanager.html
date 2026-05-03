@@ -1560,7 +1560,7 @@
           <span class="legend-item"><span class="finish-tag E">E</span> Extreme (3pt)</span>
           <span class="legend-item"><span class="finish-tag B">B</span> Burst (2pt)</span>
           <span class="legend-item"><span class="finish-tag L">L</span> Loss (0pt)</span>
-          <span style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace;margin-left:4px">· unchecked = not deployed</span>
+          <span style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace;margin-left:4px">· no finishes = not deployed</span>
         </div>
 
         <!-- Round filter pills -->
@@ -2595,6 +2595,20 @@ let matchesState = [];
 let activeRoundFilter = 'ALL';
 let _matchIdCounter = 1;
 
+// ─────────────────────────────────────────────
+// MATCH _sid (Stable Identifier) HELPERS
+// ─────────────────────────────────────────────
+// _sid lets us recognize "this same match" across local <-> server round trips,
+// even before the match has been pushed once. Format includes a per-(round,pair)
+// instance index so multiple matches between the same players in the same round
+// remain distinct.
+function _soloSid(round, p1Name, p2Name, instanceIdx) {
+  return `${round}|${p1Name||''}|${p2Name||''}|${instanceIdx}`;
+}
+function _teamSid(round, t1Name, t2Name, instanceIdx) {
+  return `${round}|T|${t1Name||''}|${t2Name||''}|${instanceIdx}`;
+}
+
 function loadMatchesFromResults() {
   // Convert flat resultsState into matchesState pairs
   matchesState = [];
@@ -2608,20 +2622,27 @@ function loadMatchesFromResults() {
     // Handle team entries
     if (teamEntries.length) {
       const teamNames = [...new Set(teamEntries.map(e => e.team))];
+      const teamPairCount = {}; // key: `${t1}||${t2}` → count, for stable _sid
       for (let i = 0; i < teamNames.length; i += 2) {
         const t1name = teamNames[i], t2name = teamNames[i+1];
         if (!t1name) continue;
+        // SAFETY: skip team match with no opponent — would render as "no enemy"
+        if (!t2name) continue;
         const t1entries = teamEntries.filter(e => e.team === t1name);
-        const t2entries = t2name ? teamEntries.filter(e => e.team === t2name) : [];
+        const t2entries = teamEntries.filter(e => e.team === t2name);
         const t1members = t1entries.map(e => ({ player: e.player, builds: e.builds || [], win: e.win }));
         const t2members = t2entries.map(e => ({ player: e.player, builds: e.builds || [], win: e.win }));
         const playOrderEntry = t1entries.find(e => e._playOrder);
         const submittedEntry = t1entries.find(e => e._submitted);
+        const pairKey = `${t1name}||${t2name}`;
+        const idx = (teamPairCount[pairKey] || 0);
+        teamPairCount[pairKey] = idx + 1;
         matchesState.push({
           id: _matchIdCounter++,
+          _sid: _teamSid(round, t1name, t2name, idx),
           round, isTeamMatch: true,
           team1: { teamName: t1name, members: t1members },
-          team2: t2name ? { teamName: t2name, members: t2members } : null,
+          team2: { teamName: t2name, members: t2members },
           p1: t1members[0] || null, p2: t2members[0] || null,
           _playOrder: playOrderEntry ? playOrderEntry._playOrder : undefined,
           submitted: submittedEntry ? true : false,
@@ -2631,15 +2652,27 @@ function loadMatchesFromResults() {
     }
 
     // Handle solo entries
+    const soloPairCount = {}; // key: `${p1}||${p2}` → count
     for (let i = 0; i < soloEntries.length; i += 2) {
       const p1 = soloEntries[i];
       const p2 = soloEntries[i+1];
       if (!p1) continue;
+      // SAFETY: skip orphan solo entries (no opponent) — would render as "no enemy"
+      // This usually means stale/corrupt data from a partial save. The user can
+      // re-create the match cleanly. Logging so it shows up in console.
+      if (!p2) {
+        console.warn('[loadMatchesFromResults] Skipping orphan solo entry (no opponent):', p1);
+        continue;
+      }
+      const pairKey = `${p1.player}||${p2.player}`;
+      const idx = (soloPairCount[pairKey] || 0);
+      soloPairCount[pairKey] = idx + 1;
       matchesState.push({
         id: _matchIdCounter++,
+        _sid: _soloSid(round, p1.player, p2.player, idx),
         round,
         p1: { player: p1.player, builds: p1.builds || [], pointsTotal: p1.pointsTotal || 0, win: p1.win },
-        p2: p2 ? { player: p2.player, builds: p2.builds || [], pointsTotal: p2.pointsTotal || 0, win: p2.win } : null,
+        p2: { player: p2.player, builds: p2.builds || [], pointsTotal: p2.pointsTotal || 0, win: p2.win },
         submitted: p1._submitted ? true : false,
         collapsed: true
       });
@@ -2970,8 +3003,15 @@ async function createMatch() {
     if (!_nmTeam1) { errEl.textContent = 'Select Team 1.'; return; }
     if (!_nmTeam2) { errEl.textContent = 'Select Team 2.'; return; }
 
+    // Stable _sid: count existing matches with same teams in same round to disambiguate
+    const teamPairCount = matchesState.filter(m =>
+      m.isTeamMatch && m.round === round &&
+      m.team1?.teamName === _nmTeam1.teamName && m.team2?.teamName === _nmTeam2.teamName
+    ).length;
+
     matchesState.push({
       id: _matchIdCounter++,
+      _sid: _teamSid(round, _nmTeam1.teamName, _nmTeam2.teamName, teamPairCount),
       round,
       isTeamMatch: true,
       team1: JSON.parse(JSON.stringify(_nmTeam1)),
@@ -2984,8 +3024,15 @@ async function createMatch() {
     if (!_nmP1) { errEl.textContent = 'Select Player 1.'; return; }
     if (!_nmP2) { errEl.textContent = 'Select Player 2.'; return; }
 
+    // Stable _sid: count existing solo matches with same players in same round
+    const soloPairCount = matchesState.filter(m =>
+      !m.isTeamMatch && m.round === round &&
+      m.p1?.player === _nmP1.player && m.p2?.player === _nmP2.player
+    ).length;
+
     matchesState.push({
       id: _matchIdCounter++,
+      _sid: _soloSid(round, _nmP1.player, _nmP2.player, soloPairCount),
       round,
       p1: JSON.parse(JSON.stringify(_nmP1)),
       p2: JSON.parse(JSON.stringify(_nmP2)),
@@ -3286,18 +3333,18 @@ function renderTeamMemberSide(match, teamKey, memberIdx, mid, colorSide, slotNum
     const finishTags = b.finishes.map((f, fi) =>
       `<span class="finish-tag ${f}">${f}<button class="finish-tag-remove" onclick="mRemoveTeamFinish(${mid},'${teamKey}',${memberIdx},${bi},${fi})">✕</button></span>`
     ).join('');
+    // Deployed derived from finishes (see note in renderPlayerSide).
+    const isDeployed = (b.finishes && b.finishes.length > 0) || b.deployed;
     return `
       <div class="match-build-row">
         <div class="match-build-name">
-          <input type="checkbox" class="deploy-toggle" ${b.deployed ? 'checked' : ''}
-            onchange="mToggleTeamDeploy(${mid},'${teamKey}',${memberIdx},${bi},this.checked)" title="Deployed?" />
+          <input type="checkbox" class="deploy-toggle" ${isDeployed ? 'checked' : ''}
+            onchange="mToggleTeamDeploy(${mid},'${teamKey}',${memberIdx},${bi},this.checked)" title="Deployed without recording any finish? (auto-checked when any finish is added)" />
           <span title="${escHtml(b.build)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:90px">${escHtml(b.build) || '<em style="color:var(--muted2)">unnamed</em>'}</span>
         </div>
         <div class="match-build-finishes">
           ${finishTags}
-          ${b.deployed
-            ? `<button class="add-finish-btn" onclick="openTeamPicker(event,${mid},'${teamKey}',${memberIdx},${bi})">+ Finish</button>`
-            : `<span style="font-size:9px;color:var(--muted2);font-family:'Share Tech Mono',monospace">not deployed</span>`}
+          <button class="add-finish-btn" onclick="openTeamPicker(event,${mid},'${teamKey}',${memberIdx},${bi})">+ Finish</button>
         </div>
       </div>`;
   }).join('');
@@ -3335,18 +3382,20 @@ function renderPlayerSide(match, side, mid) {
     const finishTags = b.finishes.map((f, fi) =>
       `<span class="finish-tag ${f}">${f}<button class="finish-tag-remove" onclick="mRemoveFinish(${mid},'${side}',${bi},${fi})">✕</button></span>`
     ).join('');
+    // Deployed is now derived from finishes: any finish (including L) means deployed.
+    // Checkbox is kept ONLY as a manual override to mark "no-show / forfeit" deploy
+    // for builds that were brought to the table but not used (no finishes recorded).
+    const isDeployed = (b.finishes && b.finishes.length > 0) || b.deployed;
     return `
       <div class="match-build-row">
         <div class="match-build-name">
-          <input type="checkbox" class="deploy-toggle" ${b.deployed ? 'checked' : ''}
-            onchange="mToggleDeploy(${mid},'${side}',${bi},this.checked)" title="Deployed?" />
+          <input type="checkbox" class="deploy-toggle" ${isDeployed ? 'checked' : ''}
+            onchange="mToggleDeploy(${mid},'${side}',${bi},this.checked)" title="Deployed without recording any finish? (auto-checked when any finish is added)" />
           <span title="${escHtml(b.build)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px">${escHtml(b.build) || '<em style="color:var(--muted2)">unnamed</em>'}</span>
         </div>
         <div class="match-build-finishes">
           ${finishTags}
-          ${b.deployed
-            ? `<button class="add-finish-btn" onclick="openPicker(event,${mid},'${side}',${bi})">+ Finish</button>`
-            : `<span style="font-size:9px;color:var(--muted2);font-family:'Share Tech Mono',monospace">not deployed</span>`}
+          <button class="add-finish-btn" onclick="openPicker(event,${mid},'${side}',${bi})">+ Finish</button>
         </div>
       </div>`;
   }).join('');
@@ -3459,8 +3508,17 @@ function mToggleWin(mid, side) {
 function mToggleDeploy(mid, side, buildIdx, val) {
   const m = matchesState.find(x => x.id === mid);
   if (!m || !m[side]) return;
-  m[side].builds[buildIdx].deployed = val;
-  if (!val) m[side].builds[buildIdx].finishes = [];
+  const b = m[side].builds[buildIdx];
+  if (!b) return;
+  // If unchecking but finishes exist, the user is trying to "un-deploy" a build
+  // that already has results. Block this — they need to remove the finishes first.
+  if (!val && (b.finishes || []).length > 0) {
+    showToast('Remove all finishes first to mark this build as not deployed.', '');
+    renderResults(); // re-render to put the checkbox back
+    return;
+  }
+  b.deployed = val;
+  // (Finishes empty already if we got here; nothing to clear.)
   flattenMatchesToResults();
   markDirty();
   renderResults();
@@ -3469,7 +3527,11 @@ function mToggleDeploy(mid, side, buildIdx, val) {
 function mRemoveFinish(mid, side, buildIdx, finishIdx) {
   const m = matchesState.find(x => x.id === mid);
   if (!m || !m[side]) return;
-  m[side].builds[buildIdx].finishes.splice(finishIdx, 1);
+  const b = m[side].builds[buildIdx];
+  if (!b) return;
+  b.finishes.splice(finishIdx, 1);
+  // Auto-undeploy when last finish removed (no finishes = not deployed)
+  if (b.finishes.length === 0) b.deployed = false;
   flattenMatchesToResults();
   markDirty();
   renderResults();
@@ -3494,8 +3556,15 @@ function mToggleTeamDeploy(mid, teamKey, memberIdx, buildIdx, val) {
   if (!m || !m[teamKey]) return;
   const member = m[teamKey].members[memberIdx];
   if (!member) return;
-  member.builds[buildIdx].deployed = val;
-  if (!val) member.builds[buildIdx].finishes = [];
+  const b = member.builds[buildIdx];
+  if (!b) return;
+  // If unchecking but finishes exist, block — user must remove finishes first.
+  if (!val && (b.finishes || []).length > 0) {
+    showToast('Remove all finishes first to mark this build as not deployed.', '');
+    renderResults();
+    return;
+  }
+  b.deployed = val;
   // If member now has no finishes at all, remove from _playOrder so row resets
   const hasAnyFinish = member.builds.some(b => (b.finishes||[]).length > 0);
   if (!hasAnyFinish && m._playOrder?.[teamKey]) {
@@ -3511,7 +3580,16 @@ function mRemoveTeamFinish(mid, teamKey, memberIdx, buildIdx, finishIdx) {
   if (!m || !m[teamKey]) return;
   const member = m[teamKey].members[memberIdx];
   if (!member) return;
-  member.builds[buildIdx].finishes.splice(finishIdx, 1);
+  const b = member.builds[buildIdx];
+  if (!b) return;
+  b.finishes.splice(finishIdx, 1);
+  // Auto-undeploy when last finish removed (no finishes = not deployed)
+  if (b.finishes.length === 0) b.deployed = false;
+  // If member now has NO finishes anywhere, remove from _playOrder
+  const hasAnyFinish = member.builds.some(bb => (bb.finishes||[]).length > 0);
+  if (!hasAnyFinish && m._playOrder?.[teamKey]) {
+    m._playOrder[teamKey] = m._playOrder[teamKey].filter(i => i !== memberIdx);
+  }
   flattenMatchesToResults();
   markDirty();
   renderResults();
@@ -5079,7 +5157,6 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
   // Convert server beyResults → matchesState format
   const serverMatches = [];
   const rounds = [...new Set(serverResults.map(r => r.round))];
-  let counter = 9000; // high IDs to avoid collision
   for (const round of rounds) {
     const entries = serverResults.filter(r => r.round === round);
 
@@ -5090,19 +5167,23 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
     // Group team entries by pair of teams
     if (teamEntries.length) {
       const teamNames = [...new Set(teamEntries.map(e => e.team))];
+      const teamPairCount = {};
       // Pair teams up 2 at a time
       for (let i = 0; i < teamNames.length; i += 2) {
         const t1name = teamNames[i];
         const t2name = teamNames[i+1];
-        if (!t1name) continue;
+        if (!t1name || !t2name) continue; // skip orphan team
         const t1members = teamEntries.filter(e => e.team === t1name).map(e => ({ player: e.player, builds: e.builds || [], win: e.win }));
-        const t2members = t2name ? teamEntries.filter(e => e.team === t2name).map(e => ({ player: e.player, builds: e.builds || [], win: e.win })) : [];
+        const t2members = teamEntries.filter(e => e.team === t2name).map(e => ({ player: e.player, builds: e.builds || [], win: e.win }));
         // Restore _playOrder from first team1 entry that has it
         const playOrderEntry = teamEntries.find(e => e.team === t1name && e._playOrder);
         const submittedEntry = teamEntries.find(e => e.team === t1name && e._submitted);
-        serverMatches.push({ _sid: `${round}|T|${t1name}|${t2name||''}`, round, isTeamMatch: true,
+        const pairKey = `${t1name}||${t2name}`;
+        const idx = (teamPairCount[pairKey] || 0);
+        teamPairCount[pairKey] = idx + 1;
+        serverMatches.push({ _sid: _teamSid(round, t1name, t2name, idx), round, isTeamMatch: true,
           team1: { teamName: t1name, members: t1members },
-          team2: t2name ? { teamName: t2name, members: t2members } : null,
+          team2: { teamName: t2name, members: t2members },
           p1: t1members[0] || null, p2: t2members[0] || null,
           _playOrder: playOrderEntry ? playOrderEntry._playOrder : undefined,
           submitted: submittedEntry ? true : false
@@ -5111,13 +5192,18 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
     }
 
     // Solo entries grouped 2-at-a-time
+    const soloPairCount = {};
     for (let i = 0; i < soloEntries.length; i += 2) {
       const p1 = soloEntries[i];
       const p2 = soloEntries[i+1];
-      serverMatches.push({ _sid: `${round}|${p1.player}|${p2 ? p2.player : ''}`,
+      if (!p1 || !p2) continue; // skip orphan/no-enemy from server too
+      const pairKey = `${p1.player}||${p2.player}`;
+      const idx = (soloPairCount[pairKey] || 0);
+      soloPairCount[pairKey] = idx + 1;
+      serverMatches.push({ _sid: _soloSid(round, p1.player, p2.player, idx),
         round,
         p1: { player: p1.player, builds: p1.builds || [], win: p1.win },
-        p2: p2 ? { player: p2.player, builds: p2.builds || [], win: p2.win } : null,
+        p2: { player: p2.player, builds: p2.builds || [], win: p2.win },
         submitted: p1._submitted ? true : false
       });
     }
@@ -5130,24 +5216,45 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
     const serverSids = new Set(serverMatches.map(m => m._sid).filter(Boolean));
     const localSids  = new Set(matchesState.map(m => m._sid).filter(Boolean));
 
-    // Remove any local matches that have been deleted on the server
+    // Remove any local matches that have been deleted on the server.
+    // IMPORTANT: only remove if the match has an _sid (was previously synced).
+    // Brand-new local matches that haven't been pushed yet have no _sid and
+    // must be preserved here so a sync race doesn't blow them away.
     const before = matchesState.length;
     matchesState = matchesState.filter(m => !m._sid || serverSids.has(m._sid));
     if (matchesState.length !== before) changed = true;
 
-    // Add any new matches that appeared on the server
+    // Add any new matches that appeared on the server, OR if a local
+    // unsynced match (no _sid) corresponds to one of the server matches
+    // by player/round, attach the server _sid to the local match instead
+    // of creating a duplicate.
     for (const sm of serverMatches) {
-      if (!localSids.has(sm._sid)) {
-        sm.id = _matchIdCounter++;
-        sm.collapsed = true;
-        sm.submitted = false;
-        matchesState.push(sm);
-        changed = true;
-      } else {
+      if (localSids.has(sm._sid)) {
         // Preserve submitted flag on existing local match
         const local = matchesState.find(m => m._sid === sm._sid);
         if (local && local.submitted) sm.submitted = true;
+        continue;
       }
+      // Try to attach this server _sid to a matching local UNSYNCED match
+      // (created locally, never pushed). Match by round + player names.
+      const orphan = matchesState.find(m => !m._sid && m.round === sm.round && (
+        sm.isTeamMatch
+          ? (m.isTeamMatch && m.team1?.teamName === sm.team1.teamName && m.team2?.teamName === sm.team2.teamName)
+          : (!m.isTeamMatch && m.p1?.player === sm.p1.player && m.p2?.player === sm.p2.player)
+      ));
+      if (orphan) {
+        orphan._sid = sm._sid;
+        // Don't overwrite local data — local user is mid-edit. Just adopt the _sid.
+        localSids.add(sm._sid);
+        continue;
+      }
+      // Truly new from server → add it
+      sm.id = _matchIdCounter++;
+      sm.collapsed = true;
+      // Preserve the submitted flag from the server (line above sets it from _submitted)
+      matchesState.push(sm);
+      localSids.add(sm._sid);
+      changed = true;
     }
     if (changed) flattenMatchesToResults();
     return changed;
@@ -5159,7 +5266,7 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
     const existing = matchesState.find(m => m._sid === sm._sid);
     sm.id        = existing ? existing.id        : _matchIdCounter++;
     sm.collapsed = existing ? existing.collapsed : true;
-    sm.submitted = existing ? existing.submitted : false;
+    // Server is authoritative for submitted status when not dirty
     return sm;
   });
 
@@ -5199,6 +5306,9 @@ async function submitMatch(mid) {
   const btn = card ? card.querySelector('.btn.success') : null;
   if (btn) { btn.textContent = '⏳ Submitting…'; btn.disabled = true; }
 
+  // Pause sync so it can't run between merge and push
+  _syncPaused = true;
+
   try {
     // 1. Fetch latest server state
     const latestRes = await fetch(`/api/beyresults?eventId=${currentEvent.id}&_t=${Date.now()}`);
@@ -5207,16 +5317,35 @@ async function submitMatch(mid) {
     const serverResults = latestData.beyResults || [];
     const serverBuilds  = latestData.builds     || {};
 
-    // 2. Merge server state locally (don't touch dirty local matches)
-    mergeIncomingMatches(serverBuilds, serverResults);
-
-    // 3. Make sure THIS match is in the merged state
-    const existingIdx = matchesState.findIndex(m => m.id === mid);
-    if (existingIdx === -1) matchesState.push(match);
+    // 2. Mark this match submitted BEFORE merge so the merge preserves it correctly
     match.submitted = true;
     match.collapsed = false; // keep expanded so you can see the submitted results
 
-    // 4. Flatten and push
+    // 3. Merge server state. Because `match` has a stable _sid, the merge will
+    // recognize it as already present and won't create a duplicate.
+    mergeIncomingMatches(serverBuilds, serverResults);
+
+    // 4. Defensive: ensure THIS match (by id) is still present after merge.
+    // If the merge somehow dropped it (shouldn't happen now), re-attach.
+    if (!matchesState.some(m => m.id === mid)) {
+      // Don't blindly push the orphan — only push if no other match has the same _sid
+      const sidDup = match._sid && matchesState.some(m => m._sid === match._sid);
+      if (!sidDup) matchesState.push(match);
+    }
+
+    // 5. Defensive: collapse any accidental duplicate matches with the same _sid.
+    // Prefer THIS match (the one the user is submitting) — they explicitly asked
+    // for these results to be the canonical version. Only fall back to a
+    // sibling duplicate if `match` itself was somehow dropped.
+    if (match._sid) {
+      const dups = matchesState.filter(m => m._sid === match._sid);
+      if (dups.length > 1) {
+        const keep = dups.includes(match) ? match : dups[0];
+        matchesState = matchesState.filter(m => m._sid !== match._sid || m === keep);
+      }
+    }
+
+    // 6. Flatten and push
     flattenMatchesToResults();
 
     const res = await fetch('/api/beyresults', {
@@ -5241,6 +5370,8 @@ async function submitMatch(mid) {
     showToast('❌ Submit failed: ' + e.message, 'error');
     if (btn) { btn.textContent = '⬆ Submit'; btn.disabled = false; }
     match.submitted = false;
+  } finally {
+    _syncPaused = false;
   }
 }
 
@@ -5548,6 +5679,32 @@ async function saveAll() {
 // ─────────────────────────────────────────────
 // SYNC BLADER STATS → gamedata_s3
 // ─────────────────────────────────────────────
+// PLAYER NAME NORMALIZATION
+// Used by both archiveBeyResultsToGamedata and syncBladerStats so the
+// archived event data and the bladerStats summary stay keyed consistently.
+// - Trims surrounding whitespace
+// - Collapses internal multi-spaces to a single space
+// - When merging into existing bladerStats, picks the canonical case-variant
+//   that's already present so "klent", "Klent ", and "KLENT" all flow into
+//   one entry instead of creating spurious duplicates.
+// ─────────────────────────────────────────────
+function _normalizePlayerName(raw) {
+  return String(raw || '').trim().replace(/\s+/g, ' ');
+}
+// Resolve to the bladerStats key that already represents this player, if any.
+// Falls back to the cleaned/normalized form when no match exists.
+function _resolveBladerKey(rawName, bladerStatsRef) {
+  const norm = _normalizePlayerName(rawName);
+  if (!norm) return '';
+  const ref = bladerStatsRef || {};
+  if (ref[norm]) return norm; // exact (after trim) match
+  const lower = norm.toLowerCase();
+  for (const k of Object.keys(ref)) {
+    if (_normalizePlayerName(k).toLowerCase() === lower) return k;
+  }
+  return norm;
+}
+
 // ─────────────────────────────────────────────
 // ARCHIVE BEY RESULTS → gamedata (persists across event deletion)
 // ─────────────────────────────────────────────
@@ -5559,6 +5716,39 @@ async function archiveBeyResultsToGamedata() {
   if (!gdRes.ok) return; // non-fatal — bladerStats sync will still run
   const gdData  = await gdRes.json();
   const archive = gdData.archivedBeyResults || [];
+
+  // ── Normalize player names so the archive matches bladerStats keying ──
+  // Without this, " Klent" stays " Klent" in archivedBeyResults even though
+  // bladerStats merged it into "Klent", causing index.html's per-player Bey
+  // Rankings to treat the same person as two separate bladers.
+  const existingBladerStats = (gdData.bladerStats || {});
+  // Build a deep copy of resultsState so we don't mutate the user's live state.
+  const cleanedResults = resultsState.map(entry => {
+    const e = JSON.parse(JSON.stringify(entry));
+    e.player = _resolveBladerKey(e.player, existingBladerStats) || _normalizePlayerName(e.player);
+    return e;
+  });
+  // Builds map: keys are player names too — clean them, merging duplicates.
+  const cleanedBuilds = {};
+  for (const [rawKey, val] of Object.entries(buildsState || {})) {
+    const cleanKey = _resolveBladerKey(rawKey, existingBladerStats) || _normalizePlayerName(rawKey);
+    if (!cleanKey) continue;
+    if (cleanedBuilds[cleanKey]) {
+      // Merge: prefer the longest non-empty entry per slot to preserve real data
+      const existing = cleanedBuilds[cleanKey];
+      const merged = [];
+      const max = Math.max(existing.length, (val || []).length);
+      for (let i = 0; i < max; i++) {
+        const a = existing[i] || '';
+        const b = (val || [])[i] || '';
+        merged[i] = a.length >= b.length ? a : b;
+      }
+      cleanedBuilds[cleanKey] = merged;
+    } else {
+      cleanedBuilds[cleanKey] = JSON.parse(JSON.stringify(val || []));
+    }
+  }
+
   // Replace this event's entry with fresh data
   const filtered = archive.filter(e => e.id !== currentEvent.id);
   filtered.push({
@@ -5566,8 +5756,8 @@ async function archiveBeyResultsToGamedata() {
     title:      currentEvent.title  || '',
     season:     currentEvent.season || 's3',
     date:       currentEvent.date   || '',
-    builds:     buildsState,
-    beyResults: resultsState
+    builds:     cleanedBuilds,
+    beyResults: cleanedResults
   });
   gdData.archivedBeyResults = filtered;
   await fetch(`/api/data?key=${dataKey}`, {
@@ -5594,10 +5784,12 @@ async function syncBladerStats() {
   // Strategy: load existing stats, subtract this event's previous contribution, add new
   const eventId = currentEvent.id;
 
-  // Build per-player totals from current resultsState
+  // ─── Build per-player totals from current resultsState — keyed by canonical name ───
+  // (See _normalizePlayerName / _resolveBladerKey at module scope for why this matters.)
   const perPlayer = {};
   for (const entry of resultsState) {
-    const name = entry.player;
+    const name = _resolveBladerKey(entry.player, bladerStats);
+    if (!name) continue; // skip blank/whitespace-only player names
     if (!perPlayer[name]) {
       perPlayer[name] = {
         matchPoints: 0,
@@ -5630,9 +5822,26 @@ async function syncBladerStats() {
   }
 
   // Merge into bladerStats
-  // We store a snapshot of this event's contribution so re-saves don't double-count
+  // We store a snapshot of this event's contribution so re-saves don't double-count.
+  // The previous snapshot may have been written under a slightly-different key
+  // (e.g. with a stray space). Build a normalized lookup so prev contributions
+  // still subtract correctly even if the player's name has been cleaned up.
   const prevSnapshots = gdData.eventSnapshots || {};
   const prevSnap = prevSnapshots[eventId] || {};
+  const prevSnapNormalized = {};
+  for (const [k, v] of Object.entries(prevSnap)) {
+    const nk = _normalizePlayerName(k).toLowerCase();
+    if (!nk) continue;
+    // If multiple raw keys collapse to the same canonical key, sum them so we
+    // subtract the full prior contribution rather than just the last one.
+    if (!prevSnapNormalized[nk]) prevSnapNormalized[nk] = { ...v };
+    else {
+      const acc = prevSnapNormalized[nk];
+      for (const f of ['wins','losses','matchesPlayed','matchPoints','spinFinishes','overFinishes','extremeFinishes','burstFinishes']) {
+        acc[f] = (acc[f] || 0) + (v[f] || 0);
+      }
+    }
+  }
 
   for (const [name, stats] of Object.entries(perPlayer)) {
     if (!bladerStats[name]) {
@@ -5643,7 +5852,7 @@ async function syncBladerStats() {
       };
     }
     const st = bladerStats[name];
-    const prev = (prevSnap[name]) || {};
+    const prev = prevSnapNormalized[name.toLowerCase()] || {};
 
     // Subtract previous contribution from this event, add new
     st.wins           = Math.max(0, (st.wins           || 0) - (prev.wins           || 0) + stats.wins);
@@ -5654,6 +5863,28 @@ async function syncBladerStats() {
     st.overFinishes   = Math.max(0, (st.overFinishes   || 0) - (prev.overFinishes   || 0) + stats.overFinishes);
     st.extremeFinishes= Math.max(0, (st.extremeFinishes|| 0) - (prev.extremeFinishes|| 0) + stats.extremeFinishes);
     st.burstFinishes  = Math.max(0, (st.burstFinishes  || 0) - (prev.burstFinishes  || 0) + stats.burstFinishes);
+  }
+
+  // ── Cleanup: remove any stray duplicate bladerStats keys that differ from
+  // their canonical form only by whitespace/casing AND have no useful data
+  // (no photo, all-zero stats). We never delete entries that hold data.
+  const canonicalKeys = new Set(Object.keys(perPlayer));
+  for (const k of Object.keys(bladerStats)) {
+    if (canonicalKeys.has(k)) continue;
+    const stripped = _normalizePlayerName(k).toLowerCase();
+    if (!stripped) continue;
+    let hasCanonicalCounterpart = false;
+    for (const ck of canonicalKeys) {
+      if (ck.toLowerCase() === stripped && ck !== k) { hasCanonicalCounterpart = true; break; }
+    }
+    if (!hasCanonicalCounterpart) continue;
+    const dup = bladerStats[k] || {};
+    const isEmpty = !dup.photo && !dup.bgPhoto
+      && !(dup.wins||0) && !(dup.losses||0) && !(dup.matchesPlayed||0)
+      && !(dup.matchPoints||0) && !(dup.spinFinishes||0)
+      && !(dup.overFinishes||0) && !(dup.extremeFinishes||0)
+      && !(dup.burstFinishes||0);
+    if (isEmpty) delete bladerStats[k];
   }
 
   // Save the new snapshot for this event
