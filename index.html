@@ -648,6 +648,11 @@
     transition: opacity .25s;
   }
   .modal-overlay.open { opacity: 1; pointer-events: all; }
+  /* The bey-edit modal can be opened from INSIDE the blader profile modal
+     (which sits at z-index 9100), so it needs to stack above the profile to
+     remain interactive. Otherwise the admin sees the error/confirm UI
+     trapped behind the profile and has to close the profile to read it. */
+  #bey-edit-modal { z-index: 9200; }
   .modal {
     background: var(--surface); border: 1px solid var(--border2);
     border-radius: 16px; padding: 32px; width: 100%; max-width: 400px;
@@ -3235,18 +3240,25 @@ async function loadBeyRankingsData() {
 
   // Build merged map: eventId → event object with beyResults
   // Priority: liveEvents > beyApiEvents > archivedEvts
+  // Defensive: skip any event entry without a usable id. Without an id we
+  // can't ever PUT changes back to /api/beyresults (the server rejects with
+  // "eventId required"), so showing them in rankings would create rows the
+  // admin can't fix.
   const merged = new Map();
 
   // Start with archived (lowest priority)
   for (const e of archivedEvts) {
+    if (!e || !e.id) continue;
     if (e.beyResults && e.beyResults.length > 0) merged.set(e.id, e);
   }
   // Overlay with beyresults API
   for (const e of beyApiEvents) {
+    if (!e || !e.id) continue;
     if (e.beyResults && e.beyResults.length > 0) merged.set(e.id, e);
   }
   // Overlay with live events (highest priority)
   for (const e of liveEvents) {
+    if (!e || !e.id) continue;
     if (e.beyResults && e.beyResults.length > 0) merged.set(e.id, e);
     else if (!merged.has(e.id) && e.beyResults !== undefined) merged.set(e.id, e);
   }
@@ -3832,6 +3844,13 @@ async function confirmBeyEdit() {
 
     // Save each affected event
     for (const eventId of affectedEventIds) {
+      // Defensive: skip falsy IDs (could happen if an archived event entry
+      // lost its `id` field at some point — server would reject these with
+      // "eventId required").
+      if (!eventId) {
+        console.warn('[confirmBeyEdit] Skipping event with missing id');
+        continue;
+      }
       const ev = data.events.find(e => e.id === eventId);
       if (!ev) continue;
       const res = await fetch('/api/beyresults', {
