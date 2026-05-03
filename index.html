@@ -3308,7 +3308,11 @@ function renderGlobalBeyRankings(events, query) {
   for (const ev of events) {
     for (const entry of (ev.beyResults || [])) {
       for (const b of (entry.builds || [])) {
-        if (!b.build || !b.deployed) continue;
+        // A build counts if it was explicitly deployed OR has any finishes recorded.
+        // This keeps legacy data (where deployed flag wasn't always set) ranking
+        // and matches the eventmanager rule "no finishes = not deployed".
+        if (!b.build) continue;
+        if (!b.deployed && !(b.finishes && b.finishes.length)) continue;
         const key = b.build.trim();
         if (!buildMap[key]) buildMap[key] = { wins: 0, losses: 0, played: 0, players: new Set() };
         const bm = buildMap[key];
@@ -3361,6 +3365,7 @@ function renderGlobalBeyRankings(events, query) {
       <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px">
         <span class="br-val highlight">${r.winRate.toFixed(1)}%</span>
         <div class="br-row-actions">
+          <button class="br-edit-btn"   onclick="openBeyEditModal('editstats','${escJs(r.build)}',null)" style="background:#001a14;border-color:#3aa37a;color:#3aa37a" title="Edit wins/losses for this build">📊 STATS</button>
           <button class="br-edit-btn"   onclick="openBeyEditModal('rename','${escJs(r.build)}',null)">✏️ RENAME</button>
           <button class="br-delete-btn" onclick="openBeyEditModal('delete','${escJs(r.build)}',null)">🗑 DELETE</button>
         </div>
@@ -3377,7 +3382,9 @@ function renderSoloBeyRankings(events, query) {
   for (const ev of events) {
     for (const entry of (ev.beyResults || [])) {
       for (const b of (entry.builds || [])) {
-        if (!b.build || !b.deployed) continue;
+        // Same permissive rule as global rankings — counts if deployed OR has finishes.
+        if (!b.build) continue;
+        if (!b.deployed && !(b.finishes && b.finishes.length)) continue;
         const key = entry.player + '::' + b.build.trim();
         if (!soloMap[key]) soloMap[key] = { player: entry.player, build: b.build.trim(), wins: 0, losses: 0, played: 0 };
         const sm = soloMap[key];
@@ -3426,6 +3433,7 @@ function renderSoloBeyRankings(events, query) {
       <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px">
         <span class="br-val highlight">${r.winRate.toFixed(1)}%</span>
         <div class="br-row-actions">
+          <button class="br-edit-btn"   onclick="openBeyEditModal('editstats','${escJs(r.build)}','${escJs(r.player)}')" style="background:#001a14;border-color:#3aa37a;color:#3aa37a" title="Edit wins/losses for this build/player">📊 STATS</button>
           <button class="br-edit-btn"   onclick="openBeyEditModal('rename','${escJs(r.build)}','${escJs(r.player)}')">✏️ RENAME</button>
           <button class="br-delete-btn" onclick="openBeyEditModal('delete','${escJs(r.build)}','${escJs(r.player)}')">🗑 DELETE</button>
         </div>
@@ -3442,7 +3450,9 @@ function getPlayerTop3Beys(playerName, allEventData) {
     for (const entry of (ev.beyResults || [])) {
       if (entry.player !== playerName) continue;
       for (const b of (entry.builds || [])) {
-        if (!b.build || !b.deployed) continue;
+        // Same permissive rule — counts if deployed OR has finishes.
+        if (!b.build) continue;
+        if (!b.deployed && !(b.finishes && b.finishes.length)) continue;
         const key = b.build.trim();
         if (!buildMap[key]) buildMap[key] = { wins: 0, losses: 0, played: 0 };
         for (const f of (b.finishes || [])) {
@@ -3479,6 +3489,10 @@ function openBeyEditModal(action, build, player) {
   const scope = player ? `for <b>${escHtml(player)}</b>` : 'across all bladers';
   document.getElementById('bey-edit-error').textContent = '';
 
+  // Reset both groups, then show only what this action needs
+  document.getElementById('bey-edit-name-group').style.display = 'none';
+  document.getElementById('bey-edit-stats-group').style.display = 'none';
+
   if (action === 'rename') {
     document.getElementById('bey-edit-modal-title').textContent = '✏️ Rename Build';
     document.getElementById('bey-edit-modal-sub').innerHTML =
@@ -3490,14 +3504,57 @@ function openBeyEditModal(action, build, player) {
       const inp = document.getElementById('bey-edit-name-input');
       inp.focus(); inp.select();
     }, 80);
+  } else if (action === 'editstats') {
+    document.getElementById('bey-edit-modal-title').textContent = '📊 Edit Build Stats';
+    document.getElementById('bey-edit-modal-sub').innerHTML =
+      `Editing <b>${escHtml(build)}</b> ${scope}. Useful when finalize migration produced wrong totals.`;
+    document.getElementById('bey-edit-stats-group').style.display = '';
+    document.getElementById('bey-edit-confirm-btn').textContent = '💾 Save Stats';
+    // Pre-fill with current totals
+    const cur = _computeBuildStatsForEdit(build, player);
+    document.getElementById('bey-edit-wins-input').value   = cur.wins;
+    document.getElementById('bey-edit-losses-input').value = cur.losses;
+    document.getElementById('bey-edit-stats-hint').innerHTML =
+      `Current: <b>${cur.wins}W / ${cur.losses}L</b> across ${cur.events} event${cur.events !== 1 ? 's' : ''}. ` +
+      `Adjustments are written as synthetic finishes (S for wins, L for losses) on the most recent event with this build.`;
+    setTimeout(() => {
+      const inp = document.getElementById('bey-edit-wins-input');
+      inp.focus(); inp.select();
+    }, 80);
   } else {
     document.getElementById('bey-edit-modal-title').textContent = '🗑 Delete Build';
     document.getElementById('bey-edit-modal-sub').innerHTML =
       `Delete all records for <b>${escHtml(build)}</b> ${scope}? This cannot be undone.`;
-    document.getElementById('bey-edit-name-group').style.display = 'none';
     document.getElementById('bey-edit-confirm-btn').textContent = '🗑 Delete';
   }
   document.getElementById('bey-edit-modal').classList.add('open');
+}
+
+// Walk cached event data to compute current wins/losses/event-count for a build.
+// Mirrors the rules in renderGlobalBeyRankings / renderSoloBeyRankings.
+function _computeBuildStatsForEdit(build, player) {
+  let wins = 0, losses = 0;
+  const events = new Set();
+  const data = brAllEventData;
+  if (!data || !data.events) return { wins: 0, losses: 0, events: 0 };
+  for (const ev of data.events) {
+    let touched = false;
+    for (const entry of (ev.beyResults || [])) {
+      if (player && entry.player !== player) continue;
+      for (const b of (entry.builds || [])) {
+        if (!b.build) continue;
+        if (b.build.trim() !== build) continue;
+        if (!b.deployed && !(b.finishes && b.finishes.length)) continue;
+        for (const f of (b.finishes || [])) {
+          if (f === 'L') losses++;
+          else if (f && f !== 'L') wins++;
+        }
+        touched = true;
+      }
+    }
+    if (touched) events.add(ev.id);
+  }
+  return { wins, losses, events: events.size };
 }
 
 function closeBeyEditModal() {
@@ -3520,6 +3577,18 @@ async function confirmBeyEdit() {
     errEl.textContent = 'Enter a different build name.'; return;
   }
 
+  // For editstats: read & validate target wins/losses
+  let targetWins = 0, targetLosses = 0;
+  if (action === 'editstats') {
+    targetWins   = parseInt(document.getElementById('bey-edit-wins-input').value,   10);
+    targetLosses = parseInt(document.getElementById('bey-edit-losses-input').value, 10);
+    if (!Number.isFinite(targetWins)   || targetWins   < 0) { errEl.textContent = 'Wins must be 0 or greater.';   return; }
+    if (!Number.isFinite(targetLosses) || targetLosses < 0) { errEl.textContent = 'Losses must be 0 or greater.'; return; }
+  }
+
+  const btnLabel = action === 'rename' ? '✅ Rename'
+                 : action === 'editstats' ? '💾 Save Stats'
+                 : '🗑 Delete';
   const btn = document.getElementById('bey-edit-confirm-btn');
   btn.disabled = true;
   btn.textContent = 'Saving…';
@@ -3529,41 +3598,131 @@ async function confirmBeyEdit() {
     const data = await loadBeyRankingsData();
     const affectedEventIds = new Set();
 
-    for (const ev of (data.events || [])) {
-      let changed = false;
-      for (const entry of (ev.beyResults || [])) {
-        // For solo: only touch the specific player; for global: touch all
-        if (player && entry.player !== player) continue;
-        for (let i = entry.builds.length - 1; i >= 0; i--) {
-          const b = entry.builds[i];
-          if (b.build.trim() !== oldBuild) continue;
-          if (action === 'delete') {
-            entry.builds.splice(i, 1);
-          } else {
-            b.build = newBuild;
+    if (action === 'editstats') {
+      // ── Compute current totals across all events first ──
+      let curWins = 0, curLosses = 0;
+      // Track every (event, entry, build) location so we can adjust them
+      const locations = []; // { ev, entry, build }
+      for (const ev of (data.events || [])) {
+        for (const entry of (ev.beyResults || [])) {
+          if (player && entry.player !== player) continue;
+          for (const b of (entry.builds || [])) {
+            if (!b.build) continue;
+            if (b.build.trim() !== oldBuild) continue;
+            if (!b.deployed && !(b.finishes && b.finishes.length)) continue;
+            for (const f of (b.finishes || [])) {
+              if (f === 'L') curLosses++;
+              else if (f && f !== 'L') curWins++;
+            }
+            locations.push({ ev, entry, build: b });
           }
-          changed = true;
         }
       }
-      // Also update buildsState (the registered build list per player)
-      if (ev.builds) {
-        for (const [pName, buildList] of Object.entries(ev.builds)) {
-          if (player && pName !== player) continue;
-          const idx = buildList.indexOf(oldBuild);
-          if (idx !== -1) {
-            if (action === 'delete') buildList.splice(idx, 1);
-            else buildList[idx] = newBuild;
+
+      if (!locations.length) {
+        errEl.textContent = 'No matching build records found to edit.';
+        btn.disabled = false;
+        btn.textContent = btnLabel;
+        return;
+      }
+
+      const winDelta  = targetWins   - curWins;
+      const lossDelta = targetLosses - curLosses;
+
+      if (winDelta === 0 && lossDelta === 0) {
+        errEl.textContent = 'Stats already match the target — nothing to change.';
+        btn.disabled = false;
+        btn.textContent = btnLabel;
+        return;
+      }
+
+      // ── Apply REMOVALS first (across all locations, newest event last) ──
+      // Removing wins: strip non-L finishes one at a time, oldest-first to preserve recent context.
+      // Removing losses: strip L finishes one at a time.
+      // Sort locations: oldest event first (so removals come from older events first)
+      const locsByDateAsc = [...locations].sort((a, b) =>
+        (a.ev.date || '').localeCompare(b.ev.date || '')
+      );
+
+      let toRemoveWins   = winDelta  < 0 ? -winDelta  : 0;
+      let toRemoveLosses = lossDelta < 0 ? -lossDelta : 0;
+
+      for (const loc of locsByDateAsc) {
+        if (!toRemoveWins && !toRemoveLosses) break;
+        const f = loc.build.finishes || [];
+        for (let i = f.length - 1; i >= 0 && (toRemoveWins || toRemoveLosses); i--) {
+          if (f[i] === 'L' && toRemoveLosses) { f.splice(i, 1); toRemoveLosses--; }
+          else if (f[i] && f[i] !== 'L' && toRemoveWins) { f.splice(i, 1); toRemoveWins--; }
+        }
+        if (loc.build.finishes && loc.build.finishes.length === 0) loc.build.deployed = false;
+        affectedEventIds.add(loc.ev.id);
+      }
+
+      if (toRemoveWins > 0 || toRemoveLosses > 0) {
+        errEl.textContent = `Could only remove some finishes — target requires reducing further than the recorded data allows. (${toRemoveWins} wins / ${toRemoveLosses} losses left.)`;
+        btn.disabled = false;
+        btn.textContent = btnLabel;
+        return;
+      }
+
+      // ── Apply ADDITIONS to the most-recent event with this build ──
+      // We synthesize 'S' (1pt spin) for wins and 'L' (loss) for losses.
+      // All additions go into one entry on the newest event for traceability.
+      if (winDelta > 0 || lossDelta > 0) {
+        const locsByDateDesc = [...locations].sort((a, b) =>
+          (b.ev.date || '').localeCompare(a.ev.date || '')
+        );
+        const target = locsByDateDesc[0];
+        if (!target) {
+          errEl.textContent = 'Could not find an event to attach the new stats to.';
+          btn.disabled = false;
+          btn.textContent = btnLabel;
+          return;
+        }
+        if (!Array.isArray(target.build.finishes)) target.build.finishes = [];
+        for (let i = 0; i < winDelta;  i++) target.build.finishes.push('S');
+        for (let i = 0; i < lossDelta; i++) target.build.finishes.push('L');
+        target.build.deployed = true;
+        affectedEventIds.add(target.ev.id);
+      }
+    } else {
+      // ── rename / delete (unchanged behavior) ──
+      for (const ev of (data.events || [])) {
+        let changed = false;
+        for (const entry of (ev.beyResults || [])) {
+          // For solo: only touch the specific player; for global: touch all
+          if (player && entry.player !== player) continue;
+          for (let i = entry.builds.length - 1; i >= 0; i--) {
+            const b = entry.builds[i];
+            if (b.build.trim() !== oldBuild) continue;
+            if (action === 'delete') {
+              entry.builds.splice(i, 1);
+            } else {
+              b.build = newBuild;
+            }
             changed = true;
           }
         }
+        // Also update buildsState (the registered build list per player)
+        if (ev.builds) {
+          for (const [pName, buildList] of Object.entries(ev.builds)) {
+            if (player && pName !== player) continue;
+            const idx = buildList.indexOf(oldBuild);
+            if (idx !== -1) {
+              if (action === 'delete') buildList.splice(idx, 1);
+              else buildList[idx] = newBuild;
+              changed = true;
+            }
+          }
+        }
+        if (changed) affectedEventIds.add(ev.id);
       }
-      if (changed) affectedEventIds.add(ev.id);
     }
 
     if (!affectedEventIds.size) {
       errEl.textContent = 'No matching records found.';
       btn.disabled = false;
-      btn.textContent = action === 'rename' ? '✅ Rename' : '🗑 Delete';
+      btn.textContent = btnLabel;
       return;
     }
 
@@ -3592,13 +3751,19 @@ async function confirmBeyEdit() {
     brAllEventData = null;
     closeBeyEditModal();
     renderBeyRankings();
-    showToast(action === 'rename'
-      ? `✅ Renamed "${oldBuild}" → "${newBuild}"`
-      : `🗑 Deleted all records for "${oldBuild}"`, 'success');
+    // If the blader profile editor is open for this player, refresh its builds list too
+    const profileNameEl = document.getElementById('pe-display-name');
+    if (profileNameEl && profileNameEl.value && document.getElementById('blader-profile-modal')?.classList.contains('open')) {
+      renderProfileBuildsList(profileNameEl.value);
+    }
+    const successMsg = action === 'rename' ? `✅ Renamed "${oldBuild}" → "${newBuild}"`
+                     : action === 'editstats' ? `📊 Updated "${oldBuild}" to ${targetWins}W / ${targetLosses}L`
+                     : `🗑 Deleted all records for "${oldBuild}"`;
+    showToast(successMsg, 'success');
   } catch(e) {
     errEl.textContent = '❌ ' + e.message;
     btn.disabled = false;
-    btn.textContent = action === 'rename' ? '✅ Rename' : '🗑 Delete';
+    btn.textContent = btnLabel;
   }
 }
 
@@ -4275,6 +4440,47 @@ function ensureBladerStats(name) {
   return bladerStats[name];
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// MATCH POINTS / PPG — derived from finish counts.
+// Beyblade X scoring: Spin = 1, Burst = 2, Over = 2, Extreme = 3.
+// st.matchPoints is kept as an admin-overrideable field; if it's missing or
+// zero we compute it from the finish breakdown so PPG never silently falls
+// back to "season pts / events joined" just because a finalize migration
+// dropped the matchPoints field.
+// ─────────────────────────────────────────────────────────────────────────
+function computeMatchPointsFromFinishes(st) {
+  const s = st || {};
+  return (s.spinFinishes    || 0) * 1
+       + (s.burstFinishes   || 0) * 2
+       + (s.overFinishes    || 0) * 2
+       + (s.extremeFinishes || 0) * 3;
+}
+// Effective match points: explicit value if admin set one, else derived.
+// Explicit zero is treated as "not set" so a fresh stats record with finishes
+// but no matchPoints yet still computes correctly.
+function effectiveMatchPoints(st) {
+  const explicit = (st && st.matchPoints) ? Number(st.matchPoints) : 0;
+  const derived  = computeMatchPointsFromFinishes(st);
+  // Use whichever is larger so the admin-entered override wins when set,
+  // and the finish-derived value wins when no override exists.
+  return Math.max(explicit, derived);
+}
+// Effective matches played: prefer the recorded count, else fall back to
+// wins + losses so PPG works even when matchesPlayed wasn't migrated.
+function effectiveMatchesPlayed(st) {
+  const s = st || {};
+  if (s.matchesPlayed && s.matchesPlayed > 0) return s.matchesPlayed;
+  return (s.wins || 0) + (s.losses || 0);
+}
+// Compute PPG (Average Points Per Game) consistently for any bladerStats record.
+// Returns a string like "2.50" or "—" when there's no data.
+function computePPG(st) {
+  const mp     = effectiveMatchPoints(st);
+  const games  = effectiveMatchesPlayed(st);
+  if (games <= 0 || mp <= 0) return '—';
+  return (mp / games).toFixed(2);
+}
+
 function computeBladerProfile(name) {
   const p = players.find(pl => pl.name === name);
   if (!p) return null;
@@ -4285,16 +4491,16 @@ function computeBladerProfile(name) {
   const rank          = p.rank; // season rank (tied players share same rank)
   const wins           = st.wins || 0;
   const losses         = st.losses || 0;
-  const matchesPlayed  = st.matchesPlayed || 0;
-  const matchPoints    = st.matchPoints || 0;
+  const matchesPlayed  = effectiveMatchesPlayed(st);
+  const matchPoints    = effectiveMatchPoints(st);
   // Match Win Rate = wins / (wins + losses)
   const totalDecided   = wins + losses;
   const winRate        = totalDecided > 0 ? ((wins / totalDecided) * 100).toFixed(1) + '%' : '—';
-  // PPG = total match points earned ÷ total matches played (Swiss 0-6, Finals 0-9)
-  // Falls back to season pts ÷ events if no match point data yet
-  const ppg = matchesPlayed > 0 && matchPoints > 0
-    ? (matchPoints / matchesPlayed).toFixed(2)
-    : eventsJoined > 0 ? (p.total / eventsJoined).toFixed(2) : '0.00';
+  // PPG derives from finish counts — see computeMatchPointsFromFinishes().
+  // Falls back to season-pts/events-joined only when there's truly no match data.
+  let ppg = computePPG(st);
+  if (ppg === '—' && eventsJoined > 0) ppg = (p.total / eventsJoined).toFixed(2);
+  if (ppg === '—') ppg = '0.00';
   return { name, rank, total: p.total, gamesPlayed: matchesPlayed, eventsJoined, gamesTotal, attendRate, ppg, winRate, wins, losses,
            photo: st.photo||'',
            spinFinishes: st.spinFinishes||0, burstFinishes: st.burstFinishes||0,
@@ -4374,7 +4580,41 @@ function openBladerProfile(name) {
   modal.querySelector('#pe-extreme').value         = st.extremeFinishes||0;
   modal.querySelector('#pe-wins-input').value      = st.wins||0;
   modal.querySelector('#pe-losses-input').value    = st.losses||0;
-  modal.querySelector('#pe-matchpts-input').value  = st.matchPoints||0;
+  // Pre-fill total match points from the finish-derived formula so admin
+  // sees the auto-computed baseline. They can still override it.
+  // Spin=1, Burst=2, Over=2, Extreme=3.
+  const _autoMatchPts = computeMatchPointsFromFinishes(st);
+  // If the admin has previously set a value that's bigger than the derived,
+  // show that — otherwise show the derived value as the suggested starting point.
+  modal.querySelector('#pe-matchpts-input').value  = Math.max(st.matchPoints || 0, _autoMatchPts);
+  // Wire up live recalculation: when admin tweaks any finish count, the
+  // match-points input updates to reflect the formula. If they've manually
+  // edited match-points (so it differs from formula) we leave their override
+  // alone to avoid clobbering intentional tweaks.
+  const _recalcMatchPts = () => {
+    const fakeSt = {
+      spinFinishes:    parseInt(modal.querySelector('#pe-spin').value)    || 0,
+      burstFinishes:   parseInt(modal.querySelector('#pe-burst').value)   || 0,
+      overFinishes:    parseInt(modal.querySelector('#pe-over').value)    || 0,
+      extremeFinishes: parseInt(modal.querySelector('#pe-extreme').value) || 0,
+    };
+    const newAuto = computeMatchPointsFromFinishes(fakeSt);
+    const inp = modal.querySelector('#pe-matchpts-input');
+    // Track admin edits via dataset flag — don't overwrite their custom override.
+    if (!inp.dataset.adminEdited) inp.value = newAuto;
+  };
+  ['#pe-spin','#pe-burst','#pe-over','#pe-extreme'].forEach(sel => {
+    const el = modal.querySelector(sel);
+    if (el) {
+      el.removeEventListener('input', _recalcMatchPts);
+      el.addEventListener('input', _recalcMatchPts);
+    }
+  });
+  const mpInput = modal.querySelector('#pe-matchpts-input');
+  if (mpInput) {
+    mpInput.removeAttribute('data-admin-edited');
+    mpInput.oninput = () => { mpInput.dataset.adminEdited = '1'; };
+  }
 
   // populate event scores override grid
   const p = players.find(pl => pl.name === name);
@@ -4412,6 +4652,68 @@ function openBladerProfile(name) {
         <span class="top3-bey-wr">${b.winRate.toFixed(1)}%</span>
         <span class="top3-bey-wl">${b.wins}W ${b.losses}L</span>
       </div>`).join('');
+  });
+
+  // ── Manage Builds list (admin only) ──
+  // Reuses openBeyEditModal which already powers the Bey Rankings tab.
+  renderProfileBuildsList(name);
+}
+
+// Render the per-player builds management list inside the profile editor.
+// Used to fix migration errors without leaving the profile.
+function renderProfileBuildsList(playerName) {
+  const container = document.getElementById('pe-builds-list');
+  if (!container) return;
+  if (!isAdmin) {
+    container.innerHTML = '<div style="font-size:11px;color:var(--muted2);text-align:center;padding:8px">Admin-only.</div>';
+    return;
+  }
+  container.innerHTML = '<div style="font-size:11px;color:var(--muted2);text-align:center;padding:12px">Loading…</div>';
+  loadBeyRankingsData().then(data => {
+    // Aggregate this player's builds across all events: build → {wins, losses, played}
+    const map = {}; // build → { wins, losses, played }
+    for (const ev of (data.events || [])) {
+      for (const entry of (ev.beyResults || [])) {
+        if (entry.player !== playerName) continue;
+        for (const b of (entry.builds || [])) {
+          if (!b.build) continue;
+          // Match the permissive rule used elsewhere — count if deployed OR has finishes
+          if (!b.deployed && !(b.finishes && b.finishes.length)) continue;
+          const key = b.build.trim();
+          if (!map[key]) map[key] = { wins: 0, losses: 0, played: 0 };
+          for (const f of (b.finishes || [])) {
+            if (f === 'L')               { map[key].losses++; map[key].played++; }
+            else if (f && f !== 'L')     { map[key].wins++;   map[key].played++; }
+          }
+        }
+      }
+    }
+
+    const rows = Object.entries(map)
+      .filter(([, s]) => s.played > 0)
+      .map(([build, s]) => ({ build, ...s, winRate: s.played > 0 ? (s.wins / s.played * 100) : 0 }))
+      .sort((a, b) => b.winRate - a.winRate || b.wins - a.wins);
+
+    if (!rows.length) {
+      container.innerHTML = '<div style="font-size:11px;color:var(--muted2);text-align:center;padding:8px">No build records yet for this blader.</div>';
+      return;
+    }
+
+    container.innerHTML = rows.map(r => `
+      <div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:8px 10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.build)}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">${r.wins}W · ${r.losses}L · ${r.winRate.toFixed(1)}%</div>
+        </div>
+        <button class="br-edit-btn" style="background:#001a14;border-color:#3aa37a;color:#3aa37a;font-size:10px;padding:3px 7px"
+          onclick="openBeyEditModal('editstats','${escJs(r.build)}','${escJs(playerName)}')" title="Edit wins/losses">📊</button>
+        <button class="br-edit-btn" style="font-size:10px;padding:3px 7px"
+          onclick="openBeyEditModal('rename','${escJs(r.build)}','${escJs(playerName)}')" title="Rename build">✏️</button>
+        <button class="br-delete-btn" style="font-size:10px;padding:3px 7px"
+          onclick="openBeyEditModal('delete','${escJs(r.build)}','${escJs(playerName)}')" title="Delete build">🗑</button>
+      </div>`).join('');
+  }).catch(e => {
+    container.innerHTML = `<div style="font-size:11px;color:var(--red);text-align:center;padding:8px">Failed to load builds: ${escHtml(e.message)}</div>`;
   });
 }
 
@@ -5794,11 +6096,11 @@ function buildSeasonStatRows(player, data) {
   const losses       = st.losses || 0;
   const totalDecided = wins + losses;
   const winRate      = totalDecided > 0 ? ((wins / totalDecided) * 100).toFixed(1) + '%' : '—';
-  const matchPts     = st.matchPoints || 0;
-  const matchesPlayed= st.matchesPlayed || 0;
-  const ppg          = matchesPlayed > 0 && matchPts > 0
-    ? (matchPts / matchesPlayed).toFixed(2)
-    : eventsJoined > 0 ? (player.total / eventsJoined).toFixed(2) : '0.00';
+  const matchPts     = effectiveMatchPoints(st);
+  const matchesPlayed= effectiveMatchesPlayed(st);
+  let ppg = computePPG(st);
+  if (ppg === '—' && eventsJoined > 0) ppg = (player.total / eventsJoined).toFixed(2);
+  if (ppg === '—') ppg = '0.00';
   const rankEmoji    = player.rank === 1 ? '👑 ' : player.rank === 2 ? '🥈 ' : player.rank === 3 ? '🥉 ' : '#';
   const rows = [
     ['Season Rank',     rankEmoji + (player.rank || '—')],
@@ -5914,8 +6216,8 @@ async function loadProfileSeasonData(aliases) {
   const totalDecided = totalWins + totalLosses;
   const overallWinRate = totalDecided > 0 ? ((totalWins / totalDecided) * 100).toFixed(1) + '%' : '—';
 
-  const totalMatchPts    = (stS2.matchPoints || 0) + (stS3.matchPoints || 0);
-  const totalMatchesPlayed = (stS2.matchesPlayed || 0) + (stS3.matchesPlayed || 0);
+  const totalMatchPts      = effectiveMatchPoints(stS2) + effectiveMatchPoints(stS3);
+  const totalMatchesPlayed = effectiveMatchesPlayed(stS2) + effectiveMatchesPlayed(stS3);
   const totalEventsJoined  = evS2 + evS3;
   const overallPPG = totalMatchesPlayed > 0 && totalMatchPts > 0
     ? (totalMatchPts / totalMatchesPlayed).toFixed(2)
@@ -7358,9 +7660,16 @@ async function deleteEvent() {
             <input type="number" id="pe-losses-input" placeholder="0" min="0" />
           </div>
           <div class="profile-edit-field full">
-            <label>Total Match Points <span style="color:var(--muted);font-size:10px">— for PPG</span></label>
+            <label>Total Match Points <span style="color:var(--muted);font-size:10px">— auto = Spin·1 + Burst·2 + Over·2 + Extreme·3</span></label>
             <input type="number" id="pe-matchpts-input" placeholder="0" min="0" />
           </div>
+        </div>
+
+        <!-- Manage Builds — admin tool to fix migration errors per build for THIS player -->
+        <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin:18px 0 6px">🔩 Manage Builds</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Fix migration errors per build. Stats edits adjust the underlying match records.</div>
+        <div id="pe-builds-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
+          <div style="font-size:11px;color:var(--muted2);text-align:center;padding:12px">Loading…</div>
         </div>
 
         <button class="btn primary" style="width:100%;margin-top:16px" onclick="saveBladerProfile()">💾 Save All Changes</button>
@@ -7843,6 +8152,24 @@ async function deleteEvent() {
       <label class="form-label">New Build Name</label>
       <input class="form-input" id="bey-edit-name-input" placeholder="e.g. Hover 7-60 K" style="font-size:15px"
         onkeydown="if(event.key==='Enter')confirmBeyEdit()" />
+    </div>
+    <div class="form-group" id="bey-edit-stats-group" style="display:none">
+      <label class="form-label" style="margin-bottom:6px">Set Build Wins / Losses</label>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1">
+          <label style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace;letter-spacing:1px">WINS</label>
+          <input type="number" min="0" step="1" class="form-input" id="bey-edit-wins-input"
+            placeholder="0" style="font-size:15px;text-align:center"
+            onkeydown="if(event.key==='Enter')confirmBeyEdit()" />
+        </div>
+        <div style="flex:1">
+          <label style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace;letter-spacing:1px">LOSSES</label>
+          <input type="number" min="0" step="1" class="form-input" id="bey-edit-losses-input"
+            placeholder="0" style="font-size:15px;text-align:center"
+            onkeydown="if(event.key==='Enter')confirmBeyEdit()" />
+        </div>
+      </div>
+      <div id="bey-edit-stats-hint" style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace;margin-top:6px;line-height:1.5"></div>
     </div>
     <div class="modal-error" id="bey-edit-error"></div>
     <div class="modal-actions">
