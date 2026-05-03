@@ -3604,6 +3604,9 @@ function _computeBuildStatsForEdit(build, player) {
 
 function closeBeyEditModal() {
   document.getElementById('bey-edit-modal').classList.remove('open');
+  // Reset confirm button so it isn't left disabled after a successful action
+  const btn = document.getElementById('bey-edit-confirm-btn');
+  if (btn) { btn.disabled = false; btn.textContent = '✅ Confirm'; }
 }
 
 async function confirmBeyEdit() {
