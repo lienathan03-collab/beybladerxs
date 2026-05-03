@@ -3473,6 +3473,20 @@ function escHtml(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// Escape a string so it can be safely embedded inside a single-quoted JS
+// string literal in an inline onclick handler. Handles backslashes, single
+// quotes, newlines, and angle brackets (so the surrounding HTML stays valid).
+function escJs(s) {
+  return String(s == null ? '' : s)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/</g, '\\x3c')
+    .replace(/>/g, '\\x3e');
+}
+
 // ─────────────────────────────────────────────
 // BEY RANKING EDIT / DELETE (admin only)
 // ─────────────────────────────────────────────
@@ -3520,6 +3534,25 @@ function openBeyEditModal(action, build, player) {
     setTimeout(() => {
       const inp = document.getElementById('bey-edit-wins-input');
       inp.focus(); inp.select();
+    }, 80);
+  } else if (action === 'addbuild') {
+    document.getElementById('bey-edit-modal-title').textContent = '➕ Add Build';
+    document.getElementById('bey-edit-modal-sub').innerHTML = player
+      ? `Adding a new build ${scope} with manual wins/losses. The build will appear in rankings as if it had played that many matches.`
+      : `Adding a new build (no player specified — please open from a blader profile).`;
+    // Show BOTH the name field and the stats fields
+    document.getElementById('bey-edit-name-group').style.display = '';
+    document.getElementById('bey-edit-stats-group').style.display = '';
+    document.getElementById('bey-edit-confirm-btn').textContent = '➕ Add Build';
+    document.getElementById('bey-edit-name-input').value = '';
+    document.getElementById('bey-edit-wins-input').value   = 0;
+    document.getElementById('bey-edit-losses-input').value = 0;
+    document.getElementById('bey-edit-stats-hint').innerHTML =
+      'Wins and losses are recorded as synthetic finishes (S for wins, L for losses) on the most recent event for this player. ' +
+      'You can edit them later via the 📊 button on the build row.';
+    setTimeout(() => {
+      const inp = document.getElementById('bey-edit-name-input');
+      inp.focus();
     }, 80);
   } else {
     document.getElementById('bey-edit-modal-title').textContent = '🗑 Delete Build';
@@ -3569,26 +3602,32 @@ async function confirmBeyEdit() {
   const oldBuild  = _beyEditBuild;
   const player    = _beyEditPlayer;
   const action    = _beyEditAction;
-  const newBuild  = action === 'rename'
+  // For both rename and addbuild we read the name input.
+  const newBuild  = (action === 'rename' || action === 'addbuild')
     ? document.getElementById('bey-edit-name-input').value.trim()
     : null;
 
   if (action === 'rename' && (!newBuild || newBuild === oldBuild)) {
     errEl.textContent = 'Enter a different build name.'; return;
   }
+  if (action === 'addbuild') {
+    if (!newBuild)         { errEl.textContent = 'Enter a build name.'; return; }
+    if (!player)           { errEl.textContent = 'No player specified — open from a blader profile.'; return; }
+  }
 
-  // For editstats: read & validate target wins/losses
+  // For editstats AND addbuild: read & validate target wins/losses
   let targetWins = 0, targetLosses = 0;
-  if (action === 'editstats') {
+  if (action === 'editstats' || action === 'addbuild') {
     targetWins   = parseInt(document.getElementById('bey-edit-wins-input').value,   10);
     targetLosses = parseInt(document.getElementById('bey-edit-losses-input').value, 10);
     if (!Number.isFinite(targetWins)   || targetWins   < 0) { errEl.textContent = 'Wins must be 0 or greater.';   return; }
     if (!Number.isFinite(targetLosses) || targetLosses < 0) { errEl.textContent = 'Losses must be 0 or greater.'; return; }
   }
 
-  const btnLabel = action === 'rename' ? '✅ Rename'
+  const btnLabel = action === 'rename'    ? '✅ Rename'
                  : action === 'editstats' ? '💾 Save Stats'
-                 : '🗑 Delete';
+                 : action === 'addbuild'  ? '➕ Add Build'
+                 :                          '🗑 Delete';
   const btn = document.getElementById('bey-edit-confirm-btn');
   btn.disabled = true;
   btn.textContent = 'Saving…';
@@ -3685,6 +3724,71 @@ async function confirmBeyEdit() {
         target.build.deployed = true;
         affectedEventIds.add(target.ev.id);
       }
+    } else if (action === 'addbuild') {
+      // ── Add a new build for this player with synthetic wins/losses ──
+      // 1. Pick a target event: the most-recent event that has any record for
+      //    this player. Falls back to the most-recent event overall.
+      const allEvents = [...(data.events || [])].sort((a, b) =>
+        (b.date || '').localeCompare(a.date || '')
+      );
+      if (!allEvents.length) {
+        errEl.textContent = 'No events found in archive — record at least one event first.';
+        btn.disabled = false;
+        btn.textContent = btnLabel;
+        return;
+      }
+      let targetEv = allEvents.find(ev =>
+        (ev.beyResults || []).some(e => e.player === player)
+      ) || allEvents[0];
+
+      // 2. Reject if this build name already exists for this player anywhere —
+      //    user should use 📊 Edit Stats instead to modify, not duplicate.
+      const exists = (data.events || []).some(ev =>
+        (ev.beyResults || []).some(e =>
+          e.player === player &&
+          (e.builds || []).some(b => b.build && b.build.trim() === newBuild)
+        )
+      );
+      if (exists) {
+        errEl.textContent = `"${newBuild}" already exists for ${player}. Use 📊 Edit Stats to update its wins/losses.`;
+        btn.disabled = false;
+        btn.textContent = btnLabel;
+        return;
+      }
+
+      // 3. Find or create the player's beyResults entry on the target event.
+      let entry = (targetEv.beyResults || []).find(e => e.player === player);
+      if (!entry) {
+        entry = {
+          player: player,
+          round: 'MANUAL',  // tag so it's traceable as admin-added
+          builds: [],
+          pointsTotal: 0,
+          win: false,
+        };
+        if (!Array.isArray(targetEv.beyResults)) targetEv.beyResults = [];
+        targetEv.beyResults.push(entry);
+      }
+      if (!Array.isArray(entry.builds)) entry.builds = [];
+
+      // 4. Append the new build with synthetic finishes.
+      const finishes = [];
+      for (let i = 0; i < targetWins;   i++) finishes.push('S');
+      for (let i = 0; i < targetLosses; i++) finishes.push('L');
+      entry.builds.push({
+        build:    newBuild,
+        finishes: finishes,
+        deployed: finishes.length > 0,
+      });
+
+      // 5. Register the build name in the event's builds map for this player.
+      if (!targetEv.builds) targetEv.builds = {};
+      if (!Array.isArray(targetEv.builds[player])) targetEv.builds[player] = [];
+      if (!targetEv.builds[player].includes(newBuild)) {
+        targetEv.builds[player].push(newBuild);
+      }
+
+      affectedEventIds.add(targetEv.id);
     } else {
       // ── rename / delete (unchanged behavior) ──
       for (const ev of (data.events || [])) {
@@ -3756,9 +3860,10 @@ async function confirmBeyEdit() {
     if (profileNameEl && profileNameEl.value && document.getElementById('blader-profile-modal')?.classList.contains('open')) {
       renderProfileBuildsList(profileNameEl.value);
     }
-    const successMsg = action === 'rename' ? `✅ Renamed "${oldBuild}" → "${newBuild}"`
+    const successMsg = action === 'rename'    ? `✅ Renamed "${oldBuild}" → "${newBuild}"`
                      : action === 'editstats' ? `📊 Updated "${oldBuild}" to ${targetWins}W / ${targetLosses}L`
-                     : `🗑 Deleted all records for "${oldBuild}"`;
+                     : action === 'addbuild'  ? `➕ Added "${newBuild}" for ${player} (${targetWins}W / ${targetLosses}L)`
+                     :                          `🗑 Deleted all records for "${oldBuild}"`;
     showToast(successMsg, 'success');
   } catch(e) {
     errEl.textContent = '❌ ' + e.message;
@@ -4715,6 +4820,25 @@ function renderProfileBuildsList(playerName) {
   }).catch(e => {
     container.innerHTML = `<div style="font-size:11px;color:var(--red);text-align:center;padding:8px">Failed to load builds: ${escHtml(e.message)}</div>`;
   });
+}
+
+// Resolve the player name from the open profile editor and open the
+// Add Build modal scoped to that player. Used by the ➕ Add Build button
+// in the Manage Builds section.
+function openAddBuildFromProfile() {
+  if (!isAdmin) return;
+  // Prefer the (possibly renamed) value the admin is currently editing,
+  // falling back to the original hidden name.
+  const dispEl = document.getElementById('pe-display-name');
+  const nameEl = document.getElementById('pe-name');
+  const player = (dispEl && dispEl.value && dispEl.value.trim())
+              || (nameEl && nameEl.value && nameEl.value.trim())
+              || '';
+  if (!player) {
+    showToast('Open a blader profile first.', 'error');
+    return;
+  }
+  openBeyEditModal('addbuild', '', player);
 }
 
 function openBladerProfileByIndex(idx) {
@@ -7666,7 +7790,10 @@ async function deleteEvent() {
         </div>
 
         <!-- Manage Builds — admin tool to fix migration errors per build for THIS player -->
-        <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin:18px 0 6px">🔩 Manage Builds</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:18px 0 6px;gap:8px">
+          <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold)">🔩 Manage Builds</div>
+          <button type="button" class="btn primary" style="font-size:10px;padding:4px 10px" onclick="openAddBuildFromProfile()">➕ Add Build</button>
+        </div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Fix migration errors per build. Stats edits adjust the underlying match records.</div>
         <div id="pe-builds-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
           <div style="font-size:11px;color:var(--muted2);text-align:center;padding:12px">Loading…</div>
