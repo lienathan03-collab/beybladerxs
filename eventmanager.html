@@ -3340,7 +3340,13 @@ function renderTeamMemberSide(match, teamKey, memberIdx, mid, colorSide, slotNum
         <div class="match-build-name">
           <input type="checkbox" class="deploy-toggle" ${isDeployed ? 'checked' : ''}
             onchange="mToggleTeamDeploy(${mid},'${teamKey}',${memberIdx},${bi},this.checked)" title="Deployed without recording any finish? (auto-checked when any finish is added)" />
-          <span title="${escHtml(b.build)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:90px">${escHtml(b.build) || '<em style="color:var(--muted2)">unnamed</em>'}</span>
+          <input type="text" value="${escHtml(b.build)}" placeholder="Build name…"
+            title="Edit build name for this round only"
+            oninput="mRenameTeamBuild(${mid},'${teamKey}',${memberIdx},${bi},this.value)"
+            onclick="event.stopPropagation()"
+            style="flex:1;min-width:0;max-width:95px;font-family:'Share Tech Mono',monospace;font-size:11px;
+              background:transparent;border:none;border-bottom:1px dashed var(--border2);
+              color:var(--accent);padding:1px 3px;outline:none;cursor:text" />
         </div>
         <div class="match-build-finishes">
           ${finishTags}
@@ -3391,7 +3397,13 @@ function renderPlayerSide(match, side, mid) {
         <div class="match-build-name">
           <input type="checkbox" class="deploy-toggle" ${isDeployed ? 'checked' : ''}
             onchange="mToggleDeploy(${mid},'${side}',${bi},this.checked)" title="Deployed without recording any finish? (auto-checked when any finish is added)" />
-          <span title="${escHtml(b.build)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px">${escHtml(b.build) || '<em style="color:var(--muted2)">unnamed</em>'}</span>
+          <input type="text" value="${escHtml(b.build)}" placeholder="Build name…"
+            title="Edit build name for this round only"
+            oninput="mRenameBuild(${mid},'${side}',${bi},this.value)"
+            onclick="event.stopPropagation()"
+            style="flex:1;min-width:0;max-width:115px;font-family:'Share Tech Mono',monospace;font-size:11px;
+              background:transparent;border:none;border-bottom:1px dashed var(--border2);
+              color:var(--accent);padding:1px 3px;outline:none;cursor:text" />
         </div>
         <div class="match-build-finishes">
           ${finishTags}
@@ -3535,6 +3547,32 @@ function mRemoveFinish(mid, side, buildIdx, finishIdx) {
   flattenMatchesToResults();
   markDirty();
   renderResults();
+}
+
+// Rename a build for a specific solo match round only (does not affect other rounds)
+function mRenameBuild(mid, side, buildIdx, newName) {
+  const m = matchesState.find(x => x.id === mid);
+  if (!m || !m[side]) return;
+  const b = m[side].builds[buildIdx];
+  if (!b) return;
+  b.build = newName;
+  flattenMatchesToResults();
+  markDirty();
+  // Don't re-render — would destroy the focused input mid-typing
+}
+
+// Rename a build for a specific team match member round only
+function mRenameTeamBuild(mid, teamKey, memberIdx, buildIdx, newName) {
+  const m = matchesState.find(x => x.id === mid);
+  if (!m || !m[teamKey]) return;
+  const member = m[teamKey].members[memberIdx];
+  if (!member) return;
+  const b = member.builds[buildIdx];
+  if (!b) return;
+  b.build = newName;
+  flattenMatchesToResults();
+  markDirty();
+  // Don't re-render — would destroy the focused input mid-typing
 }
 
 // ─────────────────────────────────────────────
@@ -5693,34 +5731,23 @@ function _normalizePlayerName(raw) {
 }
 // Resolve to the bladerStats key that already represents this player, if any.
 // Falls back to the cleaned/normalized form when no match exists.
-// Match priority:
-//   1. Exact match after trim+collapse-spaces
-//   2. Case-insensitive match after trim+collapse-spaces
-//   3. Space-insensitive match (strips ALL spaces) — catches "ZPC. YIYI" vs "ZPC.YIYI"
-//      Only applied when the space-stripped forms are identical so we don't
-//      accidentally merge genuinely different names that share the same letters.
 function _resolveBladerKey(rawName, bladerStatsRef) {
   const norm = _normalizePlayerName(rawName);
   if (!norm) return '';
   const ref = bladerStatsRef || {};
-
   // 1. Exact (after normalizing whitespace)
   if (ref[norm]) return norm;
-
   const lower = norm.toLowerCase();
   // 2. Case-insensitive
   for (const k of Object.keys(ref)) {
     if (_normalizePlayerName(k).toLowerCase() === lower) return k;
   }
-
-  // 3. Space-insensitive (same letters, different internal spacing)
-  //    e.g. "ZPC. YIYI" vs "ZPC.YIYI"
+  // 3. Space-insensitive — "ZPC. YIYI" vs "ZPC.YIYI"
   const noSpace = lower.replace(/\s+/g, '');
   for (const k of Object.keys(ref)) {
     const kNoSpace = _normalizePlayerName(k).toLowerCase().replace(/\s+/g, '');
     if (kNoSpace === noSpace) return k;
   }
-
   return norm;
 }
 
