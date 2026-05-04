@@ -3460,7 +3460,7 @@ function getPlayerTop3Beys(playerName, allEventData) {
   const buildMap = {};
   for (const ev of events) {
     for (const entry of (ev.beyResults || [])) {
-      if (entry.player !== playerName) continue;
+      if (!_playerNamesMatch(entry.player, playerName)) continue;
       for (const b of (entry.builds || [])) {
         // Same permissive rule — counts if deployed OR has finishes.
         if (!b.build) continue;
@@ -3497,6 +3497,12 @@ function escJs(s) {
     .replace(/\r/g, '\\r')
     .replace(/</g, '\\x3c')
     .replace(/>/g, '\\x3e');
+}
+
+// Space-insensitive player name match — "ZPC. YIYI" === "ZPC.YIYI"
+function _playerNamesMatch(a, b) {
+  const norm = s => String(s || '').toLowerCase().replace(/\s+/g, '');
+  return norm(a) === norm(b);
 }
 
 // ─────────────────────────────────────────────
@@ -3604,7 +3610,6 @@ function _computeBuildStatsForEdit(build, player) {
 
 function closeBeyEditModal() {
   document.getElementById('bey-edit-modal').classList.remove('open');
-  // Reset confirm button so it isn't left disabled after a successful action
   const btn = document.getElementById('bey-edit-confirm-btn');
   if (btn) { btn.disabled = false; btn.textContent = '✅ Confirm'; }
 }
@@ -3874,8 +3879,6 @@ async function confirmBeyEdit() {
     }
 
     // ── Also sync the same mutation into archivedBeyResults in gamedata ──
-    // Without this, a deleted/renamed build reappears from the archive on next
-    // page load because loadBeyRankingsData() merges live + archived sources.
     try {
       const seasonKey = getSeasonKey();
       const gdRes = await fetch(DATA_API + '?key=' + seasonKey);
@@ -3912,12 +3915,11 @@ async function confirmBeyEdit() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(gdData)
           });
-          _archivedBeyResults = archive; // keep in-memory cache in sync
+          _archivedBeyResults = archive;
         }
       }
     } catch(archErr) {
       console.warn('[confirmBeyEdit] Could not sync archive:', archErr);
-      // Non-fatal — the live event was already updated correctly
     }
 
     // Bust cache and re-render
@@ -4848,7 +4850,7 @@ function renderProfileBuildsList(playerName) {
     const map = {}; // build → { wins, losses, played }
     for (const ev of (data.events || [])) {
       for (const entry of (ev.beyResults || [])) {
-        if (_normalizePlayerName(entry.player).toLowerCase().replace(/\s+/g,'') !== _normalizePlayerName(playerName).toLowerCase().replace(/\s+/g,'')) continue;
+        if (!_playerNamesMatch(entry.player, playerName)) continue;
         for (const b of (entry.builds || [])) {
           if (!b.build) continue;
           // Match the permissive rule used elsewhere — count if deployed OR has finishes
