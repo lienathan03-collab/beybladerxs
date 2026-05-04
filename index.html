@@ -3499,7 +3499,7 @@ function escJs(s) {
     .replace(/>/g, '\\x3e');
 }
 
-// Space-insensitive player name match — "ZPC. YIYI" === "ZPC.YIYI"
+// Space-insensitive player name match
 function _playerNamesMatch(a, b) {
   const norm = s => String(s || '').toLowerCase().replace(/\s+/g, '');
   return norm(a) === norm(b);
@@ -3850,16 +3850,10 @@ async function confirmBeyEdit() {
       return;
     }
 
-    // For delete: only remove from rankings (archive + in-memory cache).
-    // The event manager data (/api/beyresults) is intentionally left intact
-    // so match history is preserved and can be re-finalized if needed.
-    // For rename/editstats/addbuild: save to event manager as before.
+    // Delete = rankings only; rename/editstats/addbuild = save to event manager too
     if (action !== 'delete') {
       for (const eventId of affectedEventIds) {
-        if (!eventId) {
-          console.warn('[confirmBeyEdit] Skipping event with missing id');
-          continue;
-        }
+        if (!eventId) { console.warn('[confirmBeyEdit] Skipping event with missing id'); continue; }
         const ev = data.events.find(e => e.id === eventId);
         if (!ev) continue;
         const res = await fetch('/api/beyresults', {
@@ -3880,8 +3874,7 @@ async function confirmBeyEdit() {
       }
     }
 
-    // Always sync archivedBeyResults in gamedata so rankings stay clean
-    // (for delete: removes it from archive; for rename: updates name in archive)
+    // Sync archivedBeyResults in gamedata (delete removes it, rename updates name)
     try {
       const seasonKey = getSeasonKey();
       const gdRes = await fetch(DATA_API + '?key=' + seasonKey);
@@ -4600,19 +4593,29 @@ let bladerStats = {};
 
 function getBladerStats(name) {
   if (!name) return { photo:'', wins:0, spinFinishes:0, burstFinishes:0, overFinishes:0, extremeFinishes:0 };
-  // Exact match first
+  const empty = { photo:'', wins:0, spinFinishes:0, burstFinishes:0, overFinishes:0, extremeFinishes:0 };
+  // 1. Exact match
   if (bladerStats[name]) return bladerStats[name];
-  // Case-insensitive fallback so account displayName always links to bladerStats
+  // 2. Case-insensitive
   const lower = name.toLowerCase();
-  const key = Object.keys(bladerStats).find(k => k.toLowerCase() === lower);
-  return key ? bladerStats[key] : { photo:'', wins:0, spinFinishes:0, burstFinishes:0, overFinishes:0, extremeFinishes:0 };
+  let key = Object.keys(bladerStats).find(k => k.toLowerCase() === lower);
+  if (key) return bladerStats[key];
+  // 3. Space-insensitive — "ZPC.THE ARCHADION" vs "ZPC. THEARCHADION"
+  const noSpace = lower.replace(/\s+/g, '');
+  key = Object.keys(bladerStats).find(k => k.toLowerCase().replace(/\s+/g, '') === noSpace);
+  return key ? bladerStats[key] : empty;
 }
 function ensureBladerStats(name) {
   if (!name) return {};
-  // Reuse existing key if only casing differs
   if (!bladerStats[name]) {
+    // 1. Case-insensitive reuse
     const lower = name.toLowerCase();
-    const existing = Object.keys(bladerStats).find(k => k.toLowerCase() === lower);
+    let existing = Object.keys(bladerStats).find(k => k.toLowerCase() === lower);
+    // 2. Space-insensitive reuse
+    if (!existing) {
+      const noSpace = lower.replace(/\s+/g, '');
+      existing = Object.keys(bladerStats).find(k => k.toLowerCase().replace(/\s+/g, '') === noSpace);
+    }
     if (existing) return bladerStats[existing];
     bladerStats[name] = { photo:'', wins:0, spinFinishes:0, burstFinishes:0, overFinishes:0, extremeFinishes:0 };
   }
