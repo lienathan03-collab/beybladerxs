@@ -3575,7 +3575,7 @@ function openBeyEditModal(action, build, player) {
   } else {
     document.getElementById('bey-edit-modal-title').textContent = '🗑 Delete Build';
     document.getElementById('bey-edit-modal-sub').innerHTML =
-      `Delete all records for <b>${escHtml(build)}</b> ${scope}? This cannot be undone.`;
+      `Remove <b>${escHtml(build)}</b> ${scope} from rankings? Event data stays intact.`;
     document.getElementById('bey-edit-confirm-btn').textContent = '🗑 Delete';
   }
   document.getElementById('bey-edit-modal').classList.add('open');
@@ -3850,35 +3850,38 @@ async function confirmBeyEdit() {
       return;
     }
 
-    // Save each affected event
-    for (const eventId of affectedEventIds) {
-      // Defensive: skip falsy IDs (could happen if an archived event entry
-      // lost its `id` field at some point — server would reject these with
-      // "eventId required").
-      if (!eventId) {
-        console.warn('[confirmBeyEdit] Skipping event with missing id');
-        continue;
-      }
-      const ev = data.events.find(e => e.id === eventId);
-      if (!ev) continue;
-      const res = await fetch('/api/beyresults', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          adminUsername: _acAdminUsername,
-          adminPassword: _acAdminPassword,
-          eventId,
-          builds:     ev.builds     || {},
-          beyResults: ev.beyResults || []
-        })
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        throw new Error(d.error || 'Save failed for event ' + eventId);
+    // For delete: only remove from rankings (archive + in-memory cache).
+    // The event manager data (/api/beyresults) is intentionally left intact
+    // so match history is preserved and can be re-finalized if needed.
+    // For rename/editstats/addbuild: save to event manager as before.
+    if (action !== 'delete') {
+      for (const eventId of affectedEventIds) {
+        if (!eventId) {
+          console.warn('[confirmBeyEdit] Skipping event with missing id');
+          continue;
+        }
+        const ev = data.events.find(e => e.id === eventId);
+        if (!ev) continue;
+        const res = await fetch('/api/beyresults', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            adminUsername: _acAdminUsername,
+            adminPassword: _acAdminPassword,
+            eventId,
+            builds:     ev.builds     || {},
+            beyResults: ev.beyResults || []
+          })
+        });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          throw new Error(d.error || 'Save failed for event ' + eventId);
+        }
       }
     }
 
-    // ── Also sync the same mutation into archivedBeyResults in gamedata ──
+    // Always sync archivedBeyResults in gamedata so rankings stay clean
+    // (for delete: removes it from archive; for rename: updates name in archive)
     try {
       const seasonKey = getSeasonKey();
       const gdRes = await fetch(DATA_API + '?key=' + seasonKey);
@@ -3934,7 +3937,7 @@ async function confirmBeyEdit() {
     const successMsg = action === 'rename'    ? `✅ Renamed "${oldBuild}" → "${newBuild}"`
                      : action === 'editstats' ? `📊 Updated "${oldBuild}" to ${targetWins}W / ${targetLosses}L`
                      : action === 'addbuild'  ? `➕ Added "${newBuild}" for ${player} (${targetWins}W / ${targetLosses}L)`
-                     :                          `🗑 Deleted all records for "${oldBuild}"`;
+                     :                          `🗑 Removed "${oldBuild}" from rankings (event data kept)`;
     showToast(successMsg, 'success');
   } catch(e) {
     errEl.textContent = '❌ ' + e.message;
