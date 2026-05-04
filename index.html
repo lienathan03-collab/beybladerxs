@@ -3873,6 +3873,53 @@ async function confirmBeyEdit() {
       }
     }
 
+    // ── Also sync the same mutation into archivedBeyResults in gamedata ──
+    // Without this, a deleted/renamed build reappears from the archive on next
+    // page load because loadBeyRankingsData() merges live + archived sources.
+    try {
+      const seasonKey = getSeasonKey();
+      const gdRes = await fetch(DATA_API + '?key=' + seasonKey);
+      if (gdRes.ok) {
+        const gdData = await gdRes.json();
+        const archive = gdData.archivedBeyResults || [];
+        let archiveChanged = false;
+        for (const ev of archive) {
+          if (!affectedEventIds.has(ev.id)) continue;
+          for (const entry of (ev.beyResults || [])) {
+            if (player && entry.player !== player) continue;
+            for (let i = entry.builds.length - 1; i >= 0; i--) {
+              const b = entry.builds[i];
+              if (!b.build || b.build.trim() !== oldBuild) continue;
+              if (action === 'delete') { entry.builds.splice(i, 1); archiveChanged = true; }
+              else if (action === 'rename' && newBuild) { b.build = newBuild; archiveChanged = true; }
+            }
+          }
+          if (ev.builds) {
+            for (const [pName, buildList] of Object.entries(ev.builds)) {
+              if (player && pName !== player) continue;
+              const bIdx = buildList.indexOf(oldBuild);
+              if (bIdx !== -1) {
+                if (action === 'delete') { buildList.splice(bIdx, 1); archiveChanged = true; }
+                else if (action === 'rename' && newBuild) { buildList[bIdx] = newBuild; archiveChanged = true; }
+              }
+            }
+          }
+        }
+        if (archiveChanged) {
+          gdData.archivedBeyResults = archive;
+          await fetch(DATA_API + '?key=' + seasonKey, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(gdData)
+          });
+          _archivedBeyResults = archive; // keep in-memory cache in sync
+        }
+      }
+    } catch(archErr) {
+      console.warn('[confirmBeyEdit] Could not sync archive:', archErr);
+      // Non-fatal — the live event was already updated correctly
+    }
+
     // Bust cache and re-render
     brAllEventData = null;
     closeBeyEditModal();
