@@ -4848,7 +4848,7 @@ function renderProfileBuildsList(playerName) {
     const map = {}; // build → { wins, losses, played }
     for (const ev of (data.events || [])) {
       for (const entry of (ev.beyResults || [])) {
-        if (entry.player !== playerName) continue;
+        if (_normalizePlayerName(entry.player).toLowerCase().replace(/\s+/g,'') !== _normalizePlayerName(playerName).toLowerCase().replace(/\s+/g,'')) continue;
         for (const b of (entry.builds || [])) {
           if (!b.build) continue;
           // Match the permissive rule used elsewhere — count if deployed OR has finishes
