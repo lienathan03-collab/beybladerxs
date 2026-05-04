@@ -5693,15 +5693,34 @@ function _normalizePlayerName(raw) {
 }
 // Resolve to the bladerStats key that already represents this player, if any.
 // Falls back to the cleaned/normalized form when no match exists.
+// Match priority:
+//   1. Exact match after trim+collapse-spaces
+//   2. Case-insensitive match after trim+collapse-spaces
+//   3. Space-insensitive match (strips ALL spaces) — catches "ZPC. YIYI" vs "ZPC.YIYI"
+//      Only applied when the space-stripped forms are identical so we don't
+//      accidentally merge genuinely different names that share the same letters.
 function _resolveBladerKey(rawName, bladerStatsRef) {
   const norm = _normalizePlayerName(rawName);
   if (!norm) return '';
   const ref = bladerStatsRef || {};
-  if (ref[norm]) return norm; // exact (after trim) match
+
+  // 1. Exact (after normalizing whitespace)
+  if (ref[norm]) return norm;
+
   const lower = norm.toLowerCase();
+  // 2. Case-insensitive
   for (const k of Object.keys(ref)) {
     if (_normalizePlayerName(k).toLowerCase() === lower) return k;
   }
+
+  // 3. Space-insensitive (same letters, different internal spacing)
+  //    e.g. "ZPC. YIYI" vs "ZPC.YIYI"
+  const noSpace = lower.replace(/\s+/g, '');
+  for (const k of Object.keys(ref)) {
+    const kNoSpace = _normalizePlayerName(k).toLowerCase().replace(/\s+/g, '');
+    if (kNoSpace === noSpace) return k;
+  }
+
   return norm;
 }
 
