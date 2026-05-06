@@ -830,6 +830,19 @@
   .lm-bey-chip.shuffled { border-color:rgba(156,39,176,0.6);background:rgba(156,39,176,0.08);color:#ce93d8; }
   .lm-bey-name { flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
   .lm-bey-pts { font-size:9px;color:var(--muted2); }
+  .lm-bey-edit-btn {
+    background:none;border:none;color:var(--muted2);cursor:pointer;
+    padding:0 2px;font-size:11px;line-height:1;opacity:.6;
+    transition:opacity .12s,color .12s;flex-shrink:0;
+  }
+  .lm-bey-edit-btn:hover { opacity:1;color:var(--gold2); }
+  .lm-bey-name-input {
+    flex:1;min-width:0;background:var(--surface3);
+    border:1px solid var(--gold);border-radius:4px;
+    color:var(--fg);font-family:'Share Tech Mono',monospace;font-size:11px;
+    padding:2px 5px;outline:none;
+  }
+  .lm-bey-name-input:focus { border-color:var(--gold);box-shadow:0 0 0 2px rgba(212,175,55,0.2); }
 
   /* vs divider */
   .lm-vs-col {
@@ -3906,6 +3919,8 @@ function closeLiveMode() {
   document.body.style.overflow = '';
   lmRemoveLandscape();
   lmState = null;
+  // Clear any in-progress inline bey-name edit so sync doesn't stay paused
+  if (_editingBeyToken) { _editingBeyToken = null; _syncPaused = false; }
 }
 
 function lmBackdropClick(e) {
@@ -4712,9 +4727,12 @@ function clwRenderPickScreen() {
       const cls = `lm-bey-chip${isActiveB?' active':''}${used?' used':''}`;
       const click = used ? '' : `onclick="clwPickBey('${actualKey}',${bi})"`;
       const usedLabel = used ? `<span style="font-size:8px;color:var(--muted2);margin-left:4px">[used]</span>` : '';
+      const editBtn = activeMember ? `<button type="button" class="lm-bey-edit-btn" title="Rename this bey"
+        onclick="event.stopPropagation();lmStartEditBey(this,'${escJs(activeMember.player||'')}',${bi})">✏️</button>` : '';
       return `<div class="${cls}" ${click} style="${used?'cursor:not-allowed;':''}font-size:10px;padding:5px 8px;margin-bottom:4px">
         <span class="lm-bey-name">${escHtml(b.build)||'(unnamed)'}${usedLabel}</span>
         <span class="lm-bey-pts">${(b.finishes||[]).map(f=>`<span class="finish-tag ${f}" style="font-size:8px;padding:1px 4px">${f}</span>`).join('')}</span>
+        ${editBtn}
       </div>`;
     }).join('') || '<div style="font-family:\'Share Tech Mono\',monospace;font-size:10px;color:var(--muted2)">No builds</div>';
 
@@ -4855,6 +4873,133 @@ function lmCommitAndClose() {
   renderResults();
   closeLiveMode();
   showToast('⚡ Live scoring committed!', 'success');
+}
+
+// ─────────────────────────────────────────────
+// INLINE BUILD-NAME EDITING (from live scoring chips)
+// Lets a judge rename a player's bey directly from the
+// LIVE SCORING pick screen / clash side panel without
+// jumping back to the Bey Builds tab.
+// ─────────────────────────────────────────────
+let _editingBeyToken = null; // { playerName, slotIdx } currently being edited
+
+function lmStartEditBey(btnEl, playerName, slotIdx) {
+  if (!btnEl) return;
+  const chip = btnEl.closest('.lm-bey-chip');
+  if (!chip) return;
+  const nameSpan = chip.querySelector('.lm-bey-name');
+  if (!nameSpan) return;
+
+  // Pause live sync so a poll doesn't blow away our input mid-edit
+  _syncPaused = true;
+  _editingBeyToken = { playerName, slotIdx };
+
+  const key = playerKey(playerName);
+  const currentName = (buildsState[key] && buildsState[key][slotIdx]) || '';
+
+  // Build the input element
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'lm-bey-name-input';
+  input.value = currentName;
+  input.maxLength = 40;
+  input.placeholder = 'e.g. WIRO 1-60 H';
+
+  // Replace the name span with the input
+  nameSpan.style.display = 'none';
+  nameSpan.parentNode.insertBefore(input, nameSpan);
+  // Hide the edit button while editing
+  btnEl.style.display = 'none';
+
+  // Stop chip-click handlers from firing while typing
+  ['click','mousedown','touchstart','touchend'].forEach(ev => {
+    input.addEventListener(ev, e => e.stopPropagation());
+  });
+
+  // Commit on Enter, cancel on Escape, save on blur
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter')      { e.preventDefault(); input.blur(); }
+    else if (e.key === 'Escape'){ e.preventDefault(); _editingBeyToken = null; _syncPaused = false; lmRender(); }
+  });
+  input.addEventListener('blur', () => {
+    if (!_editingBeyToken) return; // Escape was pressed
+    const newName = input.value.trim();
+    _editingBeyToken = null;
+    _syncPaused = false;
+    lmCommitBeyRename(playerName, slotIdx, newName);
+  });
+
+  // Focus & select after the DOM settles
+  setTimeout(() => { input.focus(); input.select(); }, 0);
+}
+
+function lmCommitBeyRename(playerName, slotIdx, newName) {
+  const key = playerKey(playerName);
+  if (!buildsState[key]) buildsState[key] = ['', '', ''];
+  while (buildsState[key].length <= slotIdx) buildsState[key].push('');
+
+  const oldName = buildsState[key][slotIdx] || '';
+  if (oldName === newName) { lmRender(); return; }
+
+  // 1) Update the master builds state
+  buildsState[key][slotIdx] = newName;
+
+  // 2) Slot-based rename in every match for this player — preserves finishes/deployed/win
+  for (const m of matchesState) {
+    if (m.isTeamMatch) {
+      for (const tk of ['team1','team2']) {
+        if (!m[tk]) continue;
+        for (const member of m[tk].members) {
+          if (playerKey(member.player) !== key) continue;
+          if (!Array.isArray(member.builds)) member.builds = [];
+          while (member.builds.length <= slotIdx) member.builds.push({ build:'', finishes:[], deployed:false });
+          member.builds[slotIdx].build = newName;
+        }
+      }
+    } else {
+      for (const side of ['p1','p2']) {
+        if (!m[side]) continue;
+        if (playerKey(m[side].player) !== key) continue;
+        if (!Array.isArray(m[side].builds)) m[side].builds = [];
+        while (m[side].builds.length <= slotIdx) m[side].builds.push({ build:'', finishes:[], deployed:false });
+        m[side].builds[slotIdx].build = newName;
+      }
+    }
+  }
+
+  // 3) Sync the live-mode match snapshot too (lmState.match is a deep copy)
+  if (lmState && lmState.match) {
+    const lmM = lmState.match;
+    if (lmM.isTeamMatch) {
+      for (const tk of ['team1','team2']) {
+        if (!lmM[tk]) continue;
+        for (const member of lmM[tk].members) {
+          if (playerKey(member.player) !== key) continue;
+          if (!Array.isArray(member.builds)) member.builds = [];
+          while (member.builds.length <= slotIdx) member.builds.push({ build:'', finishes:[], deployed:false });
+          member.builds[slotIdx].build = newName;
+        }
+      }
+    } else {
+      for (const side of ['p1','p2']) {
+        if (!lmM[side]) continue;
+        if (playerKey(lmM[side].player) !== key) continue;
+        if (!Array.isArray(lmM[side].builds)) lmM[side].builds = [];
+        while (lmM[side].builds.length <= slotIdx) lmM[side].builds.push({ build:'', finishes:[], deployed:false });
+        lmM[side].builds[slotIdx].build = newName;
+      }
+    }
+  }
+
+  flattenMatchesToResults();
+  markDirty();
+  if (typeof renderBuilds === 'function') try { renderBuilds(); } catch(e){}
+  if (typeof renderResults === 'function') try { renderResults(); } catch(e){}
+  lmRender();
+
+  if (typeof showToast === 'function') {
+    showToast(`✏️ Renamed bey to "${newName || '(blank)'}" — hit ✅ Done to save.`, 'info');
+  }
 }
 
 // ── Select which bey slot to use for a side in current clash ──
@@ -5009,9 +5154,13 @@ function lmRenderMemberSelector(domSlot, team, clash, actualKey) {
     const usedLabel = used
       ? `<span style="font-size:8px;color:var(--muted2);margin-left:4px">[used]</span>`
       : '';
-    return `<div class="${chipClass}" ${clickHandler} style="${used ? 'cursor:not-allowed;' : ''}">
+    const playerNameAttr = escHtml(activeMember.player || '');
+    const editBtn = `<button type="button" class="lm-bey-edit-btn" title="Rename this bey"
+      onclick="event.stopPropagation();lmStartEditBey(this,'${escJs(activeMember.player||'')}',${bi})">✏️</button>`;
+    return `<div class="${chipClass}" ${clickHandler} style="${used ? 'cursor:not-allowed;' : ''}" data-player="${playerNameAttr}" data-slot="${bi}">
       <span class="lm-bey-name">${escHtml(b.build)||'(unnamed)'}${usedLabel}</span>
       <span class="lm-bey-pts">${(b.finishes||[]).map(f=>`<span class="finish-tag ${f}" style="font-size:8px;padding:1px 4px">${f}</span>`).join('')}</span>
+      ${editBtn}
     </div>`;
   }).join('') || '<div style="font-family:\'Share Tech Mono\',monospace;font-size:10px;color:var(--muted2)">No builds</div>';
 
