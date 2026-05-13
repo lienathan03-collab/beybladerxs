@@ -5163,24 +5163,52 @@ function lmStartEditBey(btnEl, playerName, slotIdx) {
   input.placeholder = 'e.g. WIRO 1-60 H';
   input.autocomplete = 'off';
 
-  // AC dropdown
+  // AC dropdown — position depends on whether we're in the rotated landscape clash wrapper
+  // In rotated mode the page is turned 90°, so CSS "left" appears as "up" on screen,
+  // and CSS "below" (top:100%) would fly off to the side. We use fixed positioning
+  // and place it relative to the input's bounding rect so it always appears correctly.
   const acDiv = document.createElement('div');
   acDiv.className = 'build-autocomplete';
   acDiv.style.display = 'none';
-  acDiv.style.position = 'absolute';
-  acDiv.style.top = '100%';
-  acDiv.style.left = '0';
-  acDiv.style.right = '0';
-  acDiv.style.zIndex = '700';
+  acDiv.style.position = 'fixed';
+  acDiv.style.zIndex = '900';
+  acDiv.style.minWidth = '180px';
+  acDiv.style.maxHeight = '200px';
+  acDiv.style.overflowY = 'auto';
 
   wrap.appendChild(input);
-  wrap.appendChild(acDiv);
+  // acDiv appended to body so it escapes all overflow/transform contexts
+  document.body.appendChild(acDiv);
 
   // Replace the name span with the wrapper
   nameSpan.style.display = 'none';
   nameSpan.parentNode.insertBefore(wrap, nameSpan);
   // Hide the edit button while editing
   btnEl.style.display = 'none';
+
+  // Position the AC dropdown relative to the input's real screen position.
+  // Works correctly whether the page is normal or CSS-rotated 90° for landscape clash mode.
+  const positionAC = () => {
+    const rect = input.getBoundingClientRect();
+    const isRotated = !!document.getElementById('clash-landscape-wrap')?.classList.contains('active');
+    if (isRotated) {
+      // Page is rotated 90° clockwise. In screen space "left of input" = visually above it.
+      // rect.left in CSS = the left edge of the input in the rotated frame.
+      // We place the dropdown to the LEFT of the input in CSS coords (= above in visual).
+      acDiv.style.top  = `${rect.top}px`;
+      acDiv.style.left = 'auto';
+      acDiv.style.right = `${window.innerWidth - rect.left + 4}px`;
+      acDiv.style.width = '180px';
+      acDiv.style.maxHeight = `${rect.left - 8}px`; // don't overflow off-screen
+    } else {
+      // Normal orientation — dropdown appears below the input
+      acDiv.style.top   = `${rect.bottom + 2}px`;
+      acDiv.style.left  = `${rect.left}px`;
+      acDiv.style.right = 'auto';
+      acDiv.style.width = `${Math.max(rect.width, 180)}px`;
+      acDiv.style.maxHeight = `${Math.min(200, window.innerHeight - rect.bottom - 8)}px`;
+    }
+  };
 
   // AC helper — inline
   const showAC = (val) => {
@@ -5203,6 +5231,7 @@ function lmStartEditBey(btnEl, playerName, slotIdx) {
     }
     if (!html) { acDiv.style.display = 'none'; return; }
     acDiv.innerHTML = html;
+    positionAC();
     acDiv.style.display = 'block';
     // Attach click handlers
     acDiv.querySelectorAll('[data-val]').forEach(item => {
@@ -5244,12 +5273,13 @@ function lmStartEditBey(btnEl, playerName, slotIdx) {
     } else if (e.key === 'Enter') {
       if (active) { e.preventDefault(); input.value = active.dataset.val; acDiv.style.display = 'none'; input.blur(); }
       else { e.preventDefault(); input.blur(); }
-    } else if (e.key === 'Escape') { e.preventDefault(); acDiv.style.display = 'none'; _editingBeyToken = null; _syncPaused = false; lmRender(); }
+    } else if (e.key === 'Escape') { e.preventDefault(); acDiv.style.display = 'none'; if(acDiv.parentNode) acDiv.parentNode.removeChild(acDiv); _editingBeyToken = null; _syncPaused = false; lmRender(); }
   });
   input.addEventListener('blur', () => {
     setTimeout(() => {
       if (!_editingBeyToken) return; // Escape was pressed
       acDiv.style.display = 'none';
+      if (acDiv.parentNode) acDiv.parentNode.removeChild(acDiv);
       const newName = input.value.trim();
       _editingBeyToken = null;
       _syncPaused = false;
