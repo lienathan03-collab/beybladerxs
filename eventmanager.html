@@ -6649,6 +6649,57 @@ window.addEventListener('load',    updateNetworkStatus);
 
 // "Add to Home Screen" prompt — show a small install hint when available
 let _deferredInstallPrompt = null;
+
+// Hide the install button whenever any popup/modal is visible so it doesn't
+// block taps on live match / new match / finish picker / landscape clash.
+function _isAnyPopupOpen() {
+  // Modals & overlays that should suppress the install button
+  const ids = [
+    'new-match-modal',
+    'finish-picker-backdrop',
+    'finish-picker',
+    'clash-landscape-wrap'
+  ];
+  for (const id of ids) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const cs = getComputedStyle(el);
+    if (cs.display !== 'none' && cs.visibility !== 'hidden') {
+      // landscape wrap uses .active class to show
+      if (id === 'clash-landscape-wrap' && !el.classList.contains('active')) continue;
+      return true;
+    }
+  }
+  // Any other generic modal/overlay with high z-index that's visible
+  const overlays = document.querySelectorAll('.modal, .popup, .bottom-sheet, .picker, [data-modal-open="1"]');
+  for (const el of overlays) {
+    const cs = getComputedStyle(el);
+    if (cs.display !== 'none' && cs.visibility !== 'hidden' && cs.opacity !== '0') return true;
+  }
+  return false;
+}
+
+function _updateInstallBtnVisibility() {
+  const btn = document.getElementById('pwa-install-hint');
+  if (!btn) return;
+  if (_isAnyPopupOpen()) {
+    btn.style.display = 'none';
+    btn.style.pointerEvents = 'none';
+  } else {
+    btn.style.display = '';
+    btn.style.pointerEvents = 'auto';
+  }
+}
+
+// Watch for any DOM changes so we can update visibility automatically
+const _installBtnObserver = new MutationObserver(_updateInstallBtnVisibility);
+_installBtnObserver.observe(document.body, {
+  attributes: true,
+  childList: true,
+  subtree: true,
+  attributeFilter: ['style', 'class']
+});
+
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
   _deferredInstallPrompt = e;
@@ -6658,7 +6709,7 @@ window.addEventListener('beforeinstallprompt', e => {
   btn.id = 'pwa-install-hint';
   btn.textContent = '📲 Install App';
   btn.style.cssText = `
-    position: fixed; bottom: 12px; right: 12px; z-index: 9998;
+    position: fixed; bottom: 12px; right: 12px; z-index: 250;
     padding: 8px 14px; border-radius: 20px;
     background: var(--blue); color: #fff; border: none;
     font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 700;
@@ -6674,6 +6725,7 @@ window.addEventListener('beforeinstallprompt', e => {
     if (outcome === 'accepted') showToast('✅ App installed!', 'success');
   };
   document.body.appendChild(btn);
+  _updateInstallBtnVisibility();
   // Auto-hide after 15s if not clicked
   setTimeout(() => { btn.style.opacity = '0.4'; }, 15000);
 });
