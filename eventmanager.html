@@ -2092,6 +2092,33 @@ let _pickerTarget = null; // { playerKey, buildIdx, roundIdx }
 
 const FINISH_PTS = { S: 1, O: 2, E: 3, B: 2, L: 0 };
 
+// ── EXTREME FINISH SOUND SYSTEM ──────────────────
+// Two sounds alternate: random first, then the other, then reset to random again
+const _extremeSounds = [
+  new Audio('weeeeeee-haha.mp3'),
+  new Audio('fahhh.mp3')
+];
+_extremeSounds.forEach(a => { a.preload = 'auto'; a.volume = 1.0; });
+
+// Alternating logic: random first, then the other, then reset
+let _extremeCycleIdx = null;
+function playExtremeFinishSound() {
+  let idx;
+  if (_extremeCycleIdx === null) {
+    // Start of cycle: pick randomly
+    idx = Math.random() < 0.5 ? 0 : 1;
+    _extremeCycleIdx = idx; // remember this one
+  } else {
+    // Second in cycle: play the other, then reset
+    idx = _extremeCycleIdx === 0 ? 1 : 0;
+    _extremeCycleIdx = null; // reset — next click starts fresh random
+  }
+  const snd = _extremeSounds[idx];
+  snd.currentTime = 0;
+  snd.play().catch(() => {});
+}
+// ─────────────────────────────────────────────────
+
 // ─────────────────────────────────────────────
 // AUTH
 // ─────────────────────────────────────────────
@@ -4267,6 +4294,9 @@ function lmApplyFinish(type) {
   if (!lmState) return;
   const clash = lmState.clashes[lmState.activeClashIdx];
   if (!clash || clash.done) return;
+
+  // 🔊 Play extreme finish sound on E clicks
+  if (type === 'E') playExtremeFinishSound();
 
   const scorerTeam = lmState.scoringSide;          // 't1' | 't2'
   const loserTeam  = scorerTeam === 't1' ? 't2' : 't1';
