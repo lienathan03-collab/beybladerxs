@@ -2691,17 +2691,19 @@ function flattenMatchesToResults() {
         const entry = { player: member.player, round: m.round, builds: member.builds, pointsTotal: calcPoints(member.builds), win: member.win, team: m.team1.teamName };
         if (firstT1) {
           if (m._playOrder) entry._playOrder = m._playOrder;
-          if (m.submitted)  entry._submitted = true;
           firstT1 = false;
         }
+        if (m.submitted) entry._submitted = true;
         resultsState.push(entry);
       }
       for (const member of (m.team2 ? m.team2.members : [])) {
-        resultsState.push({ player: member.player, round: m.round, builds: member.builds, pointsTotal: calcPoints(member.builds), win: member.win, team: m.team2.teamName });
+        const entry = { player: member.player, round: m.round, builds: member.builds, pointsTotal: calcPoints(member.builds), win: member.win, team: m.team2.teamName };
+        if (m.submitted) entry._submitted = true;
+        resultsState.push(entry);
       }
     } else {
       if (m.p1) resultsState.push({ player: m.p1.player, round: m.round, builds: m.p1.builds, pointsTotal: calcPoints(m.p1.builds), win: m.p1.win, _submitted: m.submitted || undefined });
-      if (m.p2) resultsState.push({ player: m.p2.player, round: m.round, builds: m.p2.builds, pointsTotal: calcPoints(m.p2.builds), win: m.p2.win });
+      if (m.p2) resultsState.push({ player: m.p2.player, round: m.round, builds: m.p2.builds, pointsTotal: calcPoints(m.p2.builds), win: m.p2.win, _submitted: m.submitted || undefined });
     }
   }
 }
@@ -5897,7 +5899,8 @@ async function archiveBeyResultsToGamedata() {
   // Rankings to treat the same person as two separate bladers.
   const existingBladerStats = (gdData.bladerStats || {});
   // Build a deep copy of resultsState so we don't mutate the user's live state.
-  const cleanedResults = resultsState.map(entry => {
+  // Only include submitted matches — unsubmitted ones must not be archived.
+  const cleanedResults = resultsState.filter(entry => entry._submitted).map(entry => {
     const e = JSON.parse(JSON.stringify(entry));
     e.player = _resolveBladerKey(e.player, existingBladerStats) || _normalizePlayerName(e.player);
     return e;
@@ -5962,6 +5965,7 @@ async function syncBladerStats() {
   // (See _normalizePlayerName / _resolveBladerKey at module scope for why this matters.)
   const perPlayer = {};
   for (const entry of resultsState) {
+    if (!entry._submitted) continue; // ← skip unsubmitted matches
     const name = _resolveBladerKey(entry.player, bladerStats);
     if (!name) continue; // skip blank/whitespace-only player names
     if (!perPlayer[name]) {
