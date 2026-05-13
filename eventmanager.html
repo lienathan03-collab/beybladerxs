@@ -1069,39 +1069,83 @@
     min-height: 0;
   }
   .clw-half {
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    align-items: center; justify-content: stretch;
     position: relative; cursor: pointer;
     user-select: none; overflow: hidden;
-    transition: background .12s;
+    transition: background .12s, box-shadow .12s;
     touch-action: manipulation;
+    padding: 6px 10px 6px;
   }
-  #clw-left  { background: rgba(74,158,255,0.05); border-right: 2px solid var(--border); }
-  #clw-right { background: rgba(212,175,55,0.05); }
-  .clw-half.selected-left  { background: rgba(74,158,255,0.16) !important; outline: 3px solid rgba(74,158,255,0.6); outline-offset: -3px; }
-  .clw-half.selected-right { background: rgba(212,175,55,0.16) !important; outline: 3px solid rgba(212,175,55,0.6); outline-offset: -3px; }
+  #clw-left  { background: rgba(74,158,255,0.04); border-right: 1px solid var(--border); }
+  #clw-right { background: rgba(212,175,55,0.04); }
+  /* Selected side glows in TEAM color, not yellow */
+  .clw-half.selected-left  {
+    background: rgba(74,158,255,0.12) !important;
+    box-shadow: inset 0 0 0 2px rgba(74,158,255,0.55);
+  }
+  .clw-half.selected-right {
+    background: rgba(212,175,55,0.12) !important;
+    box-shadow: inset 0 0 0 2px rgba(212,175,55,0.55);
+  }
+  /* Player label sits horizontally at top (not rotated) */
+  .clw-player {
+    font-family: 'Share Tech Mono', monospace; font-size: 9px;
+    letter-spacing: 1.5px; text-align: center;
+    text-transform: uppercase; line-height: 1;
+    padding: 2px 0 4px; opacity: 0.75;
+  }
+  #clw-left .clw-player  { color: var(--blue); }
+  #clw-right .clw-player { color: var(--gold2); }
+  /* Bey name in a colored pill below player name */
+  .clw-bey {
+    font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 800;
+    text-align: center; word-break: break-word; line-height: 1.1;
+    padding: 4px 10px; border-radius: 5px;
+    justify-self: center; max-width: 90%;
+    letter-spacing: 0.5px;
+  }
+  #clw-bey-left  { color: var(--blue); background: rgba(74,158,255,0.15); border: 1px solid rgba(74,158,255,0.35); }
+  #clw-bey-right { color: var(--gold2); background: rgba(212,175,55,0.10); border: 1px solid rgba(212,175,55,0.30); }
+  /* MASSIVE score — the hero element */
+  .clw-score {
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 900; line-height: 0.9;
+    font-size: clamp(120px, 32vh, 260px);
+    color: var(--muted2);
+    text-align: center; align-self: center;
+    letter-spacing: -4px;
+    text-shadow: 0 2px 0 rgba(0,0,0,0.4);
+  }
+  /* Used-finish chips: tiny, tucked at bottom corner, just for reference */
+  .clw-finishes {
+    display: flex; flex-wrap: wrap; gap: 3px;
+    justify-content: flex-start; align-content: flex-end;
+    padding-top: 4px; min-height: 14px;
+    opacity: 0.55;
+  }
+  #clw-left  .clw-finishes { justify-content: flex-start; }
+  #clw-right .clw-finishes { justify-content: flex-end; }
+  /* WARN counter: small inline corner badge instead of floating block */
   .clw-warn {
-    display: none; position: absolute; top: 8px;
-    text-align: center; z-index: 2;
-    pointer-events: none;
+    display: flex; align-items: center; justify-content: center; gap: 3px;
+    position: absolute; bottom: 8px;
+    padding: 3px 8px; border-radius: 10px;
+    background: #1a1a1a; border: 1px solid #2a2a2a;
+    pointer-events: none; z-index: 2;
+    opacity: 0.7;
   }
   .clw-warn.visible {
-    display: block !important;
+    background: rgba(229,57,53,0.18) !important;
+    border-color: rgba(229,57,53,0.55) !important;
+    opacity: 1 !important;
   }
   #clw-warn-left  { right: 10px; }
   #clw-warn-right { left: 10px; }
-  .clw-warn-label { font-family: 'Share Tech Mono', monospace; font-size: 7px; color: var(--red); letter-spacing: 1px; }
-  .clw-warn-num   { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 900; color: var(--red); line-height: 1; }
-  .clw-player { font-family: 'Share Tech Mono', monospace; font-size: 9px; color: var(--muted2); letter-spacing: 1px; margin-bottom: 2px; text-align: center; }
-  .clw-bey    { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 800; text-align: center; word-break: break-word; line-height: 1.1; margin-bottom: 5px; }
-  #clw-bey-left  { color: var(--blue); }
-  #clw-bey-right { color: var(--gold2); }
-  .clw-finishes { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; margin-bottom: 6px; }
-  .clw-score {
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 900; line-height: 1;
-    font-size: clamp(80px, 18vh, 160px);
-    color: var(--muted);
-  }
+  .clw-warn-label { font-family: 'Share Tech Mono', monospace; font-size: 7px; color: var(--muted); letter-spacing: 1px; }
+  .clw-warn.visible .clw-warn-label { color: var(--red); }
+  .clw-warn-num   { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 900; color: var(--muted); line-height: 1; }
+  .clw-warn.visible .clw-warn-num { color: var(--red); }
 
   /* Bottom control bar */
   #clw-controls {
@@ -1116,7 +1160,9 @@
   #clw-strip {
     grid-column: 1 / -1;
     font-family: 'Share Tech Mono', monospace; font-size: 8px;
-    color: var(--muted); padding: 0 2px 3px;
+    color: var(--muted); padding: 1px 2px 2px;
+    text-align: center; letter-spacing: 1px;
+    opacity: 0.7;
   }
   .clw-finish-btn {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -4741,8 +4787,8 @@ function clwRender() {
   el('clw-bey-left').textContent     = leftBey?.build  || '—';
   el('clw-bey-right').textContent    = rightBey?.build || '—';
 
-  // Finish tags
-  const mkTags = b => b ? (b.finishes||[]).map(f=>`<span class="finish-tag ${f}" style="font-size:11px;padding:2px 6px">${f}</span>`).join('') : '';
+  // Finish tags — tiny corner markers, just for stat reference
+  const mkTags = b => b ? (b.finishes||[]).map(f=>`<span class="finish-tag ${f}" style="font-size:8px;padding:1px 4px;border-radius:3px">${f}</span>`).join('') : '';
   el('clw-finishes-left').innerHTML  = mkTags(leftBey);
   el('clw-finishes-right').innerHTML = mkTags(rightBey);
 
@@ -4780,7 +4826,7 @@ function clwRender() {
   const scorerTeamKey = scorerKey === 't1' ? 'team1' : 'team2';
   const scorerMemberIdx = scorerKey === 't1' ? clash.t1MemberIdx : clash.t2MemberIdx;
   const scorerName = match[scorerTeamKey]?.members[scorerMemberIdx]?.player || '—';
-  el('clw-strip').textContent = `SELECTED: ${scorerName} — score/warn goes to this player`;
+  el('clw-strip').textContent = `▸ ${scorerName.toUpperCase()} — TAP S/O/E/B TO SCORE`;
 
   // Keep bey chips in sync
   clwRenderBeyChips();
