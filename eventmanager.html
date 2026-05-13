@@ -1042,7 +1042,7 @@
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
     gap: 6px;
-    min-height: 34px;
+    min-height: 56px;
   }
   #clw-title {
     font-family: 'Barlow Condensed', sans-serif;
@@ -1051,12 +1051,13 @@
   }
   #clw-scorebar {
     display: flex; align-items: center; gap: 0;
-    border: 1px solid var(--border2); border-radius: 6px; overflow: hidden;
-    font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 900;
+    border: 1px solid var(--border2); border-radius: 8px; overflow: hidden;
+    font-family: 'Barlow Condensed', sans-serif; font-size: 34px; font-weight: 900;
+    line-height: 1;
   }
-  #clw-s1 { padding: 3px 12px; background: rgba(74,158,255,0.12); color: var(--blue); }
-  #clw-sep { padding: 3px 6px; background: var(--surface2); color: var(--muted2); font-size: 12px; }
-  #clw-s2 { padding: 3px 12px; background: rgba(212,175,55,0.12); color: var(--gold2); }
+  #clw-s1 { padding: 6px 14px; background: rgba(74,158,255,0.12); color: var(--blue); min-width: 36px; text-align: center; }
+  #clw-sep { padding: 6px 4px; background: var(--surface2); color: var(--muted2); font-size: 22px; }
+  #clw-s2 { padding: 6px 14px; background: rgba(212,175,55,0.12); color: var(--gold2); min-width: 36px; text-align: center; }
   #clw-s1.winning, #clw-s2.winning { background: rgba(76,175,80,0.18); color: #66bb6a; }
   #clw-matchlabel {
     font-family: 'Share Tech Mono', monospace; font-size: 7px;
@@ -4721,7 +4722,8 @@ function lmStartClash() {
 
 function lmApplyLandscape() {} // no-op
 function lmRemoveLandscape() {
-  try { if (screen.orientation?.unlock) screen.orientation.unlock(); } catch(e) {}
+  // Keep orientation locked to portrait — do NOT unlock here.
+  // The CSS rotate(90deg) on the clash screen handles the "landscape" look.
 }
 
 // ── Go back to pick screen (after a finish or "Next Bey Pick") ──
@@ -6587,6 +6589,25 @@ if ('serviceWorker' in navigator) {
     });
   });
 }
+
+// ── Lock the whole app to portrait orientation ──
+// Works in installed PWA / fullscreen mode (requires "orientation":"portrait"
+// in manifest.webmanifest). In a regular browser tab the lock() API is a
+// no-op, but the manifest setting handles the installed-app case which is
+// what judges will actually use during tournaments.
+function lockPortrait() {
+  try {
+    if (screen.orientation?.lock) {
+      screen.orientation.lock('portrait').catch(()=>{});
+    }
+  } catch(e) {}
+}
+window.addEventListener('load', lockPortrait);
+// Re-assert the lock if the device fires an orientation change anyway
+window.addEventListener('orientationchange', lockPortrait);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) lockPortrait();
+});
 
 // Online/offline UI indicator
 function updateNetworkStatus() {
