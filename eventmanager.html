@@ -2100,9 +2100,92 @@ const _extremeSounds = [
 ];
 _extremeSounds.forEach(a => { a.preload = 'auto'; a.volume = 1.0; });
 
+// ── HIDDEN SOUND TOGGLE ───────────────────────────
+// Sound is OFF by default.
+// Step 1: Tap the RXS logo 5 times quickly → a tiny hidden input appears in the topbar.
+// Step 2: Type the code 54321 and press Enter → sound toggles on/off.
+// Wrong code = input disappears silently. No labels, no hints.
+let _soundEnabled = false;
+let _logoTapCount = 0;
+let _logoTapTimer = null;
+let _soundCodeInput = null;
+
+function _showSoundCodeInput() {
+  // If already showing, just focus it
+  if (_soundCodeInput && document.contains(_soundCodeInput)) {
+    _soundCodeInput.focus();
+    return;
+  }
+  const input = document.createElement('input');
+  input.type = 'password';
+  input.maxLength = 5;
+  input.autocomplete = 'off';
+  input.style.cssText = `
+    width: 60px; background: transparent; border: none;
+    border-bottom: 1px solid var(--border2); color: transparent;
+    caret-color: var(--muted2); font-family: 'Share Tech Mono', monospace;
+    font-size: 11px; outline: none; padding: 2px 4px;
+    letter-spacing: 3px;
+  `;
+  // Auto-dismiss if user clicks away
+  let _dismissTimer = setTimeout(() => { input.remove(); _soundCodeInput = null; }, 8000);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      clearTimeout(_dismissTimer);
+      const val = input.value;
+      input.remove();
+      _soundCodeInput = null;
+      if (val === '54321') {
+        _soundEnabled = !_soundEnabled;
+        const logo = document.querySelector('.topbar-logo');
+        if (logo) {
+          logo.style.transition = 'color 0.15s';
+          logo.style.color = _soundEnabled ? '#4caf50' : '#e53935';
+          setTimeout(() => { logo.style.color = ''; }, 700);
+        }
+      }
+      // Wrong code: silently disappears, no feedback
+    }
+    if (e.key === 'Escape') {
+      clearTimeout(_dismissTimer);
+      input.remove();
+      _soundCodeInput = null;
+    }
+  });
+  input.addEventListener('blur', () => {
+    clearTimeout(_dismissTimer);
+    setTimeout(() => { input.remove(); _soundCodeInput = null; }, 200);
+  });
+  _soundCodeInput = input;
+  // Insert after the logo in the topbar
+  const logo = document.querySelector('.topbar-logo');
+  if (logo && logo.parentNode) {
+    logo.parentNode.insertBefore(input, logo.nextSibling);
+  }
+  input.focus();
+}
+
+function _initLogoTap() {
+  const logo = document.querySelector('.topbar-logo');
+  if (!logo) return;
+  logo.addEventListener('click', () => {
+    _logoTapCount++;
+    clearTimeout(_logoTapTimer);
+    _logoTapTimer = setTimeout(() => { _logoTapCount = 0; }, 1200);
+    if (_logoTapCount >= 5) {
+      _logoTapCount = 0;
+      clearTimeout(_logoTapTimer);
+      _showSoundCodeInput();
+    }
+  });
+}
+window.addEventListener('DOMContentLoaded', _initLogoTap);
+// ─────────────────────────────────────────────────
+
 // Alternating logic: random first, then the other, then reset
 let _extremeCycleIdx = null;
 function playExtremeFinishSound() {
+  if (!_soundEnabled) return;
   let idx;
   if (_extremeCycleIdx === null) {
     // Start of cycle: pick randomly
