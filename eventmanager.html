@@ -304,7 +304,29 @@
     transition: background .1s;
   }
   .build-ac-new:hover { background: rgba(74,222,128,0.1); }
-  .add-build-btn {
+  .match-build-name-wrap {
+    position: relative;
+    flex:1;
+    min-width:0;
+    max-width:150px;
+  }
+  .match-build-name-wrap .build-autocomplete {
+    left: 0;
+    right: 0;
+    min-width: 160px;
+    z-index: 500;
+  }
+  .lm-bey-name-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+  }
+  .lm-bey-name-wrap .build-autocomplete {
+    left: 0;
+    right: 0;
+    min-width: 180px;
+    z-index: 700;
+  }
     background: none;
     border: 1px dashed var(--border2);
     border-radius: 6px;
@@ -3271,12 +3293,20 @@ function renderResults() {
     return;
   }
 
-  const col1 = filtered.filter((_,i) => i % 2 === 0).map(m => renderMatchCard(m)).join('');
-  const col2 = filtered.filter((_,i) => i % 2 === 1).map(m => renderMatchCard(m)).join('');
-  el.innerHTML = `<div class="match-cards-grid">
-    <div class="match-cards-col">${col1}</div>
-    <div class="match-cards-col">${col2}</div>
-  </div>`;
+  const isMobileLayout = window.innerWidth <= 900;
+  if (isMobileLayout) {
+    // Single column on mobile — new match always appears at the bottom
+    el.innerHTML = `<div class="match-cards-grid">
+      <div class="match-cards-col" style="flex:none;width:100%">${filtered.map(m => renderMatchCard(m)).join('')}</div>
+    </div>`;
+  } else {
+    const col1 = filtered.filter((_,i) => i % 2 === 0).map(m => renderMatchCard(m)).join('');
+    const col2 = filtered.filter((_,i) => i % 2 === 1).map(m => renderMatchCard(m)).join('');
+    el.innerHTML = `<div class="match-cards-grid">
+      <div class="match-cards-col">${col1}</div>
+      <div class="match-cards-col">${col2}</div>
+    </div>`;
+  }
 }
 
 function renderMatchCard(match) {
@@ -3490,19 +3520,27 @@ function renderTeamMemberSide(match, teamKey, memberIdx, mid, colorSide, slotNum
     const finishTags = b.finishes.map((f, fi) =>
       `<span class="finish-tag ${f}">${f}<button class="finish-tag-remove" onclick="mRemoveTeamFinish(${mid},'${teamKey}',${memberIdx},${bi},${fi})">✕</button></span>`
     ).join('');
+    const acId = `tmac-${mid}-${teamKey}-${memberIdx}-${bi}`;
+    const inpId = `tmai-${mid}-${teamKey}-${memberIdx}-${bi}`;
+    const playerKey_ = escJs(member.player);
     // Deployed derived from finishes (see note in renderPlayerSide).
     // No checkbox shown — auto-derived from finishes.
     const isDeployed = (b.finishes && b.finishes.length > 0) || b.deployed;
     return `
       <div class="match-build-row">
-        <div class="match-build-name">
-          <input type="text" value="${escHtml(b.build)}" placeholder="Build name…"
+        <div class="match-build-name match-build-name-wrap">
+          <input id="${inpId}" type="text" value="${escHtml(b.build)}" placeholder="Build name…"
             title="Edit build name for this round only"
-            oninput="mRenameTeamBuild(${mid},'${teamKey}',${memberIdx},${bi},this.value)"
+            oninput="mRenameTeamBuild(${mid},'${teamKey}',${memberIdx},${bi},this.value);mShowBuildAC('${acId}','${inpId}','${playerKey_}',this.value)"
+            onfocus="mShowBuildAC('${acId}','${inpId}','${playerKey_}',this.value)"
+            onblur="setTimeout(()=>mHideBuildAC('${acId}'),160)"
+            onkeydown="mTeamBuildACKeydown(event,'${acId}','${inpId}',${mid},'${teamKey}',${memberIdx},${bi})"
             onclick="event.stopPropagation()"
-            style="flex:1;min-width:0;max-width:130px;font-family:'Share Tech Mono',monospace;font-size:11px;
+            autocomplete="off"
+            style="width:100%;font-family:'Share Tech Mono',monospace;font-size:11px;
               background:transparent;border:none;border-bottom:1px dashed var(--border2);
               color:var(--accent);padding:1px 3px;outline:none;cursor:text" />
+          <div class="build-autocomplete" id="${acId}" style="display:none"></div>
         </div>
         <div class="match-build-finishes">
           ${finishTags}
@@ -3544,19 +3582,24 @@ function renderPlayerSide(match, side, mid) {
     const finishTags = b.finishes.map((f, fi) =>
       `<span class="finish-tag ${f}">${f}<button class="finish-tag-remove" onclick="mRemoveFinish(${mid},'${side}',${bi},${fi})">✕</button></span>`
     ).join('');
-    // Deployed is derived from finishes: any finish (including L) means deployed.
-    // No checkbox shown — "no finishes and no loss = not deployed" is automatic.
-    const isDeployed = (b.finishes && b.finishes.length > 0) || b.deployed;
+    const acId = `mac-${mid}-${side}-${bi}`;
+    const inpId = `mai-${mid}-${side}-${bi}`;
+    const playerKey_ = escJs(player.player);
     return `
       <div class="match-build-row">
-        <div class="match-build-name">
-          <input type="text" value="${escHtml(b.build)}" placeholder="Build name…"
+        <div class="match-build-name match-build-name-wrap">
+          <input id="${inpId}" type="text" value="${escHtml(b.build)}" placeholder="Build name…"
             title="Edit build name for this round only"
-            oninput="mRenameBuild(${mid},'${side}',${bi},this.value)"
+            oninput="mRenameBuild(${mid},'${side}',${bi},this.value);mShowBuildAC('${acId}','${inpId}','${playerKey_}',this.value)"
+            onfocus="mShowBuildAC('${acId}','${inpId}','${playerKey_}',this.value)"
+            onblur="setTimeout(()=>mHideBuildAC('${acId}'),160)"
+            onkeydown="mBuildACKeydown(event,'${acId}','${inpId}',${mid},'${side}',${bi})"
             onclick="event.stopPropagation()"
-            style="flex:1;min-width:0;max-width:150px;font-family:'Share Tech Mono',monospace;font-size:11px;
+            autocomplete="off"
+            style="width:100%;font-family:'Share Tech Mono',monospace;font-size:11px;
               background:transparent;border:none;border-bottom:1px dashed var(--border2);
               color:var(--accent);padding:1px 3px;outline:none;cursor:text" />
+          <div class="build-autocomplete" id="${acId}" style="display:none"></div>
         </div>
         <div class="match-build-finishes">
           ${finishTags}
@@ -3712,6 +3755,75 @@ function mRenameBuild(mid, side, buildIdx, newName) {
   flattenMatchesToResults();
   markDirty();
   // Don't re-render — would destroy the focused input mid-typing
+}
+
+// ─────────────────────────────────────────────
+// MATCH CARD BUILD AUTOCOMPLETE HELPERS
+// ─────────────────────────────────────────────
+function mShowBuildAC(acId, inpId, playerName, val) {
+  const acEl = document.getElementById(acId);
+  if (!acEl) return;
+  const key = playerKey(playerName);
+  const q = (val || '').trim().toLowerCase();
+  // Gather builds already typed in this player's slots (all inpId siblings in same card)
+  const usedByPlayer = new Set();
+  // Don't exclude anything — just filter known builds by query
+  const matches = _knownBuildNames.filter(b => {
+    if (!q) return false;
+    return b.toLowerCase().includes(q);
+  }).slice(0, 10);
+  const exactMatch = _knownBuildNames.some(b => b.toLowerCase() === q);
+  if (!matches.length && (exactMatch || !q)) { acEl.style.display = 'none'; return; }
+  let html = matches.map(b =>
+    `<div class="build-ac-item" data-val="${escHtml(b)}" onmousedown="event.preventDefault();mPickBuildAC('${acId}','${inpId}',event.currentTarget.dataset.val)">${escHtml(b)}</div>`
+  ).join('');
+  if (q && !exactMatch) {
+    html += `<div class="build-ac-new" onmousedown="event.preventDefault();mPickBuildAC('${acId}','${inpId}','${escJs(val.trim())}')">✚ Add "${escHtml(val.trim())}" as new build</div>`;
+  }
+  if (!html) { acEl.style.display = 'none'; return; }
+  acEl.innerHTML = html;
+  acEl.style.display = 'block';
+}
+
+function mHideBuildAC(acId) {
+  const acEl = document.getElementById(acId);
+  if (acEl) acEl.style.display = 'none';
+}
+
+function mPickBuildAC(acId, inpId, val) {
+  const inp = document.getElementById(inpId);
+  if (inp) {
+    inp.value = val;
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  mHideBuildAC(acId);
+  if (val && !_knownBuildNames.includes(val)) { _knownBuildNames.push(val); _knownBuildNames.sort(); }
+}
+
+function mBuildACKeydown(e, acId, inpId, mid, side, buildIdx) {
+  const acEl = document.getElementById(acId);
+  if (!acEl || acEl.style.display === 'none') return;
+  const items = acEl.querySelectorAll('.build-ac-item,.build-ac-new');
+  const curActive = acEl.querySelector('.build-ac-item.active,.build-ac-new.active');
+  const curIdx = Array.from(items).indexOf(curActive);
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    items.forEach(i => i.classList.remove('active'));
+    (items[curIdx + 1] || items[0])?.classList.add('active');
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    items.forEach(i => i.classList.remove('active'));
+    (items[curIdx - 1] || items[items.length - 1])?.classList.add('active');
+  } else if (e.key === 'Enter' && curActive) {
+    e.preventDefault();
+    mPickBuildAC(acId, inpId, curActive.dataset.val || curActive.textContent.replace(/^✚ Add "(.+)" as new build$/, '$1'));
+  } else if (e.key === 'Escape') {
+    mHideBuildAC(acId);
+  }
+}
+
+function mTeamBuildACKeydown(e, acId, inpId, mid, teamKey, memberIdx, buildIdx) {
+  mBuildACKeydown(e, acId, inpId, mid, null, buildIdx);
 }
 
 // Rename a build for a specific team match member round only
@@ -5037,6 +5149,11 @@ function lmStartEditBey(btnEl, playerName, slotIdx) {
   const key = playerKey(playerName);
   const currentName = (buildsState[key] && buildsState[key][slotIdx]) || '';
 
+  // Build a wrapper for relative positioning of AC dropdown
+  const wrap = document.createElement('div');
+  wrap.className = 'lm-bey-name-wrap';
+  wrap.style.cssText = 'display:inline-flex;flex-direction:column;flex:1;min-width:0;position:relative';
+
   // Build the input element
   const input = document.createElement('input');
   input.type = 'text';
@@ -5044,29 +5161,100 @@ function lmStartEditBey(btnEl, playerName, slotIdx) {
   input.value = currentName;
   input.maxLength = 40;
   input.placeholder = 'e.g. WIRO 1-60 H';
+  input.autocomplete = 'off';
 
-  // Replace the name span with the input
+  // AC dropdown
+  const acDiv = document.createElement('div');
+  acDiv.className = 'build-autocomplete';
+  acDiv.style.display = 'none';
+  acDiv.style.position = 'absolute';
+  acDiv.style.top = '100%';
+  acDiv.style.left = '0';
+  acDiv.style.right = '0';
+  acDiv.style.zIndex = '700';
+
+  wrap.appendChild(input);
+  wrap.appendChild(acDiv);
+
+  // Replace the name span with the wrapper
   nameSpan.style.display = 'none';
-  nameSpan.parentNode.insertBefore(input, nameSpan);
+  nameSpan.parentNode.insertBefore(wrap, nameSpan);
   // Hide the edit button while editing
   btnEl.style.display = 'none';
+
+  // AC helper — inline
+  const showAC = (val) => {
+    const q = (val || '').trim().toLowerCase();
+    const usedByPlayer = new Set(
+      (buildsState[key] || []).filter((b, i) => i !== slotIdx && b.trim()).map(b => b.trim().toLowerCase())
+    );
+    const matches = _knownBuildNames.filter(b => {
+      if (usedByPlayer.has(b.toLowerCase())) return false;
+      if (!q) return false;
+      return b.toLowerCase().includes(q);
+    }).slice(0, 10);
+    const exactMatch = _knownBuildNames.some(b => b.toLowerCase() === q);
+    if (!matches.length && (exactMatch || !q)) { acDiv.style.display = 'none'; return; }
+    let html = matches.map(b =>
+      `<div class="build-ac-item" data-val="${escHtml(b)}">${escHtml(b)}</div>`
+    ).join('');
+    if (q && !exactMatch) {
+      html += `<div class="build-ac-new" data-val="${escHtml(val.trim())}">✚ Add "${escHtml(val.trim())}" as new build</div>`;
+    }
+    if (!html) { acDiv.style.display = 'none'; return; }
+    acDiv.innerHTML = html;
+    acDiv.style.display = 'block';
+    // Attach click handlers
+    acDiv.querySelectorAll('[data-val]').forEach(item => {
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        const picked = item.dataset.val;
+        input.value = picked;
+        acDiv.style.display = 'none';
+        // Add to known builds
+        if (picked && !_knownBuildNames.includes(picked)) { _knownBuildNames.push(picked); _knownBuildNames.sort(); }
+      });
+    });
+  };
 
   // Stop chip-click handlers from firing while typing
   ['click','mousedown','touchstart','touchend'].forEach(ev => {
     input.addEventListener(ev, e => e.stopPropagation());
   });
 
+  input.addEventListener('input', () => showAC(input.value));
+  input.addEventListener('focus', () => showAC(input.value));
+
   // Commit on Enter, cancel on Escape, save on blur
   input.addEventListener('keydown', e => {
-    if (e.key === 'Enter')      { e.preventDefault(); input.blur(); }
-    else if (e.key === 'Escape'){ e.preventDefault(); _editingBeyToken = null; _syncPaused = false; lmRender(); }
+    const items = acDiv.querySelectorAll('.build-ac-item,.build-ac-new');
+    const active = acDiv.querySelector('.build-ac-item.active,.build-ac-new.active');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const idx = Array.from(items).indexOf(active);
+      items.forEach(i => i.classList.remove('active'));
+      if (idx < items.length - 1) items[idx+1]?.classList.add('active');
+      else items[0]?.classList.add('active');
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const idx = Array.from(items).indexOf(active);
+      items.forEach(i => i.classList.remove('active'));
+      if (idx > 0) items[idx-1]?.classList.add('active');
+      else items[items.length-1]?.classList.add('active');
+    } else if (e.key === 'Enter') {
+      if (active) { e.preventDefault(); input.value = active.dataset.val; acDiv.style.display = 'none'; input.blur(); }
+      else { e.preventDefault(); input.blur(); }
+    } else if (e.key === 'Escape') { e.preventDefault(); acDiv.style.display = 'none'; _editingBeyToken = null; _syncPaused = false; lmRender(); }
   });
   input.addEventListener('blur', () => {
-    if (!_editingBeyToken) return; // Escape was pressed
-    const newName = input.value.trim();
-    _editingBeyToken = null;
-    _syncPaused = false;
-    lmCommitBeyRename(playerName, slotIdx, newName);
+    setTimeout(() => {
+      if (!_editingBeyToken) return; // Escape was pressed
+      acDiv.style.display = 'none';
+      const newName = input.value.trim();
+      _editingBeyToken = null;
+      _syncPaused = false;
+      lmCommitBeyRename(playerName, slotIdx, newName);
+    }, 150);
   });
 
   // Focus & select after the DOM settles
