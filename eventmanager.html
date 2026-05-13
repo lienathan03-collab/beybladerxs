@@ -2168,7 +2168,8 @@ function _showSoundCodeInput() {
 function _initLogoTap() {
   const logo = document.querySelector('.topbar-logo');
   if (!logo) return;
-  logo.addEventListener('click', () => {
+  logo.addEventListener('click', (e) => {
+    e.preventDefault();
     _logoTapCount++;
     clearTimeout(_logoTapTimer);
     _logoTapTimer = setTimeout(() => { _logoTapCount = 0; }, 1200);
