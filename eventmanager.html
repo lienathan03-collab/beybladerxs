@@ -249,6 +249,7 @@
     gap: 8px;
     align-items: center;
     margin-bottom: 6px;
+    position: relative;
   }
   .build-num {
     font-family: 'Share Tech Mono', monospace;
@@ -268,6 +269,41 @@
     transition: color .15s;
   }
   .build-delete:hover { color: var(--red); }
+  /* build autocomplete */
+  .build-autocomplete {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 24px;
+    right: 0;
+    background: #1a1200;
+    border: 1px solid var(--gold);
+    border-radius: 7px;
+    z-index: 400;
+    max-height: 180px;
+    overflow-y: auto;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.7);
+  }
+  .build-ac-item {
+    padding: 8px 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--text);
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    transition: background .1s;
+  }
+  .build-ac-item:last-child { border-bottom: none; }
+  .build-ac-item:hover, .build-ac-item.active { background: rgba(212,175,55,0.15); color: #fff; }
+  .build-ac-new {
+    padding: 8px 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: #4ade80;
+    cursor: pointer;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    transition: background .1s;
+  }
+  .build-ac-new:hover { background: rgba(74,222,128,0.1); }
   .add-build-btn {
     background: none;
     border: 1px dashed var(--border2);
@@ -1963,6 +1999,8 @@ let buildsState = {};
 let resultsState = [];
 
 let dirty = false;
+// Cache of all known build names across all events — used for build autocomplete
+let _knownBuildNames = [];
 let _pickerTarget = null; // { playerKey, buildIdx, roundIdx }
 
 const FINISH_PTS = { S: 1, O: 2, E: 3, B: 2, L: 0 };
@@ -2031,6 +2069,14 @@ async function loadEventList() {
       const db = new Date(b.date).getTime() || 0;
       return db - da;
     });
+    // Build global known-builds set from all events for autocomplete
+    const buildSet = new Set();
+    allEvents.forEach(ev => {
+      Object.values(ev.builds || {}).forEach(arr => {
+        (arr || []).forEach(b => { if (b && b.trim()) buildSet.add(b.trim()); });
+      });
+    });
+    _knownBuildNames = [...buildSet].sort();
     const sel = document.getElementById('event-select');
     sel.innerHTML = '<option value="">— choose an event —</option>';
     allEvents.forEach(ev => {
@@ -2058,6 +2104,10 @@ function loadEvent(id) {
   // Load existing beyResults/builds from server
   buildsState = JSON.parse(JSON.stringify(currentEvent.builds || {}));
   resultsState = JSON.parse(JSON.stringify(currentEvent.beyResults || []));
+  // Refresh known build names to include this event's builds
+  const buildSet = new Set(_knownBuildNames);
+  Object.values(buildsState).forEach(arr => (arr||[]).forEach(b => { if(b&&b.trim()) buildSet.add(b.trim()); }));
+  _knownBuildNames = [...buildSet].sort();
   matchesState = [];
   _matchIdCounter = 1;
   activeRoundFilter = 'ALL';
@@ -2401,13 +2451,19 @@ function renderBuilds() {
       const wasSubmitted = submitted[i] || '';
       const changed = b !== wasSubmitted && wasSubmitted !== ''; // name changed since last submit
       if (changed) anyChanged = true;
+      const inputId = `build-inp-${escId(key)}-${i}`;
       return `
-      <div class="build-row">
+      <div class="build-row" id="build-row-${escId(key)}-${i}">
         <span class="build-num">${i+1}.</span>
-        <input class="form-input" style="flex:1;font-size:13px;padding:5px 8px;font-family:'Share Tech Mono',monospace;${changed ? 'border-color:var(--gold);' : ''}"
+        <input id="${inputId}" class="form-input" style="flex:1;font-size:13px;padding:5px 8px;font-family:'Share Tech Mono',monospace;${changed ? 'border-color:var(--gold);' : ''}"
           value="${escHtml(b)}" placeholder="e.g. Wiro 1-60 H"
-          oninput="updateBuild('${escJs(key)}', ${i}, this.value)" />
+          oninput="updateBuild('${escJs(key)}', ${i}, this.value); showBuildAC('${escJs(key)}',${i},this.value)"
+          onkeydown="buildACKeydown(event,'${escJs(key)}',${i})"
+          onfocus="showBuildAC('${escJs(key)}',${i},this.value)"
+          onblur="setTimeout(()=>hideBuildAC('${escJs(key)}',${i}),150)"
+          autocomplete="off" />
         ${changed ? `<span style="font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--gold);margin-left:4px;white-space:nowrap" title="Name changed from '${escHtml(wasSubmitted)}'">✎ renamed</span>` : ''}
+        <div class="build-autocomplete" id="build-ac-${escId(key)}-${i}" style="display:none"></div>
       </div>`;
     }).join('');
 
@@ -2452,6 +2508,100 @@ function updateBuild(key, idx, val) {
   markDirty();
   // Don't re-render full builds grid on every keystroke — just update the indicator
   // (renderBuilds would destroy the focused input element mid-typing)
+}
+
+// ─────────────────────────────────────────────
+// BUILD AUTOCOMPLETE
+// ─────────────────────────────────────────────
+let _buildACSelected = {}; // key+idx → selected index
+
+function showBuildAC(key, idx, val) {
+  const acEl = document.getElementById(`build-ac-${escId(key)}-${idx}`);
+  if (!acEl) return;
+  const q = (val || '').trim().toLowerCase();
+
+  // Get builds already used by this player in this slot-set (exclude current slot)
+  const usedByPlayer = new Set(
+    (buildsState[key] || []).filter((b, i) => i !== idx && b.trim()).map(b => b.trim().toLowerCase())
+  );
+
+  // Match known builds
+  const matches = _knownBuildNames.filter(b => {
+    if (usedByPlayer.has(b.toLowerCase())) return false; // already used by this player
+    if (!q) return false; // don't show dropdown on empty
+    return b.toLowerCase().includes(q);
+  }).slice(0, 10);
+
+  const exactMatch = _knownBuildNames.some(b => b.toLowerCase() === q);
+
+  if (!matches.length && (exactMatch || !q)) { acEl.style.display = 'none'; return; }
+
+  _buildACSelected[`${key}-${idx}`] = -1;
+
+  let html = matches.map((b, i) =>
+    `<div class="build-ac-item" data-val="${escHtml(b)}" onmousedown="pickBuildAC('${escJs(key)}',${idx},'${escJs(b)}')">${escHtml(b)}</div>`
+  ).join('');
+
+  // Show "add as new" if typed value doesn't exactly match anything
+  if (q && !exactMatch) {
+    html += `<div class="build-ac-new" onmousedown="pickBuildAC('${escJs(key)}',${idx},'${escJs(val.trim())}')">✚ Add "${escHtml(val.trim())}" as new build</div>`;
+  }
+
+  if (!html) { acEl.style.display = 'none'; return; }
+  acEl.innerHTML = html;
+  acEl.style.display = 'block';
+}
+
+function hideBuildAC(key, idx) {
+  const acEl = document.getElementById(`build-ac-${escId(key)}-${idx}`);
+  if (acEl) acEl.style.display = 'none';
+  // Also add newly typed value to _knownBuildNames if it's not already there
+  const val = (buildsState[key] || [])[idx];
+  if (val && val.trim() && !_knownBuildNames.includes(val.trim())) {
+    _knownBuildNames.push(val.trim());
+    _knownBuildNames.sort();
+  }
+}
+
+function pickBuildAC(key, idx, val) {
+  if (!buildsState[key]) return;
+  buildsState[key][idx] = val;
+  markDirty();
+  const acEl = document.getElementById(`build-ac-${escId(key)}-${idx}`);
+  if (acEl) acEl.style.display = 'none';
+  // Update the input value directly
+  const inp = document.getElementById(`build-inp-${escId(key)}-${idx}`);
+  if (inp) inp.value = val;
+}
+
+function buildACKeydown(e, key, idx) {
+  const acEl = document.getElementById(`build-ac-${escId(key)}-${idx}`);
+  if (!acEl || acEl.style.display === 'none') return;
+  const items = acEl.querySelectorAll('.build-ac-item, .build-ac-new');
+  const selKey = `${key}-${idx}`;
+  let cur = _buildACSelected[selKey] ?? -1;
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    cur = Math.min(cur + 1, items.length - 1);
+    _buildACSelected[selKey] = cur;
+    items.forEach((el, i) => el.classList.toggle('active', i === cur));
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    cur = Math.max(cur - 1, -1);
+    _buildACSelected[selKey] = cur;
+    items.forEach((el, i) => el.classList.toggle('active', i === cur));
+  } else if (e.key === 'Enter') {
+    if (cur >= 0 && items[cur]) {
+      e.preventDefault();
+      const val = items[cur].dataset.val || items[cur].textContent.replace(/^✚ Add "(.+)" as new build$/, '$1');
+      pickBuildAC(key, idx, val);
+    } else {
+      acEl.style.display = 'none';
+    }
+  } else if (e.key === 'Escape') {
+    acEl.style.display = 'none';
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -3040,6 +3190,15 @@ async function createMatch() {
 
   flattenMatchesToResults();
   markDirty();
+
+  // Auto-advance round selector to next round (but don't lock previous rounds)
+  const roundOrder = ['R1','R2','R3','R4','R5','R6','R7','TC','QF','SF','F'];
+  const sel = document.getElementById('nm-round-select');
+  const curIdx = roundOrder.indexOf(round);
+  if (curIdx !== -1 && curIdx < roundOrder.length - 1) {
+    sel.value = roundOrder[curIdx + 1];
+  }
+
   closeNewMatchModal();
   renderResults();
 
@@ -5776,6 +5935,18 @@ async function importCommit() {
 // ─────────────────────────────────────────────
 async function saveAll() {
   if (!currentEvent) return;
+
+  // ── Warn if there are unsubmitted matches ──
+  const unsubmittedCount = matchesState.filter(m => !m.submitted).length;
+  if (unsubmittedCount > 0) {
+    const proceed = confirm(
+      `⚠️ ${unsubmittedCount} match${unsubmittedCount > 1 ? 'es are' : ' is'} not yet submitted.\n\n` +
+      `Unsubmitted matches will NOT be counted in the leaderboard stats.\n\n` +
+      `Finalize anyway? (You can submit them later and re-finalize.)`
+    );
+    if (!proceed) return;
+  }
+
   setSaveStatus('Saving...', 'saving');
   document.getElementById('save-btn').disabled = true;
   _syncPaused = true; // pause auto-sync during save
