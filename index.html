@@ -1108,6 +1108,108 @@
 
     /* Weekly tab */
     .weekly-table th:nth-child(3), .weekly-table td:nth-child(3) { display: none; }
+
+    /* ── BEY RANKINGS — mobile card layout ── */
+    /* Hide the desktop column header row — each stat cell shows its own inline label instead */
+    #br-content .br-row.header { display: none; }
+
+    /* Each rankings row becomes a vertical card:
+       Top: rank icon + build-name/blader (flex)
+       Bottom: 4 stat pills (W / L / P / WR) wrapping to a new line, evenly sized */
+    #br-content .br-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0;
+      padding: 12px 12px 10px;
+    }
+    #br-content .br-row .br-rank {
+      flex: 0 0 38px;
+      align-self: center;
+    }
+    #br-content .br-row .br-build-cell {
+      flex: 1 1 0;
+      min-width: 0;
+      padding-right: 4px;
+    }
+    #br-content .br-row .br-build {
+      font-size: 15px; line-height: 1.25;
+      white-space: normal; word-break: break-word;
+    }
+    #br-content .br-row .br-build-sub { font-size: 11px; margin-top: 3px; }
+    #br-content .br-row .br-winrate-bar { margin-top: 6px; }
+
+    /* Stat pills strip — wraps to its own line and fills the row */
+    #br-content .br-row > .br-val[data-label],
+    #br-content .br-row > .br-winrate-cell {
+      flex: 1 1 0;
+      margin-top: 10px;
+      min-width: 0;
+      margin-right: 6px;
+    }
+    #br-content .br-row > .br-winrate-cell { margin-right: 0; }
+
+    /* Make the first stat pill wrap to a new line (so rank+build sit on row 1) */
+    #br-content .br-row > .br-val[data-label]:first-of-type {
+      margin-left: 0;
+    }
+    /* Force the stats strip onto its own line by making the build cell take 100%
+       of the remaining row width — it already flexes to fill, so the next item
+       (a flex:1 pill) wraps automatically because there's no horizontal room. */
+
+    /* Stat pill visuals */
+    #br-content .br-row > .br-val[data-label] {
+      text-align: center;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 4px 5px;
+      font-size: 14px;
+      color: var(--text);
+    }
+    #br-content .br-row > .br-val[data-label]::before {
+      content: attr(data-label);
+      display: block;
+      font-size: 9px;
+      letter-spacing: 1.2px;
+      color: var(--muted);
+      margin-bottom: 2px;
+      font-weight: 600;
+    }
+
+    /* Win-rate pill — gold-tinted */
+    #br-content .br-winrate-cell {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #1a1200;
+      border: 1px solid rgba(245, 197, 24, 0.35);
+      border-radius: 8px;
+      padding: 6px 4px 5px;
+      text-align: center;
+    }
+    #br-content .br-winrate-cell .br-val.highlight {
+      font-size: 14px;
+      text-align: center;
+      width: 100%;
+    }
+    #br-content .br-winrate-cell .br-val.highlight::before {
+      content: "WR";
+      display: block;
+      font-size: 9px;
+      letter-spacing: 1.2px;
+      color: var(--gold);
+      margin-bottom: 2px;
+      font-weight: 600;
+      opacity: 0.85;
+    }
+    /* Hide admin action buttons inside the WR pill on mobile — they'd blow up the layout.
+       Admin edits remain available on the desktop view (or by widening the window). */
+    #br-content .br-winrate-cell .br-row-actions { display: none !important; }
+
+    /* Tighten the view-toggle row so the search input drops to its own line */
+    .br-view-btn { padding: 7px 12px; font-size: 11px; }
+    .br-search-input { min-width: 0; width: 100%; flex: 1 1 100%; }
   }
 
   /* ── PUBLIC CHALLONGE HERO ── */
@@ -3373,16 +3475,16 @@ function renderGlobalBeyRankings(events, query) {
     ${rows.map((r, i) => `
     <div class="br-row">
       <div class="br-rank ${rankCls(i)}">${rankIcon(i)}</div>
-      <div>
+      <div class="br-build-cell">
         <div class="br-build">${escHtml(r.build)}</div>
         <div class="br-build-sub">${r.players} blader${r.players !== 1 ? 's' : ''}</div>
         <div class="br-winrate-bar"><div class="br-winrate-fill" style="width:${r.winRate.toFixed(1)}%"></div></div>
       </div>
-      <div class="br-val">${r.wins}</div>
-      <div class="br-val">${r.losses}</div>
-      <div class="br-val">${r.played}</div>
-      <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px">
-        <span class="br-val highlight">${r.winRate.toFixed(1)}%</span>
+      <div class="br-val" data-label="W">${r.wins}</div>
+      <div class="br-val" data-label="L">${r.losses}</div>
+      <div class="br-val" data-label="P">${r.played}</div>
+      <div class="br-winrate-cell">
+        <span class="br-val highlight" data-label="WR">${r.winRate.toFixed(1)}%</span>
         <div class="br-row-actions">
           <button class="br-edit-btn"   onclick="openBeyEditModal('editstats','${escJs(r.build)}',null)" style="background:#001a14;border-color:#3aa37a;color:#3aa37a" title="Edit wins/losses for this build">📊 STATS</button>
           <button class="br-edit-btn"   onclick="openBeyEditModal('rename','${escJs(r.build)}',null)">✏️ RENAME</button>
@@ -3441,16 +3543,16 @@ function renderSoloBeyRankings(events, query) {
     ${rows.map((r, i) => `
     <div class="br-row">
       <div class="br-rank ${rankCls(i)}">${rankIcon(i)}</div>
-      <div>
+      <div class="br-build-cell">
         <div class="br-build">${escHtml(r.build)}</div>
         <div class="br-build-sub">${escHtml(r.player)}</div>
         <div class="br-winrate-bar"><div class="br-winrate-fill" style="width:${r.winRate.toFixed(1)}%"></div></div>
       </div>
-      <div class="br-val">${r.wins}</div>
-      <div class="br-val">${r.losses}</div>
-      <div class="br-val">${r.played}</div>
-      <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px">
-        <span class="br-val highlight">${r.winRate.toFixed(1)}%</span>
+      <div class="br-val" data-label="W">${r.wins}</div>
+      <div class="br-val" data-label="L">${r.losses}</div>
+      <div class="br-val" data-label="P">${r.played}</div>
+      <div class="br-winrate-cell">
+        <span class="br-val highlight" data-label="WR">${r.winRate.toFixed(1)}%</span>
         <div class="br-row-actions">
           <button class="br-edit-btn"   onclick="openBeyEditModal('editstats','${escJs(r.build)}','${escJs(r.player)}')" style="background:#001a14;border-color:#3aa37a;color:#3aa37a" title="Edit wins/losses for this build/player">📊 STATS</button>
           <button class="br-edit-btn"   onclick="openBeyEditModal('rename','${escJs(r.build)}','${escJs(r.player)}')">✏️ RENAME</button>
