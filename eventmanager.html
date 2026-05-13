@@ -4,6 +4,17 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
 <title>RXS Event Manager</title>
+
+<!-- ══ PWA INSTALLABLE APP ══ -->
+<meta name="theme-color" content="#0a0a0a" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="RXS Events" />
+<meta name="application-name" content="RXS Events" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
+
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <style>
@@ -1095,27 +1106,33 @@
     letter-spacing: 1.5px; text-align: center;
     text-transform: uppercase; line-height: 1;
     padding: 2px 0 4px; opacity: 0.75;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   #clw-left .clw-player  { color: var(--blue); }
   #clw-right .clw-player { color: var(--gold2); }
   /* Bey name in a colored pill below player name */
   .clw-bey {
-    font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 800;
-    text-align: center; word-break: break-word; line-height: 1.1;
-    padding: 4px 10px; border-radius: 5px;
-    justify-self: center; max-width: 90%;
+    font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 800;
+    text-align: center; line-height: 1.1;
+    padding: 3px 8px; border-radius: 5px;
+    justify-self: center; max-width: 95%;
     letter-spacing: 0.5px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   #clw-bey-left  { color: var(--blue); background: rgba(74,158,255,0.15); border: 1px solid rgba(74,158,255,0.35); }
   #clw-bey-right { color: var(--gold2); background: rgba(212,175,55,0.10); border: 1px solid rgba(212,175,55,0.30); }
-  /* MASSIVE score — the hero element */
+  /* MASSIVE score — the hero element. After 90° rotation, 1vw of the
+     un-rotated page = 1 unit of the rotated screen's height. So we size
+     the score off vw, which becomes the available vertical space. */
   .clw-score {
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 900; line-height: 0.9;
-    font-size: clamp(120px, 32vh, 260px);
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 900; line-height: 0.85;
+    font-size: clamp(90px, 38vw, 200px);
     color: var(--muted2);
     text-align: center; align-self: center;
     letter-spacing: -4px;
     text-shadow: 0 2px 0 rgba(0,0,0,0.4);
+    /* Make sure huge text doesn't push siblings or get clipped */
+    overflow: visible;
   }
   /* Used-finish chips: tiny, tucked at bottom corner, just for reference */
   .clw-finishes {
@@ -1126,25 +1143,26 @@
   }
   #clw-left  .clw-finishes { justify-content: flex-start; }
   #clw-right .clw-finishes { justify-content: flex-end; }
-  /* WARN counter: small inline corner badge instead of floating block */
+  /* WARN counter: tiny corner badge, never overlaps the score */
   .clw-warn {
     display: flex; align-items: center; justify-content: center; gap: 3px;
-    position: absolute; bottom: 8px;
-    padding: 3px 8px; border-radius: 10px;
+    position: absolute; bottom: 6px;
+    padding: 2px 6px; border-radius: 8px;
     background: #1a1a1a; border: 1px solid #2a2a2a;
-    pointer-events: none; z-index: 2;
-    opacity: 0.7;
+    pointer-events: none; z-index: 3;
+    opacity: 0.65;
   }
+  /* Left-side WARN pins to LEFT corner of left half, right to right of right half */
+  #clw-warn-left  { left: 6px; }
+  #clw-warn-right { right: 6px; }
   .clw-warn.visible {
-    background: rgba(229,57,53,0.18) !important;
-    border-color: rgba(229,57,53,0.55) !important;
+    background: rgba(229,57,53,0.22) !important;
+    border-color: rgba(229,57,53,0.6) !important;
     opacity: 1 !important;
   }
-  #clw-warn-left  { right: 10px; }
-  #clw-warn-right { left: 10px; }
-  .clw-warn-label { font-family: 'Share Tech Mono', monospace; font-size: 7px; color: var(--muted); letter-spacing: 1px; }
+  .clw-warn-label { font-family: 'Share Tech Mono', monospace; font-size: 6px; color: var(--muted); letter-spacing: 0.5px; }
   .clw-warn.visible .clw-warn-label { color: var(--red); }
-  .clw-warn-num   { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 900; color: var(--muted); line-height: 1; }
+  .clw-warn-num   { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 900; color: var(--muted); line-height: 1; }
   .clw-warn.visible .clw-warn-num { color: var(--red); }
 
   /* Bottom control bar */
@@ -4826,7 +4844,7 @@ function clwRender() {
   const scorerTeamKey = scorerKey === 't1' ? 'team1' : 'team2';
   const scorerMemberIdx = scorerKey === 't1' ? clash.t1MemberIdx : clash.t2MemberIdx;
   const scorerName = match[scorerTeamKey]?.members[scorerMemberIdx]?.player || '—';
-  el('clw-strip').textContent = `▸ ${scorerName.toUpperCase()} — TAP S/O/E/B TO SCORE`;
+  el('clw-strip').textContent = `▸ ${scorerName.toUpperCase()}`;
 
   // Keep bey chips in sync
   clwRenderBeyChips();
@@ -6551,6 +6569,97 @@ window.addEventListener('beforeunload', e => {
     e.preventDefault();
     e.returnValue = '';
   }
+});
+
+// ═════════════════════════════════════════════
+// ══ PWA: SERVICE WORKER + OFFLINE INDICATOR ══
+// ═════════════════════════════════════════════
+
+// Register the service worker so the app works offline once loaded
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').then(reg => {
+      console.log('[PWA] Service worker registered');
+      // Check for updates every 60s when the app is open
+      setInterval(() => reg.update().catch(()=>{}), 60000);
+    }).catch(err => {
+      console.warn('[PWA] Service worker registration failed:', err);
+    });
+  });
+}
+
+// Online/offline UI indicator
+function updateNetworkStatus() {
+  const online = navigator.onLine;
+  let el = document.getElementById('net-status');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'net-status';
+    el.style.cssText = `
+      position: fixed; top: 8px; right: 8px; z-index: 9999;
+      padding: 4px 10px; border-radius: 12px;
+      font-family: 'Share Tech Mono', monospace; font-size: 10px;
+      font-weight: 700; letter-spacing: 1px; pointer-events: none;
+      transition: opacity .25s, transform .25s;
+    `;
+    document.body.appendChild(el);
+  }
+  if (online) {
+    el.textContent = '● ONLINE';
+    el.style.background = 'rgba(76,175,80,0.15)';
+    el.style.border = '1px solid rgba(76,175,80,0.4)';
+    el.style.color = '#66bb6a';
+    // Fade out after a moment when online — only show prominently when offline
+    el.style.opacity = '0.6';
+    clearTimeout(window._netStatusTimer);
+    window._netStatusTimer = setTimeout(() => { el.style.opacity = '0'; }, 2500);
+  } else {
+    el.textContent = '● OFFLINE — SAVING LOCALLY';
+    el.style.background = 'rgba(229,57,53,0.18)';
+    el.style.border = '1px solid rgba(229,57,53,0.55)';
+    el.style.color = '#ff7575';
+    el.style.opacity = '1';
+    clearTimeout(window._netStatusTimer);
+  }
+}
+window.addEventListener('online',  updateNetworkStatus);
+window.addEventListener('offline', updateNetworkStatus);
+window.addEventListener('load',    updateNetworkStatus);
+
+// "Add to Home Screen" prompt — show a small install hint when available
+let _deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  _deferredInstallPrompt = e;
+  // Tiny install hint button — only appears once, only if installable
+  if (document.getElementById('pwa-install-hint')) return;
+  const btn = document.createElement('button');
+  btn.id = 'pwa-install-hint';
+  btn.textContent = '📲 Install App';
+  btn.style.cssText = `
+    position: fixed; bottom: 12px; right: 12px; z-index: 9998;
+    padding: 8px 14px; border-radius: 20px;
+    background: var(--blue); color: #fff; border: none;
+    font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 700;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+    cursor: pointer; letter-spacing: 0.5px;
+  `;
+  btn.onclick = async () => {
+    if (!_deferredInstallPrompt) return;
+    _deferredInstallPrompt.prompt();
+    const { outcome } = await _deferredInstallPrompt.userChoice;
+    _deferredInstallPrompt = null;
+    btn.remove();
+    if (outcome === 'accepted') showToast('✅ App installed!', 'success');
+  };
+  document.body.appendChild(btn);
+  // Auto-hide after 15s if not clicked
+  setTimeout(() => { btn.style.opacity = '0.4'; }, 15000);
+});
+
+// When app is installed, hide the prompt
+window.addEventListener('appinstalled', () => {
+  document.getElementById('pwa-install-hint')?.remove();
 });
 </script>
 </body>
