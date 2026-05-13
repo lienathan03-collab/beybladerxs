@@ -1626,11 +1626,17 @@
         </div>
         <!-- Admin inline add -->
         <div id="evd-admin-add-row" class="admin-only-btn" style="display:none;margin-bottom:10px">
-          <div style="display:flex;gap:6px;align-items:center">
-            <input class="form-input" type="text" id="evd-inline-name" placeholder="Add blader name…"
-              style="flex:1;font-size:12px;padding:7px 10px"
-              onkeydown="if(event.key==='Enter')adminInlineAddJoiner()" />
+          <div style="display:flex;gap:6px;align-items:center;position:relative">
+            <div style="flex:1;position:relative">
+              <input class="form-input" type="text" id="evd-inline-name" placeholder="Add blader name…"
+                style="width:100%;font-size:12px;padding:7px 10px;box-sizing:border-box"
+                onkeydown="evdInlineKeydown(event)"
+                oninput="evdInlineInput(this.value)"
+                autocomplete="off" />
+              <div id="evd-inline-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#1a1200;border:1px solid var(--gold);border-radius:8px;z-index:1100;max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.7)"></div>
+            </div>
             <button class="btn primary" style="font-size:11px;padding:6px 12px;white-space:nowrap" onclick="adminInlineAddJoiner()">➕ Add</button>
+            <button class="btn" style="font-size:11px;padding:6px 12px;white-space:nowrap;background:var(--surface2);border-color:var(--gold);color:var(--gold)" onclick="openEventBulkAddModal()">📋 Bulk Add</button>
           </div>
           <div id="evd-inline-error" style="color:#f87171;font-size:11px;margin-top:4px"></div>
         </div>
@@ -7503,6 +7509,208 @@ async function adminInlineAddJoiner() {
   }
 }
 
+// ── Inline name autocomplete dropdown ──
+let evdDropdownSelected = -1;
+
+function evdInlineInput(val) {
+  const dropdown = document.getElementById('evd-inline-dropdown');
+  const q = val.trim().toLowerCase();
+  if (!q) { dropdown.style.display = 'none'; evdDropdownSelected = -1; return; }
+
+  // Get names already joined
+  const joined = new Set((currentEventDetail?.joiners || []).map(j => (j.name||j).toLowerCase()));
+
+  const matches = players
+    .filter(p => p.name.toLowerCase().includes(q) && !joined.has(p.name.toLowerCase()))
+    .slice(0, 8);
+
+  if (!matches.length) { dropdown.style.display = 'none'; evdDropdownSelected = -1; return; }
+
+  evdDropdownSelected = -1;
+  dropdown.innerHTML = matches.map((p, i) => {
+    const team = (() => {
+      const keys = Object.keys(teamConfig||{}).filter(k => k !== 'Independent');
+      for (const k of keys) { if (p.name.startsWith(k)) return k; }
+      return '';
+    })();
+    const cfg = (teamConfig||{})[team];
+    const color = cfg ? cfg.color : '#888';
+    const tagHtml = team ? `<span style="font-size:10px;padding:1px 5px;border-radius:3px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${color};background:${color}22;border:0.5px solid ${color}55;margin-left:6px">${team}</span>` : '';
+    return `<div class="evd-dd-opt" data-idx="${i}" data-name="${p.name}"
+      style="padding:9px 13px;font-size:13px;color:var(--text);cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:.5px;display:flex;align-items:center;gap:4px;border-bottom:1px solid rgba(255,255,255,0.05);transition:background .12s"
+      onmouseenter="evdDDHover(this)"
+      onmouseleave="evdDDUnhover(this)"
+      onmousedown="evdDDSelect('${p.name.replace(/'/g,"\\'")}')">
+      <span>${p.name}</span>${tagHtml}
+      <span style="font-size:10px;color:var(--gold);margin-left:auto">on leaderboard</span>
+    </div>`;
+  }).join('');
+  dropdown.style.display = 'block';
+}
+
+function evdDDHover(el) { el.style.background = 'rgba(212,175,55,0.12)'; el.style.color = '#fff'; }
+function evdDDUnhover(el) { el.style.background = ''; el.style.color = 'var(--text)'; }
+
+function evdDDSelect(name) {
+  document.getElementById('evd-inline-name').value = name;
+  document.getElementById('evd-inline-dropdown').style.display = 'none';
+  evdDropdownSelected = -1;
+  adminInlineAddJoiner();
+}
+
+function evdInlineKeydown(e) {
+  const dropdown = document.getElementById('evd-inline-dropdown');
+  const opts = dropdown.querySelectorAll('.evd-dd-opt');
+  if (dropdown.style.display === 'none' || !opts.length) {
+    if (e.key === 'Enter') adminInlineAddJoiner();
+    return;
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    evdDropdownSelected = Math.min(evdDropdownSelected + 1, opts.length - 1);
+    opts.forEach((o, i) => { o.style.background = i === evdDropdownSelected ? 'rgba(212,175,55,0.18)' : ''; o.style.color = i === evdDropdownSelected ? '#fff' : 'var(--text)'; });
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    evdDropdownSelected = Math.max(evdDropdownSelected - 1, -1);
+    opts.forEach((o, i) => { o.style.background = i === evdDropdownSelected ? 'rgba(212,175,55,0.18)' : ''; o.style.color = i === evdDropdownSelected ? '#fff' : 'var(--text)'; });
+  } else if (e.key === 'Enter') {
+    if (evdDropdownSelected >= 0 && opts[evdDropdownSelected]) {
+      const name = opts[evdDropdownSelected].dataset.name;
+      evdDDSelect(name);
+    } else {
+      dropdown.style.display = 'none';
+      adminInlineAddJoiner();
+    }
+  } else if (e.key === 'Escape') {
+    dropdown.style.display = 'none';
+    evdDropdownSelected = -1;
+  }
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+  const dd = document.getElementById('evd-inline-dropdown');
+  const inp = document.getElementById('evd-inline-name');
+  if (dd && inp && !dd.contains(e.target) && e.target !== inp) {
+    dd.style.display = 'none';
+  }
+});
+
+// ── Event Bulk Add Modal ──
+function openEventBulkAddModal() {
+  if (!isAdmin || !currentEventDetail) return;
+  document.getElementById('ev-bulk-names-input').value = '';
+  document.getElementById('ev-bulk-preview').style.display = 'none';
+  document.getElementById('ev-bulk-preview-list').innerHTML = '';
+  document.getElementById('ev-bulk-error').textContent = '';
+  document.getElementById('ev-bulk-add-modal').classList.add('open');
+  setTimeout(() => document.getElementById('ev-bulk-names-input').focus(), 150);
+}
+function closeEventBulkAddModal() { document.getElementById('ev-bulk-add-modal').classList.remove('open'); }
+
+function previewEventBulkAdd() {
+  const raw = document.getElementById('ev-bulk-names-input').value;
+  const names = raw.split('\n').map(s => s.trim()).filter(Boolean);
+  const previewEl = document.getElementById('ev-bulk-preview');
+  const listEl = document.getElementById('ev-bulk-preview-list');
+  if (!names.length) { previewEl.style.display = 'none'; return; }
+
+  const joined = new Set((currentEventDetail?.joiners || []).map(j => (j.name||j).toLowerCase()));
+
+  previewEl.style.display = 'block';
+  listEl.innerHTML = names.map(rawName => {
+    // Auto-detect: find closest match in leaderboard (exact, case-insensitive first)
+    const exactMatch = players.find(p => p.name.toLowerCase() === rawName.toLowerCase());
+    // Fuzzy: check if rawName contains or starts-with a player name
+    const fuzzyMatch = !exactMatch && players.find(p =>
+      rawName.toLowerCase().includes(p.name.toLowerCase()) ||
+      p.name.toLowerCase().includes(rawName.toLowerCase())
+    );
+    const match = exactMatch || fuzzyMatch;
+    const displayName = match ? match.name : rawName;
+    const alreadyJoined = joined.has(displayName.toLowerCase());
+
+    const team = (() => {
+      const keys = Object.keys(teamConfig||{}).filter(k => k !== 'Independent');
+      for (const k of keys) { if (displayName.startsWith(k)) return k; }
+      return '';
+    })();
+    const cfg = (teamConfig||{})[team];
+    const color = cfg ? cfg.color : '#888';
+    const tagHtml = team ? `<span style="font-size:10px;padding:1px 5px;border-radius:3px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${color};background:${color}22;border:0.5px solid ${color}55;margin-left:6px">${team}</span>` : '';
+
+    let badge, nameDisplay;
+    if (alreadyJoined) {
+      badge = `<span style="font-size:10px;color:var(--muted2);margin-left:auto">⚠ already joined</span>`;
+      nameDisplay = `<span style="color:var(--muted2)">${displayName}</span>`;
+    } else if (match) {
+      const corrected = match.name !== rawName ? `<span style="font-size:10px;color:var(--muted);margin-left:4px">← "${rawName}"</span>` : '';
+      badge = `<span style="font-size:10px;color:var(--gold);margin-left:auto">★ on leaderboard</span>`;
+      nameDisplay = `<span style="color:#fff;font-weight:700">${match.name}</span>${corrected}`;
+    } else {
+      badge = `<span style="font-size:10px;color:#4ade80;margin-left:auto">+ new player</span>`;
+      nameDisplay = `<span style="color:#4ade80">${displayName}</span>`;
+    }
+
+    return `<div style="display:flex;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;font-family:'Share Tech Mono',monospace;gap:4px">
+      ${nameDisplay}${tagHtml}${badge}
+    </div>`;
+  }).join('');
+}
+
+async function executeEventBulkAdd() {
+  if (!isAdmin || !currentEventDetail) return;
+  const raw = document.getElementById('ev-bulk-names-input').value;
+  const names = raw.split('\n').map(s => s.trim()).filter(Boolean);
+  const errEl = document.getElementById('ev-bulk-error');
+  errEl.textContent = '';
+  if (!names.length) { errEl.textContent = 'Enter at least one name.'; return; }
+
+  const joined = new Set((currentEventDetail?.joiners || []).map(j => (j.name||j).toLowerCase()));
+
+  // Resolve names: auto-correct to leaderboard name if match found
+  const resolved = names.map(rawName => {
+    const exact = players.find(p => p.name.toLowerCase() === rawName.toLowerCase());
+    const fuzzy = !exact && players.find(p =>
+      rawName.toLowerCase().includes(p.name.toLowerCase()) ||
+      p.name.toLowerCase().includes(rawName.toLowerCase())
+    );
+    return (exact || fuzzy) ? (exact || fuzzy).name : rawName;
+  });
+
+  const toAdd = resolved.filter(n => !joined.has(n.toLowerCase()));
+  const skipped = resolved.length - toAdd.length;
+
+  if (!toAdd.length) { errEl.textContent = `All ${skipped} name(s) already joined.`; return; }
+
+  const btn = document.getElementById('ev-bulk-add-btn');
+  btn.disabled = true; btn.textContent = '⏳ Adding…';
+
+  let added = 0, failed = 0;
+  for (const name of toAdd) {
+    try {
+      const res = await fetch(EVENTS_API + '?action=admin_add', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminUsername: _acAdminUsername, adminPassword: _acAdminPassword, eventId: currentEventDetail.id, name })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      const idx = eventsData.findIndex(e => e.id === currentEventDetail.id);
+      if (idx !== -1) eventsData[idx] = data.event;
+      currentEventDetail = data.event;
+      added++;
+    } catch(e) { failed++; }
+  }
+
+  renderDetailJoinersList(currentEventDetail);
+  renderEventsList();
+  btn.disabled = false; btn.textContent = '✅ Add to Event';
+  closeEventBulkAddModal();
+  const msg = `✅ Added ${added}${skipped > 0 ? ' · ' + skipped + ' skipped (already joined)' : ''}${failed > 0 ? ' · ' + failed + ' failed' : ''}`;
+  showToast(msg, added > 0 ? 'success' : '');
+}
+
 // ── Admin: Create / Edit event modal ──
 function openAddEventModal() {
   if (!isAdmin) return;
@@ -8064,6 +8272,41 @@ async function deleteEvent() {
     <div class="modal-actions">
       <button class="btn primary" style="flex:1" onclick="executeBulkAdd()">✅ Add Players</button>
       <button class="btn" onclick="closeBulkAddModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ EVENT BULK ADD MODAL ══════════════ -->
+<div class="modal-overlay" id="ev-bulk-add-modal">
+  <div class="modal" style="max-width:500px">
+    <button class="modal-close" onclick="closeEventBulkAddModal()">✕</button>
+    <div class="modal-title">📋 Bulk Add to Event</div>
+    <div class="modal-sub">Paste names one per line. Auto-matches leaderboard players — unrecognized names are added as new.</div>
+
+    <div class="form-group">
+      <label class="form-label">Blader Names <span style="color:var(--muted);font-size:10px">(one per line)</span></label>
+      <textarea id="ev-bulk-names-input" placeholder="VG.JOHN&#10;ZPC.MARIA&#10;HYDRA.ALEX&#10;NewPlayer123"
+        style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:12px 14px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:13px;outline:none;width:100%;min-height:150px;resize:vertical;line-height:1.6;box-sizing:border-box;transition:border-color .15s"
+        onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border2)'"
+        oninput="previewEventBulkAdd()"></textarea>
+    </div>
+
+    <div id="ev-bulk-preview" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px;max-height:200px;overflow-y:auto">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)">Auto-Detect Preview</div>
+        <div style="display:flex;gap:10px;font-size:10px">
+          <span style="color:var(--gold)">★ leaderboard</span>
+          <span style="color:#4ade80">+ new</span>
+          <span style="color:var(--muted2)">⚠ skip</span>
+        </div>
+      </div>
+      <div id="ev-bulk-preview-list"></div>
+    </div>
+
+    <div id="ev-bulk-error" class="modal-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" id="ev-bulk-add-btn" style="flex:1" onclick="executeEventBulkAdd()">✅ Add to Event</button>
+      <button class="btn" onclick="closeEventBulkAddModal()">Cancel</button>
     </div>
   </div>
 </div>
