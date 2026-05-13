@@ -546,28 +546,6 @@
   }
   .add-finish-btn:hover { border-color: var(--blue); color: var(--blue); }
 
-  /* deployed toggle */
-  .deploy-toggle {
-    appearance: none;
-    width: 14px; height: 14px;
-    border: 1px solid var(--border2);
-    border-radius: 3px;
-    background: var(--surface2);
-    cursor: pointer;
-    position: relative;
-    flex-shrink: 0;
-  }
-  .deploy-toggle:checked {
-    background: var(--blue);
-    border-color: var(--blue);
-  }
-  .deploy-toggle:checked::after {
-    content: '✓';
-    position: absolute;
-    top: -1px; left: 1px;
-    font-size: 10px;
-    color: #fff;
-  }
 
   /* win/loss badge */
   .round-win-badge {
@@ -1366,6 +1344,11 @@
     .match-result-summary { order: 2; flex: 1; font-size: 9px; }
     .match-card-header .btn { font-size: 9px !important; padding: 2px 5px !important; margin-left: 2px !important; }
     .match-card-header span[style*="font-size:12px"] { font-size: 11px !important; }
+
+    /* MATCH CARD BODY — stack players vertically on phones so neither gets cut off */
+    .match-card-body { grid-template-columns: 1fr; }
+    .match-player-side { border-right: none; border-bottom: 1px solid var(--border); }
+    .match-player-side:last-child { border-bottom: none; }
 
     /* BUILDS TAB header */
     #tab-builds > div:first-child { flex-direction: column; align-items: flex-start; }
@@ -3347,17 +3330,16 @@ function renderTeamMemberSide(match, teamKey, memberIdx, mid, colorSide, slotNum
       `<span class="finish-tag ${f}">${f}<button class="finish-tag-remove" onclick="mRemoveTeamFinish(${mid},'${teamKey}',${memberIdx},${bi},${fi})">✕</button></span>`
     ).join('');
     // Deployed derived from finishes (see note in renderPlayerSide).
+    // No checkbox shown — auto-derived from finishes.
     const isDeployed = (b.finishes && b.finishes.length > 0) || b.deployed;
     return `
       <div class="match-build-row">
         <div class="match-build-name">
-          <input type="checkbox" class="deploy-toggle" ${isDeployed ? 'checked' : ''}
-            onchange="mToggleTeamDeploy(${mid},'${teamKey}',${memberIdx},${bi},this.checked)" title="Deployed without recording any finish? (auto-checked when any finish is added)" />
           <input type="text" value="${escHtml(b.build)}" placeholder="Build name…"
             title="Edit build name for this round only"
             oninput="mRenameTeamBuild(${mid},'${teamKey}',${memberIdx},${bi},this.value)"
             onclick="event.stopPropagation()"
-            style="flex:1;min-width:0;max-width:95px;font-family:'Share Tech Mono',monospace;font-size:11px;
+            style="flex:1;min-width:0;max-width:130px;font-family:'Share Tech Mono',monospace;font-size:11px;
               background:transparent;border:none;border-bottom:1px dashed var(--border2);
               color:var(--accent);padding:1px 3px;outline:none;cursor:text" />
         </div>
@@ -3401,20 +3383,17 @@ function renderPlayerSide(match, side, mid) {
     const finishTags = b.finishes.map((f, fi) =>
       `<span class="finish-tag ${f}">${f}<button class="finish-tag-remove" onclick="mRemoveFinish(${mid},'${side}',${bi},${fi})">✕</button></span>`
     ).join('');
-    // Deployed is now derived from finishes: any finish (including L) means deployed.
-    // Checkbox is kept ONLY as a manual override to mark "no-show / forfeit" deploy
-    // for builds that were brought to the table but not used (no finishes recorded).
+    // Deployed is derived from finishes: any finish (including L) means deployed.
+    // No checkbox shown — "no finishes and no loss = not deployed" is automatic.
     const isDeployed = (b.finishes && b.finishes.length > 0) || b.deployed;
     return `
       <div class="match-build-row">
         <div class="match-build-name">
-          <input type="checkbox" class="deploy-toggle" ${isDeployed ? 'checked' : ''}
-            onchange="mToggleDeploy(${mid},'${side}',${bi},this.checked)" title="Deployed without recording any finish? (auto-checked when any finish is added)" />
           <input type="text" value="${escHtml(b.build)}" placeholder="Build name…"
             title="Edit build name for this round only"
             oninput="mRenameBuild(${mid},'${side}',${bi},this.value)"
             onclick="event.stopPropagation()"
-            style="flex:1;min-width:0;max-width:115px;font-family:'Share Tech Mono',monospace;font-size:11px;
+            style="flex:1;min-width:0;max-width:150px;font-family:'Share Tech Mono',monospace;font-size:11px;
               background:transparent;border:none;border-bottom:1px dashed var(--border2);
               color:var(--accent);padding:1px 3px;outline:none;cursor:text" />
         </div>
