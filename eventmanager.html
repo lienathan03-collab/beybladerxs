@@ -1042,7 +1042,7 @@
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
     gap: 6px;
-    min-height: 56px;
+    min-height: 36px;
   }
   #clw-title {
     font-family: 'Barlow Condensed', sans-serif;
@@ -1082,7 +1082,7 @@
   }
   .clw-half {
     display: grid;
-    grid-template-rows: auto auto 1fr auto;
+    grid-template-rows: auto 1fr auto auto;
     align-items: center; justify-content: stretch;
     position: relative; cursor: pointer;
     user-select: none; overflow: hidden;
@@ -1115,7 +1115,7 @@
   .clw-bey {
     font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 800;
     text-align: center; line-height: 1.1;
-    padding: 3px 8px; border-radius: 5px;
+    padding: 2px 8px; border-radius: 5px;
     justify-self: center; max-width: 95%;
     letter-spacing: 0.5px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -1139,7 +1139,7 @@
   .clw-finishes {
     display: flex; flex-wrap: wrap; gap: 3px;
     justify-content: flex-start; align-content: flex-end;
-    padding-top: 4px; min-height: 14px;
+    padding-top: 2px; min-height: 14px;
     opacity: 0.55;
   }
   #clw-left  .clw-finishes { justify-content: flex-start; }
@@ -2028,9 +2028,9 @@
           <div class="clw-warn-num" id="clw-warn-left-num">0</div>
         </div>
         <div class="clw-player" id="clw-player-left"></div>
-        <div class="clw-bey" id="clw-bey-left">—</div>
-        <div class="clw-finishes" id="clw-finishes-left"></div>
         <div class="clw-score" id="clw-score-left">0</div>
+        <div class="clw-finishes" id="clw-finishes-left"></div>
+        <div class="clw-bey" id="clw-bey-left">—</div>
       </div>
       <!-- RIGHT -->
       <div class="clw-half" id="clw-right" onclick="lmSetScoringSideAndHighlight('right')">
@@ -2039,9 +2039,9 @@
           <div class="clw-warn-num" id="clw-warn-right-num">0</div>
         </div>
         <div class="clw-player" id="clw-player-right"></div>
-        <div class="clw-bey" id="clw-bey-right">—</div>
-        <div class="clw-finishes" id="clw-finishes-right"></div>
         <div class="clw-score" id="clw-score-right">0</div>
+        <div class="clw-finishes" id="clw-finishes-right"></div>
+        <div class="clw-bey" id="clw-bey-right">—</div>
       </div>
     </div>
     <!-- Controls bottom bar -->
