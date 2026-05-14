@@ -5798,7 +5798,7 @@ let _syncErrorCount = 0;
 function startLiveSync() {
   stopLiveSync();
   setLiveIndicator('live');
-  _syncInterval = setInterval(doLiveSync, 5000); // poll every 5s for fast updates
+  _syncInterval = setInterval(doLiveSync, 3000); // poll every 3s for fast updates
 }
 
 function stopLiveSync() {
@@ -5868,6 +5868,7 @@ async function doLiveSync() {
       showToast('📥 New match results received!', 'success');
       renderBuilds();
       renderResults();
+      renderRoundFilter();
     } else {
       setLiveIndicator('live');
     }
@@ -5955,9 +5956,16 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
     // of creating a duplicate.
     for (const sm of serverMatches) {
       if (localSids.has(sm._sid)) {
-        // Preserve submitted flag on existing local match
+        // Sync submitted flag both ways — server wins if it says submitted
         const local = matchesState.find(m => m._sid === sm._sid);
-        if (local && local.submitted) sm.submitted = true;
+        if (local) {
+          if (sm.submitted && !local.submitted) {
+            local.submitted = true;
+            changed = true;
+          } else if (local.submitted) {
+            sm.submitted = true;
+          }
+        }
         continue;
       }
       // Try to attach this server _sid to a matching local UNSYNCED match
