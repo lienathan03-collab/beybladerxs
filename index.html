@@ -310,6 +310,16 @@
   .br-delete-btn { color: var(--red);   border-color: rgba(229,57,53,0.3); }
   .br-delete-btn:hover { background: rgba(229,57,53,0.1); }
 
+  /* Leaderboard per-row player delete button (admin only) */
+  .lb-delete-player-btn {
+    background: none; border: 1px solid rgba(229,57,53,0.25);
+    border-radius: 5px; padding: 2px 6px; font-size: 13px;
+    cursor: pointer; color: #c0392b; opacity: 0;
+    transition: opacity .15s, background .15s;
+  }
+  tr:hover .lb-delete-player-btn { opacity: 1; }
+  .lb-delete-player-btn:hover { background: rgba(229,57,53,0.12); }
+
   /* Top 3 beys on profile */
   .top3-beys-section { margin-top: 14px; }
   .top3-beys-title {
@@ -3959,27 +3969,25 @@ async function confirmBeyEdit() {
       return;
     }
 
-    // Delete = rankings only; rename/editstats/addbuild = save to event manager too
-    if (action !== 'delete') {
-      for (const eventId of affectedEventIds) {
-        if (!eventId) { console.warn('[confirmBeyEdit] Skipping event with missing id'); continue; }
-        const ev = data.events.find(e => e.id === eventId);
-        if (!ev) continue;
-        const res = await fetch('/api/beyresults', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            adminUsername: _acAdminUsername,
-            adminPassword: _acAdminPassword,
-            eventId,
-            builds:     ev.builds     || {},
-            beyResults: ev.beyResults || []
-          })
-        });
-        if (!res.ok) {
-          const d = await res.json().catch(() => ({}));
-          throw new Error(d.error || 'Save failed for event ' + eventId);
-        }
+    // Save all actions (including delete) to event manager
+    for (const eventId of affectedEventIds) {
+      if (!eventId) { console.warn('[confirmBeyEdit] Skipping event with missing id'); continue; }
+      const ev = data.events.find(e => e.id === eventId);
+      if (!ev) continue;
+      const res = await fetch('/api/beyresults', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminUsername: _acAdminUsername,
+          adminPassword: _acAdminPassword,
+          eventId,
+          builds:     ev.builds     || {},
+          beyResults: ev.beyResults || []
+        })
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Save failed for event ' + eventId);
       }
     }
 
@@ -4318,9 +4326,52 @@ function renderLeaderboard() {
     const isTop3=i<3&&currentFilter==='all'&&currentSearch==='';
     const origIdx=players.indexOf(p);
     const safeName=encodeURIComponent(p.name);
-    return `<tr><td>${getRankDisplay(p.rank,origIdx)}</td><td><span class="blader-name${isTop3?' top3':''}" style="cursor:pointer" data-blader="${safeName}" onclick="openBladerProfile(decodeURIComponent(this.dataset.blader))">${p.name}</span>${getTagHtml(p.name)}</td><td>${getTeam(p.name)||'<span style="color:var(--muted2)">—</span>'}</td><td><span class="score${origIdx===0?' champ':''}" style="display:block;text-align:right">${p.total}</span></td><td style="text-align:right">${getRankBadge(p.rank, p.total)}</td></tr>`;
+    const deleteBtn = isAdmin
+      ? `<button class="lb-delete-player-btn" title="Delete blader" onclick="openDeletePlayerConfirm(decodeURIComponent('${safeName}'))">&#128465;</button>`
+      : '';
+    return `<tr><td>${getRankDisplay(p.rank,origIdx)}</td><td><span class="blader-name${isTop3?' top3':''}" style="cursor:pointer" data-blader="${safeName}" onclick="openBladerProfile(decodeURIComponent(this.dataset.blader))">${p.name}</span>${getTagHtml(p.name)}</td><td>${getTeam(p.name)||'<span style="color:var(--muted2)">—</span>'}</td><td><span class="score${origIdx===0?' champ':''}" style="display:block;text-align:right">${p.total}</span></td><td style="text-align:right">${getRankBadge(p.rank, p.total)}</td><td style="text-align:right;width:32px">${deleteBtn}</td></tr>`;
     }).join('');
   document.getElementById('page-info').textContent=`Showing ${filtered.length} of ${players.length} bladers`;
+}
+
+// DELETE PLAYER (Leaderboard)
+let _deletePlayerName = null;
+function openDeletePlayerConfirm(name) {
+  if (!isAdmin) return;
+  _deletePlayerName = name;
+  const p = players.find(pl => pl.name === name);
+  const pts = p ? p.total : 0;
+  document.getElementById('delete-player-name-display').textContent = name;
+  document.getElementById('delete-player-pts-display').textContent = pts + ' pts';
+  document.getElementById('delete-player-confirm-input').value = '';
+  document.getElementById('delete-player-error').textContent = '';
+  document.getElementById('delete-player-confirm-btn').disabled = true;
+  document.getElementById('delete-player-modal').classList.add('open');
+  setTimeout(() => document.getElementById('delete-player-confirm-input').focus(), 150);
+}
+function closeDeletePlayerModal() {
+  document.getElementById('delete-player-modal').classList.remove('open');
+  _deletePlayerName = null;
+}
+function onDeletePlayerInput() {
+  const val = document.getElementById('delete-player-confirm-input').value.trim();
+  document.getElementById('delete-player-confirm-btn').disabled = (val !== 'Delete');
+}
+async function executeDeletePlayer() {
+  if (!isAdmin || !_deletePlayerName) return;
+  if (isViewOnly()) { showToast('Blocked: Season 2 is read-only', 'error'); return; }
+  const name = _deletePlayerName;
+  const idx = players.findIndex(pl => pl.name === name);
+  if (idx === -1) { showToast('Player not found.', 'error'); return; }
+  players.splice(idx, 1);
+  if (bladerStats[name]) delete bladerStats[name];
+  players.sort((a,b) => b.total - a.total);
+  let rank = 1;
+  players.forEach((pl, i) => { if (i > 0 && pl.total < players[i-1].total) rank++; pl.rank = rank; });
+  await cloudSave();
+  renderLeaderboard(); renderWeekly(); renderTeamTotals(); updateHeroStats(); renderAchievements(); applyPodiumPhotos();
+  closeDeletePlayerModal();
+  showToast('Removed "' + name + '" from leaderboard.', 'success');
 }
 function filterTable(val){currentSearch=val;renderLeaderboard();}
 function filterTag(tag,btn){
@@ -8741,4 +8792,28 @@ async function deleteEvent() {
     onclick="event.stopPropagation()"
     style="max-width:100%;max-height:90vh;object-fit:contain;border-radius:8px;
     box-shadow:0 8px 40px rgba(0,0,0,0.8);display:block;" />
+</div>
+
+<!-- ══════════════ DELETE PLAYER MODAL ══════════════ -->
+<div class="modal-overlay" id="delete-player-modal" onclick="if(event.target===this)closeDeletePlayerModal()">
+  <div class="modal" style="max-width:380px">
+    <button class="modal-close" onclick="closeDeletePlayerModal()">✕</button>
+    <div class="modal-title" style="color:var(--red)">⚠️ Delete Blader</div>
+    <div class="modal-sub">This will permanently remove the blader and all their season scores from the leaderboard. This cannot be undone.</div>
+    <div style="background:rgba(229,57,53,0.08);border:1px solid rgba(229,57,53,0.3);border-radius:10px;padding:14px 16px;margin-bottom:18px">
+      <div style="font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Blader</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:800;letter-spacing:2px;color:#fff" id="delete-player-name-display"></div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--muted);margin-top:2px" id="delete-player-pts-display"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Type <span style="color:var(--red);font-family:'Share Tech Mono',monospace">Delete</span> to confirm</label>
+      <input class="form-input" id="delete-player-confirm-input" placeholder="Delete" autocomplete="off"
+        oninput="onDeletePlayerInput()" onkeydown="if(event.key==='Enter'&&!document.getElementById('delete-player-confirm-btn').disabled)executeDeletePlayer()" />
+    </div>
+    <div class="modal-error" id="delete-player-error"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeDeletePlayerModal()">Cancel</button>
+      <button class="btn danger" id="delete-player-confirm-btn" disabled onclick="executeDeletePlayer()" style="flex:1;background:#1f0a0a">🗑 Delete Blader</button>
+    </div>
+  </div>
 </div>
