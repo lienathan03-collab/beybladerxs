@@ -314,10 +314,10 @@
   .lb-delete-player-btn {
     background: none; border: 1px solid rgba(229,57,53,0.25);
     border-radius: 5px; padding: 2px 6px; font-size: 13px;
-    cursor: pointer; color: #c0392b; opacity: 0;
-    transition: opacity .15s, background .15s;
+    cursor: pointer; color: #c0392b; display: none;
+    transition: background .15s;
   }
-  tr:hover .lb-delete-player-btn { opacity: 1; }
+  .admin-active tr:hover .lb-delete-player-btn { display: inline-block; }
   .lb-delete-player-btn:hover { background: rgba(229,57,53,0.12); }
 
   /* Top 3 beys on profile */
@@ -4326,9 +4326,7 @@ function renderLeaderboard() {
     const isTop3=i<3&&currentFilter==='all'&&currentSearch==='';
     const origIdx=players.indexOf(p);
     const safeName=encodeURIComponent(p.name);
-    const deleteBtn = isAdmin
-      ? `<button class="lb-delete-player-btn" title="Delete blader" onclick="openDeletePlayerConfirm(decodeURIComponent('${safeName}'))">&#128465;</button>`
-      : '';
+    const deleteBtn = `<button class="lb-delete-player-btn" title="Delete blader" onclick="openDeletePlayerConfirm(decodeURIComponent('${safeName}'))">&#128465;</button>`;
     return `<tr><td>${getRankDisplay(p.rank,origIdx)}</td><td><span class="blader-name${isTop3?' top3':''}" style="cursor:pointer" data-blader="${safeName}" onclick="openBladerProfile(decodeURIComponent(this.dataset.blader))">${p.name}</span>${getTagHtml(p.name)}</td><td>${getTeam(p.name)||'<span style="color:var(--muted2)">—</span>'}</td><td><span class="score${origIdx===0?' champ':''}" style="display:block;text-align:right">${p.total}</span></td><td style="text-align:right">${getRankBadge(p.rank, p.total)}</td><td style="text-align:right;width:32px">${deleteBtn}</td></tr>`;
     }).join('');
   document.getElementById('page-info').textContent=`Showing ${filtered.length} of ${players.length} bladers`;
@@ -4363,15 +4361,60 @@ async function executeDeletePlayer() {
   const name = _deletePlayerName;
   const idx = players.findIndex(pl => pl.name === name);
   if (idx === -1) { showToast('Player not found.', 'error'); return; }
+
+  const btn = document.getElementById('delete-player-confirm-btn');
+  btn.disabled = true;
+  btn.textContent = 'Deleting...';
+
+  // 1. Remove from leaderboard + stats
   players.splice(idx, 1);
   if (bladerStats[name]) delete bladerStats[name];
   players.sort((a,b) => b.total - a.total);
   let rank = 1;
   players.forEach((pl, i) => { if (i > 0 && pl.total < players[i-1].total) rank++; pl.rank = rank; });
   await cloudSave();
+
+  // 2. Wipe all bey builds for this player from beyresults
+  try {
+    const data = await loadBeyRankingsData();
+    const affectedEventIds = new Set();
+    for (const ev of (data.events || [])) {
+      let changed = false;
+      const before = (ev.beyResults || []).length;
+      ev.beyResults = (ev.beyResults || []).filter(e => !_playerNamesMatch(e.player, name));
+      if (ev.beyResults.length !== before) changed = true;
+      if (ev.builds) {
+        Object.keys(ev.builds).forEach(k => {
+          if (_playerNamesMatch(k, name)) { delete ev.builds[k]; changed = true; }
+        });
+      }
+      if (changed) affectedEventIds.add(ev.id);
+    }
+    for (const eventId of affectedEventIds) {
+      if (!eventId) continue;
+      const ev = data.events.find(e => e.id === eventId);
+      if (!ev) continue;
+      await fetch('/api/beyresults', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminUsername: _acAdminUsername,
+          adminPassword: _acAdminPassword,
+          eventId,
+          builds:     ev.builds     || {},
+          beyResults: ev.beyResults || []
+        })
+      });
+    }
+    brAllEventData = null;
+  } catch(e) {
+    console.warn('[deletePlayer] Could not wipe bey builds:', e);
+    showToast('Leaderboard deleted but bey builds may not have fully cleared: ' + e.message, 'error');
+  }
+
   renderLeaderboard(); renderWeekly(); renderTeamTotals(); updateHeroStats(); renderAchievements(); applyPodiumPhotos();
   closeDeletePlayerModal();
-  showToast('Removed "' + name + '" from leaderboard.', 'success');
+  showToast('Deleted "' + name + '" — leaderboard + all bey builds removed.', 'success');
 }
 function filterTable(val){currentSearch=val;renderLeaderboard();}
 function filterTag(tag,btn){
