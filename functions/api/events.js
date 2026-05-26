@@ -5,6 +5,29 @@ const CORS_HEADERS = {
 };
 
 const EVENTS_KEY = 'events';
+const TEAM_NAME_MAX = 30;
+const TEAM_NAME_RE = /^[a-zA-Z0-9 ._\-]+$/;
+
+// Returns { account, accounts } if token is valid, throws otherwise.
+async function verifySession(kv, username, sessionToken) {
+  const raw = await kv.get('accounts');
+  const accounts = raw ? JSON.parse(raw) : {};
+  const account = accounts[username];
+  if (!account) throw new Error('Account not found.');
+
+  const sessionRaw = await kv.get('session:' + sessionToken);
+  if (!sessionRaw) throw new Error('Invalid or expired session.');
+  const session = JSON.parse(sessionRaw);
+  if (session.username !== username) throw new Error('Invalid session.');
+
+  // tokenVersion must be present and match exactly; sessions without it are pre-fix tokens.
+  const accountVersion = account.tokenVersion || 0;
+  if (session.tokenVersion === undefined || session.tokenVersion !== accountVersion) {
+    throw new Error('Session expired. Please log in again.');
+  }
+
+  return { account, accounts };
+}
 
 export async function onRequest(context) {
   const { request, env } = context;
@@ -54,8 +77,8 @@ export async function onRequest(context) {
 
     // ── Player join / unjoin / team_join ──
     if (action === 'join' || action === 'unjoin' || action === 'team_join') {
-      const { username, passwordHash, eventId, displayName, teamName, members } = body;
-      if (!username || !passwordHash || !eventId) {
+      const { username, sessionToken, eventId, displayName, teamName, members } = body;
+      if (!username || !sessionToken || !eventId) {
         return new Response(
           JSON.stringify({ error: 'Missing required fields.' }),
           { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
@@ -70,6 +93,19 @@ export async function onRequest(context) {
             { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
           );
         }
+        const trimmedTeamName = teamName.trim();
+        if (trimmedTeamName.length > TEAM_NAME_MAX) {
+          return new Response(
+            JSON.stringify({ error: `Team name too long (max ${TEAM_NAME_MAX} characters).` }),
+            { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+          );
+        }
+        if (!TEAM_NAME_RE.test(trimmedTeamName)) {
+          return new Response(
+            JSON.stringify({ error: 'Team name: only letters, numbers, spaces, dots, dashes, underscores allowed.' }),
+            { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+          );
+        }
         if (!Array.isArray(members) || members.length !== 3) {
           return new Response(
             JSON.stringify({ error: 'Exactly 3 members are required.' }),
@@ -78,21 +114,13 @@ export async function onRequest(context) {
         }
       }
 
-      // Verify player credentials
-      let accounts;
+      // Verify player session token
+      let account, accounts;
       try {
-        const raw = await kv.get('accounts');
-        accounts = raw ? JSON.parse(raw) : {};
+        ({ account, accounts } = await verifySession(kv, username, sessionToken));
       } catch (e) {
         return new Response(
-          JSON.stringify({ error: 'Could not verify account.' }),
-          { status: 502, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
-        );
-      }
-      const account = accounts[username];
-      if (!account || account.password !== passwordHash) {
-        return new Response(
-          JSON.stringify({ error: 'Unauthorized.' }),
+          JSON.stringify({ error: e.message }),
           { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
         );
       }
@@ -119,7 +147,7 @@ export async function onRequest(context) {
 
       if (!Array.isArray(event.joiners)) event.joiners = [];
 
-      const playerName = displayName || account.displayName || username;
+      const playerName = account.displayName || username;
 
       if (action === 'team_join') {
         // Prevent duplicate joins by same username (team captain already registered)
@@ -134,9 +162,9 @@ export async function onRequest(context) {
         // members is now an array of {username, displayName} objects
         // Validate structure
         if (!Array.isArray(members) || members.length !== 3 ||
-            members.some(m => !m || typeof m !== 'object' || !m.username || !m.displayName)) {
+            members.some(m => !m || typeof m !== 'object' || !m.username)) {
           return new Response(
-            JSON.stringify({ error: 'Invalid members format. Each member must have username and displayName.' }),
+            JSON.stringify({ error: 'Invalid members format. Each member must have a username.' }),
             { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
           );
         }
@@ -172,7 +200,7 @@ export async function onRequest(context) {
               if (conflict) {
                 const conflictMember = members.find(m => m.username.toLowerCase() === conflict);
                 return new Response(
-                  JSON.stringify({ error: `${conflictMember.displayName} is already registered in team "${joiner.teamName}".` }),
+                  JSON.stringify({ error: `${accounts[conflictMember.username].displayName || conflictMember.username} is already registered in team "${joiner.teamName}".` }),
                   { status: 409, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
                 );
               }
@@ -197,7 +225,7 @@ export async function onRequest(context) {
           name:      teamName.trim(),
           type:      'team',
           teamName:  teamName.trim(),
-          members:   members.map(m => ({ username: m.username, displayName: m.displayName })),
+          members:   members.map(m => ({ username: m.username, displayName: accounts[m.username].displayName || m.username })),
           joinedAt:  new Date().toISOString()
         });
       } else if (action === 'join') {
