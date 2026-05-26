@@ -1499,46 +1499,9 @@
     .lcfb-letter { font-size: 40px !important; }
   }
 
-/* ── Update available banner ── */
-#update-banner {
-  display: none;
-  position: fixed;
-  top: 0; left: 0; right: 0;
-  z-index: 10001;
-  background: #1a1200;
-  border-bottom: 2px solid var(--gold);
-  color: var(--gold2);
-  padding: 8px 14px;
-  align-items: center;
-  gap: 12px;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 11px;
-  letter-spacing: 0.5px;
-}
-#update-banner.visible { display: flex; }
-#update-reload-btn {
-  flex-shrink: 0;
-  background: var(--gold);
-  color: #0a0a0a;
-  border: none;
-  border-radius: 4px;
-  padding: 4px 10px;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  letter-spacing: 0.5px;
-}
-#update-reload-btn:hover { background: var(--gold2); }
 </style>
 </head>
 <body>
-
-<!-- ── Update available banner ── -->
-<div id="update-banner">
-  <span>&#9888; Update available — reload before scoring matches</span>
-  <button id="update-reload-btn" onclick="doAppUpdate()">UPDATE / RELOAD</button>
-</div>
 
 <!-- TOP BAR -->
 <div class="topbar">
@@ -6204,35 +6167,44 @@ async function submitMatch(mid) {
     const serverResults = latestData.beyResults || [];
     const serverBuilds  = latestData.builds     || {};
 
-    // 2. Mark this match submitted BEFORE merge so the merge preserves it correctly
-    match.submitted = true;
-    match.collapsed = false; // keep expanded so you can see the submitted results
-
-    // 3. Merge server state. Because `match` has a stable _sid, the merge will
-    // recognize it as already present and won't create a duplicate.
+    // 2. Merge server state FIRST — local match still has submitted=false so the
+    //    merge's `sm.submitted || local.submitted` condition is false and leaves
+    //    the scored winner/finishes intact. If server already submitted the same
+    //    _sid (another device beat us), the merge sets match.submitted=true, which
+    //    we detect as a conflict in step 4.
     mergeIncomingMatches(serverBuilds, serverResults);
 
-    // 4. Defensive: ensure THIS match (by id) is still present after merge.
-    // If the merge somehow dropped it (shouldn't happen now), re-attach.
-    if (!matchesState.some(m => m.id === mid)) {
-      // Don't blindly push the orphan — only push if no other match has the same _sid
+    // 3. Re-locate the target after merge (merge mutates matchesState in-place).
+    const target = (match._sid && matchesState.find(m => m._sid === match._sid))
+                || matchesState.find(m => m.id === mid);
+
+    // 4. Conflict: server already submitted this _sid — another device was first.
+    if (target && target.submitted) {
+      flattenMatchesToResults();
+      renderResults();
+      if (btn) { btn.textContent = '⬆ Submit'; btn.disabled = false; }
+      showToast('⚠ This match was already submitted on another device.', 'error');
+      return; // finally block still fires (clears _syncPaused)
+    }
+
+    // 5. No conflict — ensure target is present then mark submitted.
+    if (!target) {
       const sidDup = match._sid && matchesState.some(m => m._sid === match._sid);
       if (!sidDup) matchesState.push(match);
     }
+    const toSubmit = target || match;
+    toSubmit.submitted = true;
+    toSubmit.collapsed = false;
 
-    // 5. Defensive: collapse any accidental duplicate matches with the same _sid.
-    // Prefer THIS match (the one the user is submitting) — they explicitly asked
-    // for these results to be the canonical version. Only fall back to a
-    // sibling duplicate if `match` itself was somehow dropped.
-    if (match._sid) {
-      const dups = matchesState.filter(m => m._sid === match._sid);
+    // 6. Collapse any _sid duplicates — keep the match being submitted.
+    if (toSubmit._sid) {
+      const dups = matchesState.filter(m => m._sid === toSubmit._sid);
       if (dups.length > 1) {
-        const keep = dups.includes(match) ? match : dups[0];
-        matchesState = matchesState.filter(m => m._sid !== match._sid || m === keep);
+        matchesState = matchesState.filter(m => m._sid !== toSubmit._sid || m === toSubmit);
       }
     }
 
-    // 6. Flatten and push
+    // 7. Flatten and push
     flattenMatchesToResults();
 
     const res = await fetch('/api/beyresults', {
@@ -6875,50 +6847,11 @@ window.addEventListener('beforeunload', e => {
 // ══ PWA: SERVICE WORKER + OFFLINE INDICATOR ══
 // ═════════════════════════════════════════════
 
-function doAppUpdate() {
-  if (dirty) {
-    alert('You have unsaved match data.\nSubmit or intentionally discard your changes before updating.');
-    return;
-  }
-  if (window._swWaiting) {
-    window._swWaiting.postMessage({ type: 'SKIP_WAITING' });
-    // controllerchange listener will reload once the new SW takes control
-  } else {
-    window.location.reload();
-  }
-}
-
 // Register the service worker so the app works offline once loaded
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').then(reg => {
       console.log('[PWA] Service worker registered | app version:', APP_VERSION);
-
-      function showUpdateBanner(waitingSW) {
-        window._swWaiting = waitingSW;
-        const banner = document.getElementById('update-banner');
-        if (banner) banner.classList.add('visible');
-      }
-
-      // Already a waiting SW when the page loaded (e.g. deployed between sessions)
-      if (reg.waiting) showUpdateBanner(reg.waiting);
-
-      // New SW installs while the page is open
-      reg.addEventListener('updatefound', () => {
-        const sw = reg.installing;
-        sw.addEventListener('statechange', () => {
-          if (sw.state === 'installed' && navigator.serviceWorker.controller) {
-            showUpdateBanner(sw);
-          }
-        });
-      });
-
-      // When SKIP_WAITING is accepted the controller changes — reload for fresh HTML+JS
-      let _reloading = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!_reloading) { _reloading = true; window.location.reload(); }
-      });
-
       // Proactively check for updates every 60 s while the app is open
       setInterval(() => reg.update().catch(() => {}), 60000);
     }).catch(err => {
