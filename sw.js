@@ -2,7 +2,7 @@
 // Caches the app shell so judges can run tournaments with no signal.
 // Bump CACHE_VERSION whenever you ship a new version of the HTML.
 
-const CACHE_VERSION = 'rxs-em-v11';
+const CACHE_VERSION = 'rxs-em-v12';
 const APP_SHELL = [
   '/eventmanager.html',
   '/manifest.webmanifest',
@@ -22,7 +22,7 @@ self.addEventListener('install', event => {
           cache.add(url).catch(err => console.warn('[SW] Failed to cache', url, err))
         )
       );
-    }).then(() => self.skipWaiting())
+    })
   );
 });
 
