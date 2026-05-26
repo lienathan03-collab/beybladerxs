@@ -6049,14 +6049,23 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
     // of creating a duplicate.
     for (const sm of serverMatches) {
       if (localSids.has(sm._sid)) {
-        // Sync submitted flag both ways — server wins if it says submitted
+        // Server is authoritative for submitted result payloads
         const local = matchesState.find(m => m._sid === sm._sid);
         if (local) {
-          if (sm.submitted && !local.submitted) {
-            local.submitted = true;
-            changed = true;
-          } else if (local.submitted) {
-            sm.submitted = true;
+          if (sm.submitted || local.submitted) {
+            const snap = JSON.stringify({ p1: local.p1, p2: local.p2, submitted: local.submitted,
+              team1: local.team1, team2: local.team2, _playOrder: local._playOrder });
+            local.submitted = sm.submitted;
+            local.p1 = sm.p1;
+            local.p2 = sm.p2;
+            if (sm.isTeamMatch) {
+              local.team1 = sm.team1;
+              local.team2 = sm.team2;
+              local._playOrder = sm._playOrder;
+            }
+            const snap2 = JSON.stringify({ p1: local.p1, p2: local.p2, submitted: local.submitted,
+              team1: local.team1, team2: local.team2, _playOrder: local._playOrder });
+            if (snap !== snap2) changed = true;
           }
         }
         continue;
@@ -6083,6 +6092,16 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
       matchesState.push(sm);
       localSids.add(sm._sid);
       changed = true;
+    }
+    // Merge serverBuilds for players in submitted server matches (their builds are finalized)
+    for (const sm of serverMatches) {
+      if (!sm.submitted) continue;
+      const keys = sm.isTeamMatch
+        ? [...(sm.team1?.members || []), ...(sm.team2?.members || [])].map(m => playerKey(m.player))
+        : [slotKey(sm.p1), slotKey(sm.p2)];
+      for (const k of keys) {
+        if (k && serverBuilds[k]) buildsState[k] = serverBuilds[k];
+      }
     }
     if (changed) flattenMatchesToResults();
     return changed;
