@@ -3123,6 +3123,16 @@ function autoCheckTeamWin(m) {
 }
 
 // ─────────────────────────────────────────────
+// SOLO WIN THRESHOLD — F: 7 pts, SF: 5 pts, all other rounds: 4 pts
+// Team member thresholds are handled separately in autoCheckTeamWin.
+// ─────────────────────────────────────────────
+function soloThreshold(round) {
+  if (round === 'F')  return 7;
+  if (round === 'SF') return 5;
+  return 4;
+}
+
+// ─────────────────────────────────────────────
 // AUTO WIN — Finals: 7+ wins, all other rounds: 4+ wins
 // A "win" in a clash = the player scored a non-L finish in that build
 // ─────────────────────────────────────────────
@@ -3137,8 +3147,7 @@ function countClashWins(builds) {
 
 function autoCheckWin(m) {
   if (!m.p1 || !m.p2) return;
-  const isFinals = (m.round === 'F');
-  const threshold = isFinals ? 7 : 4;
+  const threshold = soloThreshold(m.round);
 
   // Use calcPoints (sum of S/O/E/B finishes) — same as autoCheckTeamWin
   const p1pts = calcPoints(m.p1.builds);
@@ -3878,8 +3887,7 @@ function renderPlayerSide(match, side, mid) {
       </div>`;
   }).join('');
 
-  const isFinals = match.round === 'F';
-  const threshold = isFinals ? 7 : 4;
+  const threshold = soloThreshold(match.round);
   const p1pts_check = calcPoints(match.p1.builds);
   const p2pts_check = match.p2 ? calcPoints(match.p2.builds) : 0;
   const autoActive = p1pts_check >= threshold || p2pts_check >= threshold;
@@ -3964,8 +3972,7 @@ async function removeMatch(mid) {
 function mToggleWin(mid, side) {
   const m = matchesState.find(x => x.id === mid);
   if (!m) return;
-  const isFinals = (m.round === 'F');
-  const threshold = isFinals ? 7 : 4;
+  const threshold = soloThreshold(m.round);
   const p1pts = calcPoints(m.p1.builds);
   const p2pts = m.p2 ? calcPoints(m.p2.builds) : 0;
   // Block manual toggle if auto-win threshold already determines the winner
@@ -4557,18 +4564,19 @@ function lmApplyFinish(type) {
 
   const { match } = lmState;
   const isFinals = match.round === 'F';
-  const ptThreshold = isFinals ? 7 : 4;
+  const ptThreshold = isFinals ? 7 : 4;          // team member threshold (unchanged)
+  const soloPtThreshold = soloThreshold(match.round); // solo: SF=5, F=7, else=4
 
   if (match._isSolo) {
-    // 1v1: player wins when they hit the point threshold
+    // 1v1: player wins when they hit the solo point threshold
     const m1 = match.team1?.members[0];
     const m2 = match.team2?.members[0];
     if (m1 && m2) {
       const p1 = calcPoints(m1.builds);
       const p2 = calcPoints(m2.builds);
-      if (p1 >= ptThreshold && p2 < ptThreshold) { m1.win = true;  m2.win = false; }
-      else if (p2 >= ptThreshold && p1 < ptThreshold) { m2.win = true;  m1.win = false; }
-      else if (p1 >= ptThreshold && p2 >= ptThreshold) {
+      if (p1 >= soloPtThreshold && p2 < soloPtThreshold) { m1.win = true;  m2.win = false; }
+      else if (p2 >= soloPtThreshold && p1 < soloPtThreshold) { m2.win = true;  m1.win = false; }
+      else if (p1 >= soloPtThreshold && p2 >= soloPtThreshold) {
         if (p1 > p2) { m1.win = true; m2.win = false; }
         else if (p2 > p1) { m2.win = true; m1.win = false; }
       } else { m1.win = false; m2.win = false; }
@@ -4663,7 +4671,7 @@ function lmUpdateScoreBar() {
   const { match } = lmState;
   const isFinals   = match.round === 'F';
   const isBestOf5  = ['TC','QF','SF','F'].includes(match.round);
-  const ptThreshold     = isFinals ? 7 : 4;
+  const ptThreshold     = match._isSolo ? soloThreshold(match.round) : (isFinals ? 7 : 4);
   const teamWinThreshold = isBestOf5 ? 3 : 2;
 
   const leftKey  = lmSwapped ? 't2' : 't1';
@@ -5005,7 +5013,7 @@ function clwRender() {
 
   // Match label
   const isFinals = match.round === 'F';
-  const ptThreshold = isFinals ? 7 : 4;
+  const ptThreshold = match._isSolo ? soloThreshold(match.round) : (isFinals ? 7 : 4);
   const el = id => document.getElementById(id);
   el('clw-matchlabel').textContent = `${match.round} · ${match.team1?.teamName||'?'} vs ${match.team2?.teamName||'?'} (${ptThreshold}pts)`;
 
@@ -5065,7 +5073,7 @@ function clwUpdateScoreBar() {
   const { match } = lmState;
   const isFinals   = match.round === 'F';
   const isBestOf5  = ['TC','QF','SF','F'].includes(match.round);
-  const ptThreshold      = isFinals ? 7 : 4;
+  const ptThreshold      = match._isSolo ? soloThreshold(match.round) : (isFinals ? 7 : 4);
   const teamWinThreshold = isBestOf5 ? 3 : 2;
   const leftKey  = lmSwapped ? 't2' : 't1';
   const rightKey = lmSwapped ? 't1' : 't2';
@@ -5099,7 +5107,7 @@ function clwRenderBeyChips() {
   const rightActiveBey = rightKey === 't1' ? clash.t1BeyIdx    : clash.t2BeyIdx;
 
   const isFinals = match.round === 'F';
-  const ptThreshold = isFinals ? 7 : 4;
+  const ptThreshold = match._isSolo ? soloThreshold(match.round) : (isFinals ? 7 : 4);
 
   function renderChips(team, memberIdx, activeBeyIdx, actualKey, containerId) {
     const container = document.getElementById(containerId);
@@ -5199,7 +5207,7 @@ function clwRenderPickScreen() {
 
   // Update match label in header
   const isFinals = match.round === 'F';
-  const ptThreshold = isFinals ? 7 : 4;
+  const ptThreshold = match._isSolo ? soloThreshold(match.round) : (isFinals ? 7 : 4);
   document.getElementById('clw-matchlabel').textContent =
     `${match.round} · ${match.team1?.teamName||'?'} vs ${match.team2?.teamName||'?'} (${ptThreshold}pts)`;
 
@@ -5349,7 +5357,7 @@ function lmRenderClashScreen() {
 
   // Cumulative player points (across ALL their builds, not just this clash)
   const isFinals_cs = match.round === 'F';
-  const ptThreshold_cs = isFinals_cs ? 7 : 4;
+  const ptThreshold_cs = match._isSolo ? soloThreshold(match.round) : (isFinals_cs ? 7 : 4);
   const leftPts  = calcPoints(leftMember?.builds);
   const rightPts = calcPoints(rightMember?.builds);
   const scoreLeftEl  = document.getElementById('clash-score-left');
@@ -5682,7 +5690,7 @@ function lmRender() {
   const clash = clashes[activeClashIdx];
   const isFinals   = match.round === 'F';
   const isBestOf5  = ['TC','QF','SF','F'].includes(match.round);
-  const ptThreshold = isFinals ? 7 : 4;
+  const ptThreshold = match._isSolo ? soloThreshold(match.round) : (isFinals ? 7 : 4);
   const teamWins   = isBestOf5 ? 3 : 2;
   const format     = isBestOf5 ? 'Best of 5' : 'Best of 3';
   const labelSuffix = match._isSolo
