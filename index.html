@@ -2482,7 +2482,7 @@ async function cloudSaveHomePosts() {
       const res = await fetch(HOME_DATA_API, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ homePosts, homePosts2 })
+        body: JSON.stringify({ adminUsername: _acAdminUsername, adminPassword: _acAdminPassword, payload: { homePosts, homePosts2 } })
       });
       if (!res.ok) { console.error('[Cloud] Home save failed:', res.status); }
       else { console.log('[Cloud] Home posts saved OK'); }
@@ -2558,17 +2558,21 @@ async function cloudSave() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          photos: podiumPhotos,
-          heroBgUrl: heroBgUrl || '',
-          players: players,
-          eventLabels: eventLabels,
-          importedIds: importedTournamentIds,
-          teamConfig: teamConfig,
-          bladerStats: bladerStats,
-          manualAchs: manualAchievements,
-          autoAchOv: autoAchOverrides,
-          rulersCupTeams: rulersCupTeams,
-          archivedBeyResults: _archivedBeyResults || []
+          adminUsername: _acAdminUsername,
+          adminPassword: _acAdminPassword,
+          payload: {
+            photos: podiumPhotos,
+            heroBgUrl: heroBgUrl || '',
+            players: players,
+            eventLabels: eventLabels,
+            importedIds: importedTournamentIds,
+            teamConfig: teamConfig,
+            bladerStats: bladerStats,
+            manualAchs: manualAchievements,
+            autoAchOv: autoAchOverrides,
+            rulersCupTeams: rulersCupTeams,
+            archivedBeyResults: _archivedBeyResults || []
+          }
         })
       });
       if (!res.ok) {
@@ -3496,9 +3500,9 @@ function renderGlobalBeyRankings(events, query) {
       <div class="br-winrate-cell">
         <span class="br-val highlight" data-label="WR">${r.winRate.toFixed(1)}%</span>
         <div class="br-row-actions">
-          <button class="br-edit-btn"   onclick="openBeyEditModal('editstats','${escJs(r.build)}',null)" style="background:#001a14;border-color:#3aa37a;color:#3aa37a" title="Edit wins/losses for this build">📊 STATS</button>
-          <button class="br-edit-btn"   onclick="openBeyEditModal('rename','${escJs(r.build)}',null)">✏️ RENAME</button>
-          <button class="br-delete-btn" onclick="openBeyEditModal('delete','${escJs(r.build)}',null)">🗑 DELETE</button>
+          <button class="br-edit-btn"   data-build="${escHtml(r.build)}" onclick="openBeyEditModal('editstats',this.dataset.build,null)" style="background:#001a14;border-color:#3aa37a;color:#3aa37a" title="Edit wins/losses for this build">📊 STATS</button>
+          <button class="br-edit-btn"   data-build="${escHtml(r.build)}" onclick="openBeyEditModal('rename',this.dataset.build,null)">✏️ RENAME</button>
+          <button class="br-delete-btn" data-build="${escHtml(r.build)}" onclick="openBeyEditModal('delete',this.dataset.build,null)">🗑 DELETE</button>
         </div>
       </div>
     </div>`).join('')}
@@ -3564,9 +3568,9 @@ function renderSoloBeyRankings(events, query) {
       <div class="br-winrate-cell">
         <span class="br-val highlight" data-label="WR">${r.winRate.toFixed(1)}%</span>
         <div class="br-row-actions">
-          <button class="br-edit-btn"   onclick="openBeyEditModal('editstats','${escJs(r.build)}','${escJs(r.player)}')" style="background:#001a14;border-color:#3aa37a;color:#3aa37a" title="Edit wins/losses for this build/player">📊 STATS</button>
-          <button class="br-edit-btn"   onclick="openBeyEditModal('rename','${escJs(r.build)}','${escJs(r.player)}')">✏️ RENAME</button>
-          <button class="br-delete-btn" onclick="openBeyEditModal('delete','${escJs(r.build)}','${escJs(r.player)}')">🗑 DELETE</button>
+          <button class="br-edit-btn"   data-build="${escHtml(r.build)}" data-player="${escHtml(r.player)}" onclick="openBeyEditModal('editstats',this.dataset.build,this.dataset.player)" style="background:#001a14;border-color:#3aa37a;color:#3aa37a" title="Edit wins/losses for this build/player">📊 STATS</button>
+          <button class="br-edit-btn"   data-build="${escHtml(r.build)}" data-player="${escHtml(r.player)}" onclick="openBeyEditModal('rename',this.dataset.build,this.dataset.player)">✏️ RENAME</button>
+          <button class="br-delete-btn" data-build="${escHtml(r.build)}" data-player="${escHtml(r.player)}" onclick="openBeyEditModal('delete',this.dataset.build,this.dataset.player)">🗑 DELETE</button>
         </div>
       </div>
     </div>`).join('')}
@@ -4026,7 +4030,7 @@ async function confirmBeyEdit() {
           await fetch(DATA_API + '?key=' + seasonKey, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(gdData)
+            body: JSON.stringify({ adminUsername: _acAdminUsername, adminPassword: _acAdminPassword, payload: gdData })
           });
           _archivedBeyResults = archive;
         }
@@ -5090,12 +5094,12 @@ function renderProfileBuildsList(playerName) {
           <div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.build)}</div>
           <div style="font-size:10px;color:var(--muted);margin-top:2px">${r.wins}W · ${r.losses}L · ${r.winRate.toFixed(1)}%</div>
         </div>
-        <button class="br-edit-btn" style="background:#001a14;border-color:#3aa37a;color:#3aa37a;font-size:10px;padding:3px 7px"
-          onclick="openBeyEditModal('editstats','${escJs(r.build)}','${escJs(playerName)}')" title="Edit wins/losses">📊</button>
-        <button class="br-edit-btn" style="font-size:10px;padding:3px 7px"
-          onclick="openBeyEditModal('rename','${escJs(r.build)}','${escJs(playerName)}')" title="Rename build">✏️</button>
-        <button class="br-delete-btn" style="font-size:10px;padding:3px 7px"
-          onclick="openBeyEditModal('delete','${escJs(r.build)}','${escJs(playerName)}')" title="Delete build">🗑</button>
+        <button class="br-edit-btn" data-build="${escHtml(r.build)}" data-player="${escHtml(playerName)}" style="background:#001a14;border-color:#3aa37a;color:#3aa37a;font-size:10px;padding:3px 7px"
+          onclick="openBeyEditModal('editstats',this.dataset.build,this.dataset.player)" title="Edit wins/losses">📊</button>
+        <button class="br-edit-btn" data-build="${escHtml(r.build)}" data-player="${escHtml(playerName)}" style="font-size:10px;padding:3px 7px"
+          onclick="openBeyEditModal('rename',this.dataset.build,this.dataset.player)" title="Rename build">✏️</button>
+        <button class="br-delete-btn" data-build="${escHtml(r.build)}" data-player="${escHtml(playerName)}" style="font-size:10px;padding:3px 7px"
+          onclick="openBeyEditModal('delete',this.dataset.build,this.dataset.player)" title="Delete build">🗑</button>
       </div>`).join('');
   }).catch(e => {
     container.innerHTML = `<div style="font-size:11px;color:var(--red);text-align:center;padding:8px">Failed to load builds: ${escHtml(e.message)}</div>`;
@@ -5347,7 +5351,7 @@ async function syncRenameAcrossSeasons(oldName, newName) {
       const putRes = await fetch(DATA_API + '?key=gamedata_s' + s, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+        body: JSON.stringify({ adminUsername: _acAdminUsername, adminPassword: _acAdminPassword, payload: data })
       });
       if (!putRes.ok) errors.push('S' + s + ' save failed (' + putRes.status + ')');
       else console.log('[Rename] Season ' + s + ' updated: ' + oldName + ' → ' + newName);
@@ -5515,7 +5519,7 @@ async function executeSnapshot() {
     const archiveRes = await fetch(dataApiUrl(2), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(s2Payload)
+      body: JSON.stringify({ adminUsername: _acAdminUsername, adminPassword: _acAdminPassword, payload: s2Payload })
     });
     if (!archiveRes.ok) throw new Error('Archive save failed: ' + archiveRes.status);
 
@@ -5556,7 +5560,7 @@ async function executeSnapshot() {
     const s3Res = await fetch(dataApiUrl(3), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(s3Payload)
+      body: JSON.stringify({ adminUsername: _acAdminUsername, adminPassword: _acAdminPassword, payload: s3Payload })
     });
     if (!s3Res.ok) throw new Error('S3 init failed: ' + s3Res.status);
 
@@ -6101,17 +6105,21 @@ renderHomeSnapshot();
   try {
     const saved = localStorage.getItem('rxs_player_session');
     if (!saved) return;
-    const { username, account } = JSON.parse(saved);
-    if (!username || !account) return;
-    const res = await fetch('/api/accounts');
-    if (!res.ok) return;
-    const accounts = await res.json();
-    const freshAccount = accounts[username];
-    if (!freshAccount || freshAccount.password !== account.password) {
+    const { username, sessionToken, account } = JSON.parse(saved);
+    if (!username || !sessionToken) return;
+    // Verify stored session token is still valid server-side
+    const res = await fetch('/api/player-login?action=verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, sessionToken })
+    });
+    if (!res.ok) {
       localStorage.removeItem('rxs_player_session');
       return;
     }
-    playerSession = { username, account: freshAccount };
+    const data = await res.json();
+    playerSession = { username, sessionToken, account: data.account };
+    try { localStorage.setItem('rxs_player_session', JSON.stringify(playerSession)); } catch(e) {}
     applyPlayerUI();
   } catch(e) {}
 })();
@@ -6310,7 +6318,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbo
 // ═══════════════════════════════════════════════════════
 //  PLAYER AUTH
 // ═══════════════════════════════════════════════════════
-let playerSession = null; // { username, account: { password, aliases, displayName } }
+let playerSession = null; // { username, sessionToken, account: { aliases, displayName } }
 
 async function sha256(str) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
@@ -6338,20 +6346,22 @@ async function doPlayerLogin() {
   errEl.textContent = '';
   try {
     const hash = await sha256(password);
-    const res  = await fetch('/api/accounts');
-    if (!res.ok) throw new Error('Could not load accounts.');
-    const accounts = await res.json();
-    const account  = accounts[username];
-    if (!account || account.password !== hash) {
-      errEl.textContent = 'Incorrect username or password.';
+    const res  = await fetch('/api/player-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, passwordHash: hash })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'Incorrect username or password.';
       document.getElementById('player-login-pass').value = '';
       return;
     }
-    playerSession = { username, account };
-    try { localStorage.setItem('rxs_player_session', JSON.stringify({ username, account })); } catch(e) {}
+    playerSession = { username, sessionToken: data.sessionToken, account: data.account };
+    try { localStorage.setItem('rxs_player_session', JSON.stringify(playerSession)); } catch(e) {}
     closePlayerLoginModal();
     applyPlayerUI();
-    showToast('Welcome back, ' + (account.displayName || username) + '!', 'success');
+    showToast('Welcome back, ' + (playerSession.account.displayName || username) + '!', 'success');
   } catch(e) {
     errEl.textContent = e.message || 'Login failed. Try again.';
   } finally {
@@ -6372,7 +6382,7 @@ function applyPlayerUI() {
   const avatarHtml = st.photo
     ? `<img src="${st.photo}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0" onerror="this.replaceWith(document.createTextNode('👤'))" />`
     : '👤';
-  badge.innerHTML = avatarHtml + ' <span id="nav-player-name">' + displayName + '</span> <span style="font-size:10px;opacity:0.6">▾</span>';
+  badge.innerHTML = avatarHtml + ' <span id="nav-player-name">' + escHtml(displayName) + '</span> <span style="font-size:10px;opacity:0.6">▾</span>';
   // Mobile
   const mobHint = document.getElementById('mob-login-hint');
   const mobBadge = document.getElementById('mob-player-badge');
@@ -6415,14 +6425,10 @@ async function playerChangePassword() {
   if (newVal.length < 4) { errEl.textContent = 'New password must be at least 4 characters.'; return; }
   if (newVal !== confirmVal) { errEl.textContent = 'New passwords do not match.'; return; }
 
-  // Verify current password matches session
   const currentHash = await sha256(currentVal);
-  if (currentHash !== playerSession.account.password) {
-    errEl.textContent = 'Current password is incorrect.';
-    return;
-  }
+  const newHash     = await sha256(newVal);
 
-  if (await sha256(newVal) === currentHash) {
+  if (currentHash === newHash) {
     errEl.textContent = 'New password must be different from current password.';
     return;
   }
@@ -6431,12 +6437,12 @@ async function playerChangePassword() {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving…'; }
 
   try {
-    const newHash = await sha256(newVal);
     const res = await fetch('/api/accounts?action=change_password', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         selfUsername:        playerSession.username,
+        sessionToken:        playerSession.sessionToken,
         currentPasswordHash: currentHash,
         newPasswordHash:     newHash
       })
@@ -6444,8 +6450,8 @@ async function playerChangePassword() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Could not update password.');
 
-    // Update session with new hash and persist to localStorage
-    playerSession.account.password = newHash;
+    // Update session with new token and persist to localStorage
+    playerSession.sessionToken = data.sessionToken;
     try { localStorage.setItem('rxs_player_session', JSON.stringify(playerSession)); } catch(e) {}
 
     // Clear inputs
@@ -6764,30 +6770,29 @@ async function playerRenameSelf() {
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
 
   try {
-    // Update account displayName and aliases FIRST, then save via player self-save
-    // (no admin creds needed). This must happen before syncRenameAcrossSeasons so
-    // the KV accounts record has the new name/aliases before any season data is read.
-    playerSession.account.displayName = newName;
-    if (Array.isArray(playerSession.account.aliases)) {
-      playerSession.account.aliases = playerSession.account.aliases.map(a =>
-        a.toLowerCase() === displayName.toLowerCase() ? newName : a
-      );
-    } else {
-      // If aliases array was missing, seed it with the new name
-      playerSession.account.aliases = [newName];
-    }
-    await savePlayerAccount();
+    // Server handles: accounts KV update + gamedata_s2/s3 rename atomically
+    const res = await fetch('/api/accounts?action=player_rename', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        selfUsername:   playerSession.username,
+        sessionToken:   playerSession.sessionToken,
+        newDisplayName: newName
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Rename failed.');
 
-    // Rename across all seasons + accounts (same function admin uses)
-    await syncRenameAcrossSeasons(displayName, newName);
+    // Update local session with fresh account data from server
+    playerSession.account = data.account;
+    try { localStorage.setItem('rxs_player_session', JSON.stringify(playerSession)); } catch(e) {}
 
-    // Update active season in memory
+    // Update active season in memory so the UI reflects the new name immediately
     const p = players.find(pl => pl.name.toLowerCase() === displayName.toLowerCase());
     if (p) {
       if (bladerStats[p.name]) { bladerStats[newName] = bladerStats[p.name]; delete bladerStats[p.name]; }
       p.name = newName;
     }
-    await cloudSave();
     renderLeaderboard(); renderWeekly(); updateHeroStats(); renderAchievements();
 
     // Update UI
@@ -6863,9 +6868,9 @@ function renderAccountsList() {
     return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:12px">
       ${avatarHtml}
       <div style="flex:1;min-width:0">
-        <div style="font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;color:var(--accent)">${displayName}</div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;color:var(--accent)">${escHtml(displayName)}</div>
         <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);margin-top:1px">@${username}</div>
-        <div style="font-size:11px;color:var(--muted2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${aliases}">Aliases: ${aliases}</div>
+        <div style="font-size:11px;color:var(--muted2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escHtml(aliases)}">Aliases: ${escHtml(aliases)}</div>
         <div style="margin-top:3px">${rankBadge}</div>
       </div>
       <button class="btn" style="font-size:11px;padding:5px 10px;flex-shrink:0" onclick="openEditAccountModal('${username}')">✏️ Edit</button>
@@ -7019,8 +7024,8 @@ async function savePlayerAccount() {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        selfUsername:     playerSession.username,
-        selfPasswordHash: playerSession.account.password,
+        selfUsername: playerSession.username,
+        sessionToken: playerSession.sessionToken,
         accounts
       })
     });
@@ -7249,9 +7254,9 @@ function renderDetailJoinersList(ev) {
       const members = j.members || [];
       // Support both new {username, displayName} objects and old plain strings
       const tooltipMembers = members.map(m => {
-        const name = typeof m === 'object' ? m.displayName : m;
+        const name = escHtml(typeof m === 'object' ? m.displayName : m);
         const uname = (typeof m === 'object' && m.username && !m.isGuest)
-          ? ` <span style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace">@${m.username}</span>`
+          ? ` <span style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace">@${escHtml(m.username)}</span>`
           : (m.isGuest ? ` <span style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace">(guest)</span>` : '');
         return `<div class="ev-joiner-team-tooltip-member">${name}${uname}</div>`;
       }).join('');
@@ -7259,11 +7264,11 @@ function renderDetailJoinersList(ev) {
         <span class="ev-joiner-num">${i + 1}.</span>
         <div class="ev-joiner-team-wrap" onclick="this.classList.toggle('tapped')">
           <div style="display:flex;align-items:center;gap:8px">
-            <span class="ev-joiner-name">${j.teamName}</span>
+            <span class="ev-joiner-name">${escHtml(j.teamName)}</span>
             <span class="ev-joiner-team-badge">TEAM</span>
           </div>
           <div class="ev-joiner-team-tooltip">
-            <div class="ev-joiner-team-tooltip-title">🛡️ ${j.teamName}</div>
+            <div class="ev-joiner-team-tooltip-title">🛡️ ${escHtml(j.teamName)}</div>
             ${tooltipMembers}
           </div>
         </div>
@@ -7272,7 +7277,7 @@ function renderDetailJoinersList(ev) {
     }
     return `<div class="ev-joiner-row">
       <span class="ev-joiner-num">${i + 1}.</span>
-      <span class="ev-joiner-name">${j.name}</span>
+      <span class="ev-joiner-name">${escHtml(j.name)}</span>
       ${isAdmin ? `<button class="ev-joiner-remove" onclick="adminRemoveJoiner(${i})" title="Remove">✕</button>` : ''}
     </div>`;
   }).join('');
@@ -7321,60 +7326,55 @@ function tjRenderOptions(slot, filter) {
   const el = document.getElementById('tj-options-' + slot);
   const q = (filter || '').trim().toLowerCase();
 
-  // Filter accounts by displayName or username match
   const list = _tjAccountsList.filter(acc =>
     !q ||
     acc.displayName.toLowerCase().includes(q) ||
     acc.username.toLowerCase().includes(q)
   );
 
-  // Build "add new player" option if search query doesn't exactly match an existing account
-  const addNewOption = q && !_tjAccountsList.some(a => a.displayName.toLowerCase() === q)
-    ? `<div class="tj-option tj-add-new" onclick="tjSelectNewPlayer(${slot}, this.dataset.name)" data-name="${q.replace(/"/g, '&quot;')}">
-        ➕ Add new player: <strong style="margin-left:4px">${q.replace(/</g,'&lt;')}</strong>
-        <span style="font-size:10px;color:var(--muted2);margin-left:6px;font-family:'Share Tech Mono',monospace">(guest)</span>
-       </div>`
-    : '';
+  el.innerHTML = '';
 
-  if (!list.length && !addNewOption) {
-    el.innerHTML = '<div class="tj-no-results">No matching accounts found</div>';
+  if (!list.length) {
+    const empty = document.createElement('div');
+    empty.className = 'tj-no-results';
+    empty.textContent = 'No matching accounts found';
+    el.appendChild(empty);
     return;
   }
 
-  const rows = list.map(acc => {
+  list.forEach(acc => {
     const isYou = acc.username === myUsername;
     const otherSlotTaken = Object.entries(_tjSelected)
       .some(([s, v]) => parseInt(s) !== slot && v && v.username === acc.username);
     const cls = otherSlotTaken ? 'taken' : isYou ? 'is-you' : '';
     const suffix = otherSlotTaken ? ' (already added)' : isYou ? ' (you)' : '';
-    const safeUsername = acc.username.replace(/'/g, "\'");
-    const safeDN = acc.displayName.replace(/'/g, "\'");
-    return `<div class="tj-option ${cls}" onclick="tjSelectMember(${slot},'${safeUsername}','${safeDN}')">
-      ${acc.displayName}
-      <span style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace;margin-left:6px">@${acc.username}</span>
-      ${suffix ? `<span style="font-size:10px;color:var(--muted2);margin-left:4px">${suffix}</span>` : ''}
-    </div>`;
+
+    const div = document.createElement('div');
+    div.className = 'tj-option ' + cls;
+
+    const nameText = document.createTextNode(acc.displayName + ' ');
+    div.appendChild(nameText);
+
+    const atSpan = document.createElement('span');
+    atSpan.style.cssText = "font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace;margin-left:6px";
+    atSpan.textContent = '@' + acc.username;
+    div.appendChild(atSpan);
+
+    if (suffix) {
+      const sfxSpan = document.createElement('span');
+      sfxSpan.style.cssText = 'font-size:10px;color:var(--muted2);margin-left:4px';
+      sfxSpan.textContent = suffix;
+      div.appendChild(sfxSpan);
+    }
+
+    if (!otherSlotTaken) {
+      div.addEventListener('click', () => tjSelectMember(slot, acc.username, acc.displayName));
+    }
+
+    el.appendChild(div);
   });
-
-  el.innerHTML = rows.join('') + addNewOption;
 }
 
-function tjSelectNewPlayer(slot, rawName) {
-  // rawName comes from data-name attribute (already decoded)
-  const name = (rawName || '').trim();
-  if (!name) return;
-  // Use a special sentinel username so duplicate-check still works across slots
-  const pseudoUsername = '__new__' + slot + '__' + name.toLowerCase().replace(/\s+/g, '_');
-  _tjSelected[slot] = { username: pseudoUsername, displayName: name, isNew: true };
-  const textEl  = document.getElementById('tj-sel-text-' + slot);
-  const clearEl = document.getElementById('tj-clear-' + slot);
-  textEl.textContent = name + ' (guest)';
-  textEl.className = 'chosen';
-  clearEl.style.display = '';
-  document.getElementById('tj-drop-' + slot).classList.remove('open');
-  document.getElementById('tj-sel-' + slot).classList.remove('open');
-  [1,2,3].forEach(s => { if (s !== slot) tjRenderOptions(s, ''); });
-}
 
 function tjFilterOptions(slot, val) {
   tjRenderOptions(slot, val);
@@ -7512,7 +7512,7 @@ async function submitTeamJoin() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username:     playerSession.username,
-        passwordHash: playerSession.account.password,
+        sessionToken: playerSession.sessionToken,
         eventId:      _teamJoinEventId,
         displayName,
         teamName,
@@ -7552,16 +7552,15 @@ async function handleJoinToggle(eventId, isJoined) {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving…'; }
 
   try {
-    const hash = playerSession.account.password; // already hashed from login
     const displayName = playerSession.account.displayName || playerSession.username;
     const res = await fetch(EVENTS_API + '?action=' + (isJoined ? 'unjoin' : 'join'), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        username:    playerSession.username,
-        passwordHash: hash,
-        eventId:     eventId,
-        displayName: displayName
+        username:     playerSession.username,
+        sessionToken: playerSession.sessionToken,
+        eventId:      eventId,
+        displayName:  displayName
       })
     });
     const data = await res.json();
@@ -8055,7 +8054,7 @@ async function deleteEvent() {
         await fetch(DATA_API + '?key=' + dataKey, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(gdData)
+          body: JSON.stringify({ adminUsername: _acAdminUsername, adminPassword: _acAdminPassword, payload: gdData })
         });
       }
     } catch(archiveErr) {

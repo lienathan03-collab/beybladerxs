@@ -50,11 +50,41 @@ export async function onRequest(context) {
   }
 
   if (request.method === 'PUT') {
+    let body;
     try {
-      const body = await request.text();
-      // Validate it's real JSON before storing
-      JSON.parse(body);
-      await kv.put(key, body);
+      body = await request.json();
+    } catch (e) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON body.' }),
+        { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { adminUsername, adminPassword, payload } = body;
+    const validU  = env.ADMIN_USERNAME;
+    const validP  = env.ADMIN_PASSWORD;
+    const valid2U = env.ADMIN2_USERNAME;
+    const valid2P = env.ADMIN2_PASSWORD;
+    const isAdmin =
+      (adminUsername === validU && adminPassword === validP) ||
+      (valid2U && adminUsername === valid2U && adminPassword === valid2P);
+
+    if (!isAdmin) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized. Admin credentials required.' }),
+        { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (payload === undefined || payload === null) {
+      return new Response(
+        JSON.stringify({ error: 'Missing payload field.' }),
+        { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    try {
+      await kv.put(key, JSON.stringify(payload));
       return new Response(JSON.stringify({ success: true, key }), {
         status: 200,
         headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }

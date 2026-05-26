@@ -2219,22 +2219,14 @@ async function tryAuth() {
   if (btn) { btn.textContent = 'Verifying…'; btn.disabled = true; }
 
   try {
-    const testRes = await fetch('/api/beyresults', {
-      method: 'PUT',
+    const testRes = await fetch('/api/login', {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        adminUsername: u,
-        adminPassword: p,
-        _authCheck: true,
-        eventId: '__auth_check__',
-        builds: {},
-        beyResults: []
-      })
+      body: JSON.stringify({ username: u, password: p })
     });
+    const testData = await testRes.json();
 
-    // Only 401 / 403 mean wrong credentials — everything else (200, 400, 404, 500) means
-    // the server accepted the credentials but had some other issue (event not found, etc.)
-    if (testRes.status === 401 || testRes.status === 403) {
+    if (!testRes.ok || !testData.success) {
       errEl.textContent = '❌ Incorrect username or password.';
       return;
     }
@@ -2344,7 +2336,7 @@ function loadEvent(id) {
     ['DATE', currentEvent.date || '—'],
     ['VENUE', currentEvent.venue || '—'],
     ['SEASON', (currentEvent.season || '—').toUpperCase()],
-  ].map(([k,v]) => `<span class="info-chip">${k}: <span>${v}</span></span>`).join('');
+  ].map(([k,v]) => `<span class="info-chip">${escHtml(k)}: <span>${escHtml(v)}</span></span>`).join('');
 
   document.getElementById('event-info').style.display = 'block';
   renderRoster();
@@ -2503,22 +2495,22 @@ function renderRoster() {
     }
     el.innerHTML = Object.entries(teams).map(([team, members]) => `
       <div class="team-roster-card">
-        <div class="team-name-label">🏆 ${team}</div>
+        <div class="team-name-label">🏆 ${escHtml(team)}</div>
         <div class="roster-grid">
           ${members.map(p => `
             <div class="roster-card">
-              <div class="roster-avatar">${p.name[0].toUpperCase()}</div>
-              <div><div class="roster-name">${p.name}</div></div>
+              <div class="roster-avatar">${escHtml(p.name[0].toUpperCase())}</div>
+              <div><div class="roster-name">${escHtml(p.name)}</div></div>
             </div>`).join('')}
         </div>
       </div>`).join('');
   } else {
     el.innerHTML = `<div class="roster-grid">${players.map(p => `
       <div class="roster-card">
-        <div class="roster-avatar">${p.name[0].toUpperCase()}</div>
+        <div class="roster-avatar">${escHtml(p.name[0].toUpperCase())}</div>
         <div>
-          <div class="roster-name">${p.name}</div>
-          <div class="roster-sub">${p.team ? 'Team: ' + p.team : 'Solo'}</div>
+          <div class="roster-name">${escHtml(p.name)}</div>
+          <div class="roster-sub">${p.team ? 'Team: ' + escHtml(p.team) : 'Solo'}</div>
         </div>
       </div>`).join('')}</div>`;
   }
@@ -2655,10 +2647,11 @@ function renderBuilds() {
         <span class="build-num">${i+1}.</span>
         <input id="${inputId}" class="form-input" style="flex:1;font-size:13px;padding:5px 8px;font-family:'Share Tech Mono',monospace;${changed ? 'border-color:var(--gold);' : ''}"
           value="${escHtml(b)}" placeholder="e.g. Wiro 1-60 H"
-          oninput="updateBuild('${escJs(key)}', ${i}, this.value); showBuildAC('${escJs(key)}',${i},this.value)"
-          onkeydown="buildACKeydown(event,'${escJs(key)}',${i})"
-          onfocus="showBuildAC('${escJs(key)}',${i},this.value)"
-          onblur="setTimeout(()=>hideBuildAC('${escJs(key)}',${i}),150)"
+          data-key="${escHtml(key)}" data-idx="${i}"
+          oninput="updateBuild(this.dataset.key,+this.dataset.idx,this.value);showBuildAC(this.dataset.key,+this.dataset.idx,this.value)"
+          onkeydown="buildACKeydown(event,this.dataset.key,+this.dataset.idx)"
+          onfocus="showBuildAC(this.dataset.key,+this.dataset.idx,this.value)"
+          onblur="setTimeout(()=>hideBuildAC(this.dataset.key,+this.dataset.idx),150)"
           autocomplete="off" />
         ${changed ? `<span style="font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--gold);margin-left:4px;white-space:nowrap" title="Name changed from '${escHtml(wasSubmitted)}'">✎ renamed</span>` : ''}
         <div class="build-autocomplete" id="build-ac-${escId(key)}-${i}" style="display:none"></div>
@@ -2670,8 +2663,8 @@ function renderBuilds() {
         <div class="player-build-card-name">
           <span style="width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#1a1200,#2a2200);
             border:1px solid var(--gold);display:inline-flex;align-items:center;justify-content:center;
-            font-size:11px;color:var(--gold2)">${p.name[0].toUpperCase()}</span>
-          ${p.name}
+            font-size:11px;color:var(--gold2)">${escHtml(p.name[0].toUpperCase())}</span>
+          ${escHtml(p.name)}
         </div>
         <div id="builds-rows-${escId(key)}">${rows}</div>
       </div>`;
@@ -2737,12 +2730,12 @@ function showBuildAC(key, idx, val) {
   _buildACSelected[`${key}-${idx}`] = -1;
 
   let html = matches.map((b, i) =>
-    `<div class="build-ac-item" data-val="${escHtml(b)}" onmousedown="pickBuildAC('${escJs(key)}',${idx},'${escJs(b)}')">${escHtml(b)}</div>`
+    `<div class="build-ac-item" data-key="${escHtml(key)}" data-idx="${idx}" data-val="${escHtml(b)}" onmousedown="pickBuildAC(this.dataset.key,+this.dataset.idx,this.dataset.val)">${escHtml(b)}</div>`
   ).join('');
 
   // Show "add as new" if typed value doesn't exactly match anything
   if (q && !exactMatch) {
-    html += `<div class="build-ac-new" onmousedown="pickBuildAC('${escJs(key)}',${idx},'${escJs(val.trim())}')">✚ Add "${escHtml(val.trim())}" as new build</div>`;
+    html += `<div class="build-ac-new" data-key="${escHtml(key)}" data-idx="${idx}" data-val="${escHtml(val.trim())}" onmousedown="pickBuildAC(this.dataset.key,+this.dataset.idx,this.dataset.val)">✚ Add "${escHtml(val.trim())}" as new build</div>`;
   }
 
   if (!html) { acEl.style.display = 'none'; return; }
@@ -3296,14 +3289,32 @@ function nmFilterPlayers(slot, query) {
     return;
   }
 
-  ddEl.innerHTML = filtered.map(p => {
+  ddEl.innerHTML = '';
+  filtered.forEach(p => {
     const isOther = otherSelected && otherSelected.player === p.name;
     const builds = (buildsState[playerKey(p.name)] || []).filter(Boolean);
-    return `<div class="nm-player-option ${isOther ? 'disabled' : ''}" onmousedown="event.preventDefault();nmSelectPlayer(${slot}, '${escJs(p.name)}')">
-      <div>${p.name}</div>
-      <div class="nm-player-sub">${builds.length ? builds.join(' · ') : 'No builds registered'}</div>
-    </div>`;
-  }).join('');
+
+    const div = document.createElement('div');
+    div.className = 'nm-player-option' + (isOther ? ' disabled' : '');
+
+    const nameDiv = document.createElement('div');
+    nameDiv.textContent = p.name;
+    div.appendChild(nameDiv);
+
+    const subDiv = document.createElement('div');
+    subDiv.className = 'nm-player-sub';
+    subDiv.textContent = builds.length ? builds.join(' · ') : 'No builds registered';
+    div.appendChild(subDiv);
+
+    if (!isOther) {
+      div.addEventListener('mousedown', e => {
+        e.preventDefault();
+        nmSelectPlayer(slot, p.name);
+      });
+    }
+
+    ddEl.appendChild(div);
+  });
 }
 
 function nmShowDropdown(slot) {
@@ -3497,9 +3508,9 @@ function renderMatchCard(match) {
     const p2pts = match.p2 ? calcPoints(match.p2.builds) : 0;
 
     const summary = match.p1.win
-      ? `<span style="color:var(--green)">${match.p1.player} WIN</span>`
+      ? `<span style="color:var(--green)">${escHtml(match.p1.player)} WIN</span>`
       : match.p2 && match.p2.win
-        ? `<span style="color:var(--green)">${match.p2.player} WIN</span>`
+        ? `<span style="color:var(--green)">${escHtml(match.p2.player)} WIN</span>`
         : `<span style="color:var(--muted)">pending</span>`;
 
     return `
@@ -3508,9 +3519,9 @@ function renderMatchCard(match) {
         <div class="match-card-header" style="flex:1;border-bottom:none" onclick="toggleMatchCollapse(${mid})">
           <span class="match-round-badge">${match.round}</span>
           <span class="match-vs-label">
-            <span style="color:var(--blue)">${match.p1.player}</span>
+            <span style="color:var(--blue)">${escHtml(match.p1.player)}</span>
             <span style="color:var(--muted2);margin:0 8px;font-size:12px">VS</span>
-            <span style="color:var(--gold2)">${match.p2 ? match.p2.player : '?'}</span>
+            <span style="color:var(--gold2)">${match.p2 ? escHtml(match.p2.player) : '?'}</span>
           </span>
           <span class="match-result-summary">${summary}</span>
           ${match.submitted
@@ -3698,7 +3709,6 @@ function renderTeamMemberSide(match, teamKey, memberIdx, mid, colorSide, slotNum
     ).join('');
     const acId = `tmac-${mid}-${teamKey}-${memberIdx}-${bi}`;
     const inpId = `tmai-${mid}-${teamKey}-${memberIdx}-${bi}`;
-    const playerKey_ = escJs(member.player);
     // Deployed derived from finishes (see note in renderPlayerSide).
     // No checkbox shown — auto-derived from finishes.
     const isDeployed = (b.finishes && b.finishes.length > 0) || b.deployed;
@@ -3707,8 +3717,9 @@ function renderTeamMemberSide(match, teamKey, memberIdx, mid, colorSide, slotNum
         <div class="match-build-name match-build-name-wrap">
           <input id="${inpId}" type="text" value="${escHtml(b.build)}" placeholder="Build name…"
             title="Edit build name for this round only"
-            oninput="mRenameTeamBuild(${mid},'${teamKey}',${memberIdx},${bi},this.value);mShowBuildAC('${acId}','${inpId}','${playerKey_}',this.value)"
-            onfocus="mShowBuildAC('${acId}','${inpId}','${playerKey_}',this.value)"
+            data-player="${escHtml(member.player)}"
+            oninput="mRenameTeamBuild(${mid},'${teamKey}',${memberIdx},${bi},this.value);mShowBuildAC('${acId}','${inpId}',this.dataset.player,this.value)"
+            onfocus="mShowBuildAC('${acId}','${inpId}',this.dataset.player,this.value)"
             onblur="setTimeout(()=>mHideBuildAC('${acId}'),160)"
             onkeydown="mTeamBuildACKeydown(event,'${acId}','${inpId}',${mid},'${teamKey}',${memberIdx},${bi})"
             onclick="event.stopPropagation()"
@@ -3760,14 +3771,14 @@ function renderPlayerSide(match, side, mid) {
     ).join('');
     const acId = `mac-${mid}-${side}-${bi}`;
     const inpId = `mai-${mid}-${side}-${bi}`;
-    const playerKey_ = escJs(player.player);
     return `
       <div class="match-build-row">
         <div class="match-build-name match-build-name-wrap">
           <input id="${inpId}" type="text" value="${escHtml(b.build)}" placeholder="Build name…"
             title="Edit build name for this round only"
-            oninput="mRenameBuild(${mid},'${side}',${bi},this.value);mShowBuildAC('${acId}','${inpId}','${playerKey_}',this.value)"
-            onfocus="mShowBuildAC('${acId}','${inpId}','${playerKey_}',this.value)"
+            data-player="${escHtml(player.player)}"
+            oninput="mRenameBuild(${mid},'${side}',${bi},this.value);mShowBuildAC('${acId}','${inpId}',this.dataset.player,this.value)"
+            onfocus="mShowBuildAC('${acId}','${inpId}',this.dataset.player,this.value)"
             onblur="setTimeout(()=>mHideBuildAC('${acId}'),160)"
             onkeydown="mBuildACKeydown(event,'${acId}','${inpId}',${mid},'${side}',${bi})"
             onclick="event.stopPropagation()"
@@ -3795,7 +3806,7 @@ function renderPlayerSide(match, side, mid) {
   return `
     <div class="match-player-side">
       <div class="match-player-name ${colorClass}">
-        ${player.player}
+        ${escHtml(player.player)}
         <button class="round-win-badge ${player.win ? 'win' : isPending ? 'pending' : 'loss'}"
           onclick="mToggleWin(${mid},'${side}')"
           title="${autoActive ? 'Auto-determined by points' : 'Click to manually set winner'}">
@@ -3954,7 +3965,7 @@ function mShowBuildAC(acId, inpId, playerName, val) {
     `<div class="build-ac-item" data-val="${escHtml(b)}" onmousedown="event.preventDefault();mPickBuildAC('${acId}','${inpId}',event.currentTarget.dataset.val)">${escHtml(b)}</div>`
   ).join('');
   if (q && !exactMatch) {
-    html += `<div class="build-ac-new" onmousedown="event.preventDefault();mPickBuildAC('${acId}','${inpId}','${escJs(val.trim())}')">✚ Add "${escHtml(val.trim())}" as new build</div>`;
+    html += `<div class="build-ac-new" data-val="${escHtml(val.trim())}" onmousedown="event.preventDefault();mPickBuildAC('${acId}','${inpId}',this.dataset.val)">✚ Add "${escHtml(val.trim())}" as new build</div>`;
   }
   if (!html) { acEl.style.display = 'none'; return; }
   acEl.innerHTML = html;
@@ -5160,7 +5171,8 @@ function clwRenderPickScreen() {
       const click = used ? '' : `onclick="clwPickBey('${actualKey}',${bi})"`;
       const usedLabel = used ? `<span style="font-size:8px;color:var(--muted2);margin-left:4px">[used]</span>` : '';
       const editBtn = activeMember ? `<button type="button" class="lm-bey-edit-btn" title="Rename this bey"
-        onclick="event.stopPropagation();lmStartEditBey(this,'${escJs(activeMember.player||'')}',${bi})">✏️</button>` : '';
+        data-player="${escHtml(activeMember.player||'')}" data-slot="${bi}"
+        onclick="event.stopPropagation();lmStartEditBey(this,this.dataset.player,+this.dataset.slot)">✏️</button>` : '';
       return `<div class="${cls}" ${click} style="${used?'cursor:not-allowed;':''}font-size:10px;padding:5px 8px;margin-bottom:4px">
         <span class="lm-bey-name">${escHtml(b.build)||'(unnamed)'}${usedLabel}</span>
         <span class="lm-bey-pts">${(b.finishes||[]).map(f=>`<span class="finish-tag ${f}" style="font-size:8px;padding:1px 4px">${f}</span>`).join('')}</span>
@@ -5694,7 +5706,8 @@ function lmRenderMemberSelector(domSlot, team, clash, actualKey) {
       : '';
     const playerNameAttr = escHtml(activeMember.player || '');
     const editBtn = `<button type="button" class="lm-bey-edit-btn" title="Rename this bey"
-      onclick="event.stopPropagation();lmStartEditBey(this,'${escJs(activeMember.player||'')}',${bi})">✏️</button>`;
+      data-player="${escHtml(activeMember.player||'')}" data-slot="${bi}"
+      onclick="event.stopPropagation();lmStartEditBey(this,this.dataset.player,+this.dataset.slot)">✏️</button>`;
     return `<div class="${chipClass}" ${clickHandler} style="${used ? 'cursor:not-allowed;' : ''}" data-player="${playerNameAttr}" data-slot="${bi}">
       <span class="lm-bey-name">${escHtml(b.build)||'(unnamed)'}${usedLabel}</span>
       <span class="lm-bey-pts">${(b.finishes||[]).map(f=>`<span class="finish-tag ${f}" style="font-size:8px;padding:1px 4px">${f}</span>`).join('')}</span>
@@ -6517,7 +6530,7 @@ async function archiveBeyResultsToGamedata() {
   await fetch(`/api/data?key=${dataKey}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(gdData)
+    body: JSON.stringify({ adminUsername: adminUser, adminPassword: adminPass, payload: gdData })
   });
 }
 
@@ -6651,7 +6664,7 @@ async function syncBladerStats() {
   const putRes = await fetch(`/api/data?key=${dataKey}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(gdData)
+    body: JSON.stringify({ adminUsername: adminUser, adminPassword: adminPass, payload: gdData })
   });
   if (!putRes.ok) throw new Error('Could not save stats to season data.');
 }
