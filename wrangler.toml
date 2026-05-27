@@ -1,0 +1,38 @@
+name = "beybladerxs"
+pages_build_output_dir = "."
+compatibility_date      = "2024-09-02"
+
+# ── KV namespace binding ──────────────────────────────────────────────────────
+# Existing Cloudflare KV namespace: BEYBLADE_DATA
+[[kv_namespaces]]
+binding = "BEYBLADE_KV"
+id      = "cb6f3ae6f2cd4c07b9815af5d3e31d30"
+
+# ── Durable Object namespace binding ─────────────────────────────────────────
+# BEY_STATE_DO provides per-event serialized writes — it eliminates the
+# read-merge-write race that can lose concurrent judge submissions.
+#
+# Step 1: deploy the DO worker first:
+#   cd workers/bey-state-do && wrangler deploy
+#
+# Step 2: the binding below tells the Pages project which class and which
+#   external worker script own this DO namespace. Deploy the Pages project:
+#   wrangler pages deploy
+#
+# Without this binding the app falls back to best-effort KV writes — safe for
+# single-judge tournaments but lossy under simultaneous multi-device submits.
+#
+# NOTE: This MUST be [[durable_objects.bindings]], NOT [[services]].
+# [[services]] is for Worker-to-Worker HTTP. A Durable Object namespace
+# requires [[durable_objects.bindings]] so Cloudflare wires up idFromName()
+# and get() correctly. See docs/DO_DEPLOYMENT.md for the full guide.
+
+[[durable_objects.bindings]]
+name        = "BEY_STATE_DO"
+class_name  = "BeyStateDO"
+script_name = "bey-state-do"
+
+# ── Secrets (set via dashboard or wrangler secret put) ───────────────────────
+# ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN2_USERNAME, ADMIN2_PASSWORD
+# These are NOT stored here — use `wrangler secret put <NAME>` or the
+# Cloudflare Pages dashboard → Settings → Environment variables.

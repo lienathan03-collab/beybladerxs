@@ -1,3 +1,5 @@
+import { doRenamePlayerInEvent } from './_shared/do-client.js';
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
@@ -377,6 +379,30 @@ export async function onRequest(context) {
       // Rollback snapshot (re-stringify after verifySession parsed it)
       const accountsRollback = JSON.stringify(accounts);
 
+      // Attempt a rollback write and capture the failure if any. We collect
+      // every failure across the rollback batch so the response can list each
+      // key that needs manual repair instead of pretending "all changes rolled
+      // back" when one of the restoration writes actually failed.
+      async function safeKvPut(key, value, label) {
+        try { await kv.put(key, value); return null; }
+        catch (e) {
+          const message = e && e.message ? e.message : String(e);
+          console.error('[accounts player_rename] rollback write failed for', key, message);
+          return { key, label, message };
+        }
+      }
+      function rollbackFailureResponse(originalError, rollbackFailures, partialMessage) {
+        return new Response(
+          JSON.stringify({
+            error: partialMessage,
+            repairRequired: true,
+            rollbackFailures,
+            originalError
+          }),
+          { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+        );
+      }
+
       // ── Staged writes with rollback ──
       try {
         await kv.put(KEY, JSON.stringify(updatedAccounts));
@@ -391,7 +417,16 @@ export async function onRequest(context) {
         try {
           await kv.put('gamedata_s2', JSON.stringify(s2Updated));
         } catch (e) {
-          try { await kv.put(KEY, accountsRollback); } catch (_) {}
+          const failures = [];
+          const f1 = await safeKvPut(KEY, accountsRollback, 'accounts');
+          if (f1) failures.push(f1);
+          if (failures.length) {
+            return rollbackFailureResponse(
+              'Rename failed writing season 2 data: ' + (e.message || String(e)),
+              failures,
+              'Rename failed writing season 2 data, and rollback of earlier writes also failed. Repair required.'
+            );
+          }
           return new Response(
             JSON.stringify({ error: 'Rename failed writing season 2 data. Account change has been rolled back.' }),
             { status: 502, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
@@ -403,8 +438,20 @@ export async function onRequest(context) {
         try {
           await kv.put('gamedata_s3', JSON.stringify(s3Updated));
         } catch (e) {
-          try { await kv.put(KEY, accountsRollback); } catch (_) {}
-          try { if (s2Changed && s2Raw) await kv.put('gamedata_s2', s2Raw); } catch (_) {}
+          const failures = [];
+          const f1 = await safeKvPut(KEY, accountsRollback, 'accounts');
+          if (f1) failures.push(f1);
+          if (s2Changed && s2Raw) {
+            const f2 = await safeKvPut('gamedata_s2', s2Raw, 'gamedata_s2');
+            if (f2) failures.push(f2);
+          }
+          if (failures.length) {
+            return rollbackFailureResponse(
+              'Rename failed writing season 3 data: ' + (e.message || String(e)),
+              failures,
+              'Rename failed writing season 3 data, and rollback of earlier writes also failed. Repair required.'
+            );
+          }
           return new Response(
             JSON.stringify({ error: 'Rename failed writing season 3 data. Changes have been rolled back.' }),
             { status: 502, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
@@ -416,13 +463,191 @@ export async function onRequest(context) {
         try {
           await kv.put('events', JSON.stringify(evUpdated));
         } catch (e) {
-          try { await kv.put(KEY, accountsRollback); } catch (_) {}
-          try { if (s2Changed && s2Raw) await kv.put('gamedata_s2', s2Raw); } catch (_) {}
-          try { if (s3Changed && s3Raw) await kv.put('gamedata_s3', s3Raw); } catch (_) {}
+          const failures = [];
+          const f1 = await safeKvPut(KEY, accountsRollback, 'accounts');
+          if (f1) failures.push(f1);
+          if (s2Changed && s2Raw) {
+            const f2 = await safeKvPut('gamedata_s2', s2Raw, 'gamedata_s2');
+            if (f2) failures.push(f2);
+          }
+          if (s3Changed && s3Raw) {
+            const f3 = await safeKvPut('gamedata_s3', s3Raw, 'gamedata_s3');
+            if (f3) failures.push(f3);
+          }
+          if (failures.length) {
+            return rollbackFailureResponse(
+              'Rename failed updating active events: ' + (e.message || String(e)),
+              failures,
+              'Rename failed updating active events, and rollback of earlier writes also failed. Repair required.'
+            );
+          }
           return new Response(
             JSON.stringify({ error: 'Rename failed updating active events. All changes have been rolled back.' }),
             { status: 502, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
           );
+        }
+
+        // Propagate the rename into any DO instances that hold live beyResults.
+        //
+        // DO renames are applied SEQUENTIALLY (not concurrently) so we can
+        // track exactly which events succeeded before a failure and send
+        // compensating renames to reverse them. With concurrent Promise.all an
+        // e1 success + e2 failure would leave e1 DO renamed while KV rolls back
+        // to the old name — an unrecoverable inconsistency.
+        //
+        // Failure path:
+        //   1. Send compensating rename (newName→oldName) to every event that
+        //      already succeeded — best-effort, logged if it also fails.
+        //   2. Roll back all KV writes.
+        //   3. Return 503 so the client knows the rename was not committed.
+        if (env.BEY_STATE_DO) {
+          const affectedEventIds = new Set();
+          for (const ev of (evData.events || [])) {
+            if ((ev.joiners || []).some(j => j.username === selfUsername && j.type !== 'team')) {
+              affectedEventIds.add(ev.id);
+            }
+          }
+          const successfulRenames = []; // eids whose forward rename returned 2xx — known committed
+          let doRenameError = null;
+          let ambiguousEid   = null;     // eid whose outcome is UNKNOWN — caller threw mid-call
+          for (const eid of affectedEventIds) {
+            const evSnapshot = evUpdated
+              ? (evUpdated.events || []).find(e => e.id === eid)
+              : null;
+            const hint = evSnapshot
+              ? {
+                  beyResults:   evSnapshot.beyResults   || [],
+                  builds:       evSnapshot.builds       || {},
+                  purgedOwners: Array.isArray(evSnapshot.purgedOwners)
+                    ? evSnapshot.purgedOwners : []
+                }
+              : null;
+            try {
+              await doRenamePlayerInEvent(env, eid, oldDisplayName, newDisplayName, hint);
+              successfulRenames.push(eid);
+            } catch (e) {
+              doRenameError = e;
+              // do-client tags the error with `outcome`:
+              //   • 'not-applied' — the DO returned a non-2xx response, so the
+              //     merge did NOT commit (the DO awaits saveState before 2xx).
+              //     Safe to skip compensation for this event.
+              //   • 'unknown' (or absent) — fetch itself threw, so the rename
+              //     MAY have committed before the response was lost. Treat the
+              //     event as potentially modified and let compensation reach it.
+              //     Skipping it here was the bug that left DOs at NewAlice
+              //     while KV rolled back to Alice.
+              if (e && e.outcome !== 'not-applied') {
+                ambiguousEid = eid;
+              }
+              break; // stop renaming further events
+            }
+          }
+
+          if (doRenameError) {
+            // Compensate: send a reverse rename to every event that may hold
+            // NewAlice — confirmed-committed events PLUS the in-flight failed
+            // event whose outcome is unknown. If compensation succeeds for the
+            // ambiguous event the DO is restored to Alice regardless of whether
+            // the forward rename actually committed (it's a no-op when the
+            // forward never landed).
+            //
+            // We MUST inspect each compensation result — if any reverse-rename
+            // also fails, KV will roll back to the old name while those DOs may
+            // still hold the new name. That divergence is a real data
+            // inconsistency, NOT a clean rollback, and the response must say so.
+            console.error('[accounts player_rename] DO rename failed; compensating and rolling back:', doRenameError);
+            const eidsToCompensate = [...successfulRenames];
+            if (ambiguousEid && !eidsToCompensate.includes(ambiguousEid)) {
+              eidsToCompensate.push(ambiguousEid);
+            }
+            const failedCompensations = []; // eids whose reverse-rename also failed
+            if (eidsToCompensate.length) {
+              // Build a per-event PRE-RENAME hydration hint from the original KV
+              // snapshot (`evData`, before any in-memory rename was applied).
+              //
+              // Why this matters specifically for `ambiguousEid` against a fresh
+              // (never-hydrated) DO: if the forward rename never reached the DO,
+              // a compensation call with `null` would land as the DO's first
+              // PUT and `maybeHydrateFromLegacy(null)` would mark it hydrated
+              // with empty beyResults/builds — wiping the event's live data
+              // from every subsequent GET while KV happily holds Alice/Bob.
+              //
+              // Providing the pre-rename hint is safe in both branches:
+              //   • Forward never committed → fresh DO hydrates from the real
+              //     old-name KV state; the NewAlice→Alice rename is a no-op
+              //     because no entry holds NewAlice. DO ends matching KV.
+              //   • Forward did commit → DO is already hydrated and the hint
+              //     is ignored; the reverse rename runs normally.
+              // For confirmed-successful eids the DO is definitely hydrated, so
+              // passing the hint is a harmless no-op there too.
+              const settled = await Promise.allSettled(
+                eidsToCompensate.map(eid => {
+                  const preRenameEvent = evData
+                    ? (evData.events || []).find(e => e.id === eid)
+                    : null;
+                  const preRenameHint = preRenameEvent
+                    ? {
+                        beyResults:   preRenameEvent.beyResults   || [],
+                        builds:       preRenameEvent.builds       || {},
+                        purgedOwners: Array.isArray(preRenameEvent.purgedOwners)
+                          ? preRenameEvent.purgedOwners : []
+                      }
+                    : null;
+                  return doRenamePlayerInEvent(env, eid, newDisplayName, oldDisplayName, preRenameHint);
+                })
+              );
+              settled.forEach((r, i) => {
+                if (r.status === 'rejected') {
+                  console.error(
+                    '[accounts player_rename] compensating rename failed for event',
+                    eidsToCompensate[i], r.reason
+                  );
+                  failedCompensations.push(eidsToCompensate[i]);
+                }
+              });
+            }
+            // Roll back KV writes regardless — KV must reflect the old name so
+            // any future read returns a consistent baseline. Capture rollback
+            // failures so the response can list each KV key that needs repair
+            // rather than silently claiming "all changes rolled back".
+            const rollbackFailures = [];
+            const fAcc = await safeKvPut(KEY, accountsRollback, 'accounts');
+            if (fAcc) rollbackFailures.push(fAcc);
+            if (s2Changed && s2Raw) {
+              const fS2 = await safeKvPut('gamedata_s2', s2Raw, 'gamedata_s2');
+              if (fS2) rollbackFailures.push(fS2);
+            }
+            if (s3Changed && s3Raw) {
+              const fS3 = await safeKvPut('gamedata_s3', s3Raw, 'gamedata_s3');
+              if (fS3) rollbackFailures.push(fS3);
+            }
+            if (evChanged && evRaw) {
+              const fEv = await safeKvPut('events', evRaw, 'events');
+              if (fEv) rollbackFailures.push(fEv);
+            }
+
+            if (failedCompensations.length || rollbackFailures.length) {
+              // Honest signal: rollback did NOT complete. Some event DOs still
+              // hold the new name (failedCompensations) and/or some KV keys
+              // could not be restored (rollbackFailures).
+              return new Response(
+                JSON.stringify({
+                  error: 'Rename failed and rollback could not be completed. Repair required.',
+                  repairRequired: true,
+                  inconsistentEventIds: failedCompensations,
+                  rollbackFailures,
+                  oldDisplayName,
+                  newDisplayName
+                }),
+                { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+              );
+            }
+
+            return new Response(
+              JSON.stringify({ error: 'Rename could not be applied to all live-result stores. All changes have been rolled back. Please try again.' }),
+              { status: 503, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+            );
+          }
         }
       }
 

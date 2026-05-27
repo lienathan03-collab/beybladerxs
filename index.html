@@ -4356,6 +4356,11 @@ async function executeDeletePlayer() {
           adminUsername: _acAdminUsername,
           adminPassword: _acAdminPassword,
           eventId,
+          // purgePlayers tells the server to explicitly tombstone this player's
+          // entries even when the DO is in forced-merge mode. Without it, the
+          // merge would preserve the rows because deletion-by-omission is
+          // invisible to the merge algorithm.
+          purgePlayers: [name],
           builds:     ev.builds     || {},
           beyResults: ev.beyResults || []
         })

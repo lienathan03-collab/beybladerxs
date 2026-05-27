@@ -1,0 +1,16 @@
+name            = "bey-state-do"
+main            = "src/index.js"
+compatibility_date = "2024-09-02"
+
+# This Worker exists solely to host the BeyStateDO Durable Object class.
+# It has no public HTTP routes — all traffic reaches the DO through the
+# Pages Function service binding (env.BEY_STATE_DO), not through this
+# Worker's URL directly.
+
+[[durable_objects.bindings]]
+name       = "BEY_STATE_DO"
+class_name = "BeyStateDO"
+
+[[migrations]]
+tag         = "v1"
+new_classes = ["BeyStateDO"]

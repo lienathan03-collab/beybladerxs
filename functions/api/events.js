@@ -1,3 +1,5 @@
+import { fetchLiveEventResults } from './_shared/do-client.js';
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, PUT, DELETE, OPTIONS',
@@ -8,11 +10,12 @@ const EVENTS_KEY = 'events';
 const TEAM_NAME_MAX = 30;
 const TEAM_NAME_RE = /^[a-zA-Z0-9 ._\-]+$/;
 
-// Inspects only event.builds and event.beyResults on the given event object.
-// Does not read any other KV key. Name fallback is for legacy entries with no entryId.
-function hasLiveData(event, entryId, name) {
-  const builds = event.builds || {};
-  const results = event.beyResults || [];
+// Inspects beyResults and builds from a live-state snapshot.
+// When BEY_STATE_DO is bound the caller must pass DO-fetched results;
+// otherwise it falls back to the KV event object's fields.
+// Name fallback is for legacy entries with no entryId.
+function hasLiveData({ beyResults, builds }, entryId, name) {
+  const results = Array.isArray(beyResults) ? beyResults : [];
   // Check by entryId when present
   if (entryId) {
     if (builds[entryId] && builds[entryId].some(b => b && b.trim())) return true;
@@ -297,15 +300,31 @@ export async function onRequest(context) {
         if (!deJoiner) {
           return new Response(JSON.stringify({ error: 'No Double Entry found.' }), { status: 404, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
         }
-        if (hasLiveData(event, deJoiner.entryId || null, deJoiner.name)) {
+        // Fetch authoritative live state from DO (falls back to KV only on 404; throws on 5xx).
+        let liveState;
+        try {
+          liveState = await fetchLiveEventResults(env, eventId, event);
+        } catch (doErr) {
+          console.error('[events de_remove] fetchLiveEventResults threw:', doErr);
+          return new Response(JSON.stringify({ error: 'Could not verify live results. Please try again.' }), { status: 502, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+        }
+        if (hasLiveData(liveState, deJoiner.entryId || null, deJoiner.name)) {
           return new Response(JSON.stringify({ error: 'Builds are registered. Contact the admin.' }), { status: 403, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
         }
         event.joiners = event.joiners.filter(j => j !== deJoiner);
       } else {
         // unjoin — cascade main + DE, block if live data exists on this event
         const userJoiners = event.joiners.filter(j => j.username === username);
+        // Fetch authoritative live state once for all joiner checks (throws on DO 5xx).
+        let liveState;
+        try {
+          liveState = await fetchLiveEventResults(env, eventId, event);
+        } catch (doErr) {
+          console.error('[events unjoin] fetchLiveEventResults threw:', doErr);
+          return new Response(JSON.stringify({ error: 'Could not verify live results. Please try again.' }), { status: 502, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+        }
         for (const j of userJoiners) {
-          if (hasLiveData(event, j.entryId || null, j.name || username)) {
+          if (hasLiveData(liveState, j.entryId || null, j.name || username)) {
             return new Response(JSON.stringify({ error: 'Match preparation has started. Contact the admin to be removed.' }), { status: 403, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
           }
         }
@@ -480,8 +499,15 @@ export async function onRequest(context) {
           if (linked) toRemove.push(linked);
         }
       }
-      // Live inspection — only checks this event's builds and beyResults
-      const anyLive = toRemove.some(j => hasLiveData(event, j.entryId || null, j.name));
+      // Live inspection — query DO for authoritative state (throws on DO 5xx).
+      let adminLiveState;
+      try {
+        adminLiveState = await fetchLiveEventResults(env, eventId, event);
+      } catch (doErr) {
+        console.error('[events admin_remove] fetchLiveEventResults threw:', doErr);
+        return new Response(JSON.stringify({ error: 'Could not verify live results. Please try again.' }), { status: 502, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+      }
+      const anyLive = toRemove.some(j => hasLiveData(adminLiveState, j.entryId || null, j.name));
       if (anyLive && !force) {
         return new Response(
           JSON.stringify({ error: 'Builds or results exist for this entry. Send force: true to remove the roster entry only.' }),

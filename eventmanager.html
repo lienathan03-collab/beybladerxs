@@ -2929,20 +2929,20 @@ async function submitBuilds() {
       flattenMatchesToResults();
     }
 
+    const savedSids = getMatchSidSnapshot();
+    const { body: putBody, deletedSnapshot } = buildMergePutBody(currentEvent.id, buildsState, resultsState);
     const res = await fetch('/api/beyresults', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        adminUsername: adminUser,
-        adminPassword: adminPass,
-        eventId: currentEvent.id,
-        builds: buildsState,
-        beyResults: resultsState
-      })
+      body: JSON.stringify(putBody)
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Submit builds failed');
 
+    clearAckedDeletedSids(currentEvent.id, deletedSnapshot);
+    // Server-observed acknowledgement only — pending matches stay protected
+    // until the server echoes the sid back (Finding 1).
+    confirmPendingMatchesSaved(sidsFromServerPayload(data.beyResults));
     _lastSyncHash = JSON.stringify(resultsState);
     // Snapshot the submitted build names so "renamed" indicators reset
     _submittedBuilds = {};
@@ -3034,9 +3034,14 @@ function loadMatchesFromResults() {
         const pairKey = `${t1name}||${t2name}`;
         const idx = (teamPairCount[pairKey] || 0);
         teamPairCount[pairKey] = idx + 1;
+        // Prefer the persisted _matchSid from the server entry so a deleted
+        // first A-vs-B match doesn't cause the surviving second to reload as
+        // index 0 (SID drift). Fall back to positional computation only for
+        // legacy entries that pre-date the _matchSid field.
+        const teamPersistedSid = t1entries[0] && t1entries[0]._matchSid;
         matchesState.push({
           id: _matchIdCounter++,
-          _sid: _teamSid(round, t1name, t2name, idx),
+          _sid: teamPersistedSid || _teamSid(round, t1name, t2name, idx),
           round, isTeamMatch: true,
           team1: { teamName: t1name, members: t1members },
           team2: { teamName: t2name, members: t2members },
@@ -3066,7 +3071,10 @@ function loadMatchesFromResults() {
       soloPairCount[pairKey] = idx + 1;
       matchesState.push({
         id: _matchIdCounter++,
-        _sid: _soloSid(round, p1, p2, idx),
+        // Use persisted _matchSid if present (avoids SID drift after deleting
+        // the first of two identical A-vs-B matches). Fall back to positional
+        // computation only for legacy entries without _matchSid.
+        _sid: p1._matchSid || _soloSid(round, p1, p2, idx),
         round,
         p1: { player: p1.player, entryId: p1.entryId, entryType: p1.entryType, displayLabel: p1.displayLabel, builds: p1.builds || [], pointsTotal: p1.pointsTotal || 0, win: p1.win },
         p2: { player: p2.player, entryId: p2.entryId, entryType: p2.entryType, displayLabel: p2.displayLabel, builds: p2.builds || [], pointsTotal: p2.pointsTotal || 0, win: p2.win },
@@ -3085,11 +3093,14 @@ function flattenMatchesToResults() {
   }
   resultsState = [];
   for (const m of matchesState) {
+    // _matchSid tags every entry with its match identity so the server can
+    // merge concurrent writes instead of replacing the whole array.
+    const sid = m._sid || undefined;
     if (m.isTeamMatch) {
       // Flatten all team members — include _playOrder and submitted on team1's first entry
       let firstT1 = true;
       for (const member of (m.team1 ? m.team1.members : [])) {
-        const entry = { player: member.player, round: m.round, builds: member.builds, pointsTotal: calcPoints(member.builds), win: member.win, team: m.team1.teamName };
+        const entry = { player: member.player, round: m.round, builds: member.builds, pointsTotal: calcPoints(member.builds), win: member.win, team: m.team1.teamName, _matchSid: sid };
         if (firstT1) {
           if (m._playOrder) entry._playOrder = m._playOrder;
           firstT1 = false;
@@ -3098,13 +3109,13 @@ function flattenMatchesToResults() {
         resultsState.push(entry);
       }
       for (const member of (m.team2 ? m.team2.members : [])) {
-        const entry = { player: member.player, round: m.round, builds: member.builds, pointsTotal: calcPoints(member.builds), win: member.win, team: m.team2.teamName };
+        const entry = { player: member.player, round: m.round, builds: member.builds, pointsTotal: calcPoints(member.builds), win: member.win, team: m.team2.teamName, _matchSid: sid };
         if (m.submitted) entry._submitted = true;
         resultsState.push(entry);
       }
     } else {
-      if (m.p1) resultsState.push({ player: m.p1.player, entryId: m.p1.entryId || undefined, entryType: m.p1.entryType || undefined, displayLabel: m.p1.displayLabel || undefined, round: m.round, builds: m.p1.builds, pointsTotal: calcPoints(m.p1.builds), win: m.p1.win, _submitted: m.submitted || undefined });
-      if (m.p2) resultsState.push({ player: m.p2.player, entryId: m.p2.entryId || undefined, entryType: m.p2.entryType || undefined, displayLabel: m.p2.displayLabel || undefined, round: m.round, builds: m.p2.builds, pointsTotal: calcPoints(m.p2.builds), win: m.p2.win, _submitted: m.submitted || undefined });
+      if (m.p1) resultsState.push({ player: m.p1.player, entryId: m.p1.entryId || undefined, entryType: m.p1.entryType || undefined, displayLabel: m.p1.displayLabel || undefined, round: m.round, builds: m.p1.builds, pointsTotal: calcPoints(m.p1.builds), win: m.p1.win, _submitted: m.submitted || undefined, _matchSid: sid });
+      if (m.p2) resultsState.push({ player: m.p2.player, entryId: m.p2.entryId || undefined, entryType: m.p2.entryType || undefined, displayLabel: m.p2.displayLabel || undefined, round: m.round, builds: m.p2.builds, pointsTotal: calcPoints(m.p2.builds), win: m.p2.win, _submitted: m.submitted || undefined, _matchSid: sid });
     }
   }
 }
@@ -3449,6 +3460,7 @@ async function createMatch() {
     matchesState.push({
       id: _matchIdCounter++,
       _sid: _teamSid(round, _nmTeam1.teamName, _nmTeam2.teamName, teamPairCount),
+      _pendingServerSave: true,
       round,
       isTeamMatch: true,
       team1: JSON.parse(JSON.stringify(_nmTeam1)),
@@ -3475,6 +3487,7 @@ async function createMatch() {
     matchesState.push({
       id: _matchIdCounter++,
       _sid: _soloSid(round, _nmP1, _nmP2, soloPairCount),
+      _pendingServerSave: true,
       round,
       p1: JSON.parse(JSON.stringify(_nmP1)),
       p2: JSON.parse(JSON.stringify(_nmP2)),
@@ -3502,29 +3515,8 @@ async function createMatch() {
     if (last) last.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, 100);
 
-  // Push to server immediately — pause sync so it can't overwrite before push completes
-  if (!currentEvent) return;
-  _syncPaused = true;
-  try {
-    const res = await fetch('/api/beyresults', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        adminUsername: adminUser,
-        adminPassword: adminPass,
-        eventId: currentEvent.id,
-        builds: buildsState,
-        beyResults: resultsState
-      })
-    });
-    if (res.ok) {
-      _lastSyncHash = JSON.stringify(resultsState);
-    }
-  } catch(e) {
-    // Non-fatal — match is local, user can Finalize to sync
-  } finally {
-    _syncPaused = false;
-  }
+  // Push in order so rapid additions cannot let an older full-state save win last.
+  await queueCreatedMatchSave();
 }
 
 // ─────────────────────────────────────────────
@@ -3930,6 +3922,11 @@ async function removeMatch(mid) {
     : 'Remove this match? It will be deleted from the server immediately.';
   if (!confirm(msg)) return;
 
+  // Tombstone the deletion BEFORE removing it locally so concurrent writers
+  // who still hold this match in their state can't merge it back in on the
+  // server. The sid stays in the event-scoped set until the server acks it.
+  if (match._sid && currentEvent) getEventDeletedSids(currentEvent.id).add(match._sid);
+
   matchesState = matchesState.filter(m => m.id !== mid);
   flattenMatchesToResults();
   renderResults();
@@ -3938,18 +3935,20 @@ async function removeMatch(mid) {
   if (!currentEvent) return;
   _syncPaused = true;
   try {
+    const savedSids = getMatchSidSnapshot();
+    const { body: putBody, deletedSnapshot } = buildMergePutBody(currentEvent.id, buildsState, resultsState);
     const res = await fetch('/api/beyresults', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        adminUsername: adminUser,
-        adminPassword: adminPass,
-        eventId: currentEvent.id,
-        builds: buildsState,
-        beyResults: resultsState
-      })
+      body: JSON.stringify(putBody)
     });
+    let data = {};
+    try { data = await res.json(); } catch(e) {}
     if (res.ok) {
+      clearAckedDeletedSids(currentEvent.id, deletedSnapshot);
+      const observed = sidsFromServerPayload(data.beyResults);
+      // Server-observed acknowledgement only — no optimistic fallback (Finding 1).
+      confirmPendingMatchesSaved(observed);
       // Clear dirty so other clients' sync sees the deletion instead of being blocked by the dirty-branch merge
       dirty = false;
       localClearDraft(currentEvent.id);
@@ -5898,6 +5897,126 @@ let _syncInterval   = null;
 let _syncPaused     = false; // pause during active user edits
 let _lastSyncHash   = '';    // fingerprint of last known server state
 let _syncErrorCount = 0;
+let _createMatchSaveQueue = Promise.resolve();
+let _queuedCreateMatchSaves = 0;
+// Sids the user explicitly deleted since the last successful PUT. Keyed by
+// eventId so a deletion in event A is NEVER sent in an event B PUT body —
+// event B may have a match with an identical key (same players, round, index)
+// and an unscoped set would silently delete it.
+let _pendingDeletedSids = new Map(); // Map<eventId, Set<sid>>
+
+// Returns (creating on demand) the per-event deletion Set.
+function getEventDeletedSids(eventId) {
+  if (!_pendingDeletedSids.has(eventId)) _pendingDeletedSids.set(eventId, new Set());
+  return _pendingDeletedSids.get(eventId);
+}
+
+function getMatchSidSnapshot() {
+  return new Set(matchesState.map(m => m._sid).filter(Boolean));
+}
+
+// Pull the set of match sids the server actually holds out of a /api/beyresults
+// response (either a PUT reply with `beyResults` or a GET payload). This is the
+// authoritative signal: a pending match is only safe to un-protect once its
+// sid round-trips back from the server.
+function sidsFromServerPayload(serverBeyResults) {
+  const sids = new Set();
+  if (!Array.isArray(serverBeyResults)) return sids;
+  for (const e of serverBeyResults) {
+    if (e && e._matchSid) sids.add(e._matchSid);
+  }
+  return sids;
+}
+
+// Clear `_pendingServerSave` only for matches whose sid has been OBSERVED in
+// authoritative server data. Never trust the client's own snapshot of what it
+// sent — a concurrent writer could have overwritten between snapshot and ack.
+function confirmPendingMatchesSaved(observedSids) {
+  if (!observedSids || !observedSids.size) return;
+  for (const match of matchesState) {
+    if (match._pendingServerSave && match._sid && observedSids.has(match._sid)) {
+      delete match._pendingServerSave;
+    }
+  }
+}
+
+// Build a PUT body in merge mode and snapshot the deletions it covers so we
+// can clear them only after a successful response.
+function buildMergePutBody(eventId, builds, beyResults) {
+  const deletedSnapshot = Array.from(getEventDeletedSids(eventId));
+  return {
+    body: {
+      adminUsername: adminUser,
+      adminPassword: adminPass,
+      eventId,
+      builds,
+      beyResults,
+      mergeMode: true,
+      deletedSids: deletedSnapshot
+    },
+    deletedSnapshot
+  };
+}
+
+function clearAckedDeletedSids(eventId, deletedSnapshot) {
+  if (!eventId || !Array.isArray(deletedSnapshot)) return;
+  const set = getEventDeletedSids(eventId);
+  for (const sid of deletedSnapshot) set.delete(sid);
+}
+
+async function queueCreatedMatchSave() {
+  if (!currentEvent) return;
+  const eventId = currentEvent.id;
+
+  // CAPTURE SYNCHRONOUSLY at queue-entry time. Anything we read after the
+  // first `await` is unsafe — the user may switch events, mutate matchesState,
+  // or queue another save. By the time this callback fires, the original
+  // matchesState may belong to a different event entirely.
+  flattenMatchesToResults();
+  const savedSids = getMatchSidSnapshot();
+  const savedResults = JSON.parse(JSON.stringify(resultsState));
+  const savedBuilds = JSON.parse(JSON.stringify(buildsState));
+  const { body: savedBody, deletedSnapshot } = buildMergePutBody(eventId, savedBuilds, savedResults);
+
+  _queuedCreateMatchSaves++;
+  _syncPaused = true;
+
+  const queuedSave = _createMatchSaveQueue.catch(() => {}).then(async () => {
+    // No event-id guard before the PUT — the snapshot is event-A's data and
+    // it MUST be written even if the UI has switched to event B. Dropping
+    // the write would silently lose matches the user already created.
+    const res = await fetch('/api/beyresults', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(savedBody)
+    });
+    let data = {};
+    try { data = await res.json(); } catch(e) {}
+    if (!res.ok) throw new Error(data.error || 'Automatic match save failed.');
+    clearAckedDeletedSids(eventId, deletedSnapshot);
+
+    // Only mutate live UI state if the user is still looking at event A.
+    // Confirming pending flags or updating _lastSyncHash against another
+    // event's matchesState would corrupt that event's sync state.
+    if (!currentEvent || currentEvent.id !== eventId) return;
+    // Server-observed acknowledgement only. If the server response did not
+    // echo our sids back (legacy server or a concurrent overwrite), we leave
+    // _pendingServerSave set and rely on the next live-sync poll to confirm
+    // — which is exactly the protection Finding 1 demands.
+    confirmPendingMatchesSaved(sidsFromServerPayload(data.beyResults));
+    _lastSyncHash = JSON.stringify(savedResults);
+  });
+
+  _createMatchSaveQueue = queuedSave;
+  try {
+    await queuedSave;
+  } catch (e) {
+    showToast('Match kept locally, but server sync failed: ' + e.message + ' Use Finalize to retry.', 'error');
+  } finally {
+    _queuedCreateMatchSaves--;
+    if (_queuedCreateMatchSaves === 0) _syncPaused = false;
+  }
+}
 
 function startLiveSync() {
   stopLiveSync();
@@ -6011,7 +6130,9 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
         const pairKey = `${t1name}||${t2name}`;
         const idx = (teamPairCount[pairKey] || 0);
         teamPairCount[pairKey] = idx + 1;
-        serverMatches.push({ _sid: _teamSid(round, t1name, t2name, idx), round, isTeamMatch: true,
+        // Prefer the persisted _matchSid from the server entry (SID drift fix).
+        const t1sid = (teamEntries.find(e => e.team === t1name) || {})._matchSid;
+        serverMatches.push({ _sid: t1sid || _teamSid(round, t1name, t2name, idx), round, isTeamMatch: true,
           team1: { teamName: t1name, members: t1members },
           team2: { teamName: t2name, members: t2members },
           p1: t1members[0] || null, p2: t2members[0] || null,
@@ -6030,7 +6151,7 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
       const pairKey = `${p1.entryId||p1.player}||${p2.entryId||p2.player}`;
       const idx = (soloPairCount[pairKey] || 0);
       soloPairCount[pairKey] = idx + 1;
-      serverMatches.push({ _sid: _soloSid(round, p1, p2, idx),
+      serverMatches.push({ _sid: p1._matchSid || _soloSid(round, p1, p2, idx),
         round,
         p1: { player: p1.player, entryId: p1.entryId, entryType: p1.entryType, displayLabel: p1.displayLabel, builds: p1.builds || [], win: p1.win },
         p2: { player: p2.player, entryId: p2.entryId, entryType: p2.entryType, displayLabel: p2.displayLabel, builds: p2.builds || [], win: p2.win },
@@ -6046,12 +6167,10 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
     const serverSids = new Set(serverMatches.map(m => m._sid).filter(Boolean));
     const localSids  = new Set(matchesState.map(m => m._sid).filter(Boolean));
 
-    // Remove any local matches that have been deleted on the server.
-    // IMPORTANT: only remove if the match has an _sid (was previously synced).
-    // Brand-new local matches that haven't been pushed yet have no _sid and
-    // must be preserved here so a sync race doesn't blow them away.
+    // Remove server-known matches deleted elsewhere, but retain newly-created
+    // local matches until a successful save confirms that the server has them.
     const before = matchesState.length;
-    matchesState = matchesState.filter(m => !m._sid || serverSids.has(m._sid));
+    matchesState = matchesState.filter(m => m._pendingServerSave || !m._sid || serverSids.has(m._sid));
     if (matchesState.length !== before) changed = true;
 
     // Add any new matches that appeared on the server, OR if a local
@@ -6063,6 +6182,7 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
         // Server is authoritative for submitted result payloads
         const local = matchesState.find(m => m._sid === sm._sid);
         if (local) {
+          if (local._pendingServerSave) delete local._pendingServerSave;
           if (sm.submitted || local.submitted) {
             const snap = JSON.stringify({ p1: local.p1, p2: local.p2, submitted: local.submitted,
               team1: local.team1, team2: local.team2, _playOrder: local._playOrder });
@@ -6215,20 +6335,20 @@ async function submitMatch(mid) {
     // 7. Flatten and push
     flattenMatchesToResults();
 
+    const savedSids = getMatchSidSnapshot();
+    const { body: putBody, deletedSnapshot } = buildMergePutBody(currentEvent.id, buildsState, resultsState);
     const res = await fetch('/api/beyresults', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        adminUsername: adminUser,
-        adminPassword: adminPass,
-        eventId: currentEvent.id,
-        builds: buildsState,
-        beyResults: resultsState
-      })
+      body: JSON.stringify(putBody)
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Submit failed');
 
+    clearAckedDeletedSids(currentEvent.id, deletedSnapshot);
+    // Server-observed acknowledgement only — pending matches stay protected
+    // until the server echoes the sid back (Finding 1).
+    confirmPendingMatchesSaved(sidsFromServerPayload(data.beyResults));
     _lastSyncHash = JSON.stringify(resultsState);
     markDirty(); // still dirty until Finalize runs archive+stats
     renderResults();
@@ -6315,20 +6435,20 @@ async function unsubmitMatch(mid) {
 
     flattenMatchesToResults();
 
+    const savedSids = getMatchSidSnapshot();
+    const { body: putBody, deletedSnapshot } = buildMergePutBody(currentEvent.id, buildsState, resultsState);
     const res = await fetch('/api/beyresults', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        adminUsername: adminUser,
-        adminPassword: adminPass,
-        eventId: currentEvent.id,
-        builds: buildsState,
-        beyResults: resultsState
-      })
+      body: JSON.stringify(putBody)
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Unsubmit failed');
 
+    clearAckedDeletedSids(currentEvent.id, deletedSnapshot);
+    // Server-observed acknowledgement only — pending matches stay protected
+    // until the server echoes the sid back (Finding 1).
+    confirmPendingMatchesSaved(sidsFromServerPayload(data.beyResults));
     _lastSyncHash = JSON.stringify(resultsState);
     markDirty();
     renderResults();
@@ -6474,6 +6594,7 @@ async function importCommit() {
     fresh.id = _matchIdCounter++;
     fresh.collapsed = true;
     fresh.submitted = false;
+    fresh._pendingServerSave = true;
     matchesState.push(fresh);
   }
 
@@ -6523,20 +6644,20 @@ async function saveAll() {
     flattenMatchesToResults();
 
     // 1. Save bey results to events KV
+    const savedSids = getMatchSidSnapshot();
+    const { body: putBody, deletedSnapshot } = buildMergePutBody(currentEvent.id, buildsState, resultsState);
     const res = await fetch('/api/beyresults', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        adminUsername: adminUser,
-        adminPassword: adminPass,
-        eventId: currentEvent.id,
-        builds: buildsState,
-        beyResults: resultsState
-      })
+      body: JSON.stringify(putBody)
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Save failed.');
 
+    clearAckedDeletedSids(currentEvent.id, deletedSnapshot);
+    // Server-observed acknowledgement only — pending matches stay protected
+    // until the server echoes the sid back (Finding 1).
+    confirmPendingMatchesSaved(sidsFromServerPayload(data.beyResults));
     // Update fingerprint after successful save
     _lastSyncHash = JSON.stringify(resultsState);
 
