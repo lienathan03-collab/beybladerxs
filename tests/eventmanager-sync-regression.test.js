@@ -859,3 +859,31 @@ test('flushOutbox pushes every queued op and clears acked ones', async () => {
   assert.deepEqual(sent.sort(), ['R1|a|b|0', 'R1|c|d|0']);
   assert.equal(context.loadOutbox('evt-1').length, 0, 'acked ops cleared');
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE SCORING — concurrency-mode detection + gating (Task 6)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function loadConcurrencyHelpers(context) {
+  vm.runInContext(
+    extractBetween('// CONCURRENCY GATE (start)', '// CONCURRENCY GATE (end)'),
+    context
+  );
+}
+
+test('best-effort-kv header disables live push; durable-object enables it', () => {
+  const warnings = [];
+  const context = vm.createContext({
+    document: { getElementById: () => null },
+    showToast: (msg) => warnings.push(msg)
+  });
+  loadConcurrencyHelpers(context);
+
+  context.applyConcurrencyHeader({ headers: { get: () => 'best-effort-kv' } });
+  assert.equal(vm.runInContext('_concurrencyMode', context), 'best-effort-kv');
+  assert.equal(context.liveScoringAllowed(), false);
+
+  context.applyConcurrencyHeader({ headers: { get: () => 'durable-object' } });
+  assert.equal(vm.runInContext('_concurrencyMode', context), 'durable-object');
+  assert.equal(context.liveScoringAllowed(), true);
+});

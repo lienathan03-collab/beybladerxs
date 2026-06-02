@@ -6142,6 +6142,26 @@ document.addEventListener('click', (e) => {
 let _syncInterval   = null;
 let _syncPaused     = false; // pause during active user edits
 let _activeLiveMatchSid = null; // sid of the match the judge is currently scoring; never overwritten by sync
+// CONCURRENCY GATE (start)
+let _concurrencyMode = 'unknown'; // 'durable-object' | 'best-effort-kv' | 'unknown'
+function liveScoringAllowed() { return _concurrencyMode !== 'best-effort-kv'; }
+function applyConcurrencyHeader(res) {
+  try {
+    const v = res && res.headers && res.headers.get && res.headers.get('X-BEY-CONCURRENCY');
+    if (v === 'durable-object' || v === 'best-effort-kv') {
+      const changed = v !== _concurrencyMode;
+      _concurrencyMode = v;
+      if (changed && typeof renderConcurrencyBanner === 'function') renderConcurrencyBanner();
+    }
+  } catch (e) {}
+}
+function renderConcurrencyBanner() {
+  if (typeof document === 'undefined') return;
+  if (_concurrencyMode === 'best-effort-kv') {
+    if (typeof showToast === 'function') showToast('⚠ Live multi-phone scoring is OFF: server is in best-effort-kv mode (Durable Object not bound). Scores may be lost if judges score at the same time. Use one device or enable the DO binding.', 'error');
+  }
+}
+// CONCURRENCY GATE (end)
 let _lastSyncHash   = '';    // fingerprint of last known server state
 let _syncErrorCount = 0;
 let _createMatchSaveQueue = Promise.resolve();
@@ -6374,6 +6394,7 @@ async function doLiveSync() {
   setLiveIndicator('syncing');
   try {
     const res = await fetch(`/api/beyresults?eventId=${currentEvent.id}&_t=${Date.now()}`);
+    applyConcurrencyHeader(res);
     if (!res.ok) throw new Error('fetch failed');
     const data = await res.json();
 
