@@ -64,6 +64,21 @@ function makeDOBinding(doInstance) {
   };
 }
 
+function makeSerialDOBinding(doInstance) {
+  let chain = Promise.resolve();
+  return {
+    idFromName(_name) { return { name: _name }; },
+    get(_id) {
+      return {
+        fetch(url, init) {
+          chain = chain.then(() => doInstance.fetch(new Request(url, init)));
+          return chain;
+        }
+      };
+    }
+  };
+}
+
 /**
  * Helper: call the DO's PUT action directly without going through the Pages
  * function, to set up test fixture state.
@@ -148,6 +163,77 @@ test('first DO write migrates existing KV rows into DO state', async () => {
   const sids = new Set(doState.beyResults.map(e => e._matchSid).filter(Boolean));
   assert.ok(sids.has('R1|Alice|Bob|0'),  'migrated KV match must be present in DO');
   assert.ok(sids.has('R1|Carol|Dave|0'), 'new Event Manager match must be present in DO');
+});
+
+test('six Event Manager phones preserve 40 submitted matches per round across five rounds', async () => {
+  const { onRequest } = await import('../../functions/api/beyresults.js');
+  const eventId = 'evt-six-phone-swiss';
+  const kv = makeKV({
+    events: JSON.stringify({ events: [{
+      id: eventId,
+      title: 'Six Phone Swiss',
+      joiners: [],
+      beyResults: [],
+      builds: {}
+    }] })
+  });
+  const doInst = await makeDO();
+  const env = {
+    BEYBLADE_KV: kv,
+    BEY_STATE_DO: makeSerialDOBinding(doInst),
+    ADMIN_USERNAME: 'admin', ADMIN_PASSWORD: 'secret'
+  };
+
+  const phoneCount = 6;
+  const rounds = ['R1', 'R2', 'R3', 'R4', 'R5'];
+  const batches = Array.from({ length: phoneCount }, () => []);
+
+  for (const round of rounds) {
+    for (let i = 0; i < 40; i++) {
+      const p1 = `${round}-P${String(i + 1).padStart(2, '0')}A`;
+      const p2 = `${round}-P${String(i + 1).padStart(2, '0')}B`;
+      const sid = `${round}|${p1}|${p2}|0`;
+      batches[i % phoneCount].push(
+        {
+          player: p1, round, _matchSid: sid, _submitted: true, win: true,
+          builds: [{ build: `${p1}-Blade`, finishes: ['S'] }]
+        },
+        {
+          player: p2, round, _matchSid: sid, _submitted: true, win: false,
+          builds: [{ build: `${p2}-Blade`, finishes: [] }]
+        }
+      );
+    }
+  }
+
+  await Promise.all(batches.map(batch => {
+    const ctx = makePagesCtx(env, 'PUT', 'https://example.com/api/beyresults', {
+      adminUsername: 'admin', adminPassword: 'secret',
+      eventId,
+      beyResults: batch,
+      builds: {},
+      mergeMode: true,
+      deletedSids: []
+    });
+    return onRequest(ctx).then(async res => {
+      const text = await res.text();
+      assert.equal(res.status, 200, 'phone write must succeed: ' + text);
+      assert.equal(res.headers.get('X-BEY-CONCURRENCY'), 'durable-object');
+    });
+  }));
+
+  const { data } = await doGet(doInst, eventId);
+  const visibleRows = data.beyResults.filter(e => !e._tombstone);
+  const sids = new Set(visibleRows.map(e => e._matchSid));
+
+  assert.equal(visibleRows.length, 400, '200 matches must be stored as 400 player rows');
+  assert.equal(sids.size, 200, 'all 200 match identities must survive');
+  for (const round of rounds) {
+    const roundSids = new Set(
+      visibleRows.filter(e => e.round === round).map(e => e._matchSid)
+    );
+    assert.equal(roundSids.size, 40, `${round} must retain all 40 matches`);
+  }
 });
 
 // ─── Test 2: MANUAL admin result survives a DO write ─────────────────────────
@@ -1994,4 +2080,49 @@ test('DO_DEPLOYMENT.md documents rollback data risk and KV-sync warning', async 
     doc.toLowerCase().includes('export') && doc.toLowerCase().includes('rollback'),
     'docs must describe an export procedure to follow before rollback'
   );
+});
+
+// ─── Test: match-level patch preserves other matches (live scoring) ──────────
+
+test('match-level patch PUT preserves other matches (non-submitted live push)', async () => {
+  const { onRequest } = await import('../../functions/api/beyresults.js');
+  const eventId = 'evt-patch';
+  const kv = makeKV({
+    events: JSON.stringify({ events: [{ id: eventId, title: 'Patch Test', joiners: [], beyResults: [], builds: {} }] })
+  });
+  const doInst = await makeDO();
+  const env = {
+    BEYBLADE_KV: kv,
+    BEY_STATE_DO: makeSerialDOBinding(doInst),
+    ADMIN_USERNAME: 'admin', ADMIN_PASSWORD: 'secret'
+  };
+
+  // Seed two matches in one merge PUT.
+  let res = await onRequest(makePagesCtx(env, 'PUT', 'https://x/api/beyresults', {
+    adminUsername: 'admin', adminPassword: 'secret', eventId, mergeMode: true, builds: {}, deletedSids: [],
+    beyResults: [
+      { player: 'a', round: 'R1', builds: [], win: false, _matchSid: 'R1|a|b|0' },
+      { player: 'b', round: 'R1', builds: [], win: false, _matchSid: 'R1|a|b|0' },
+      { player: 'c', round: 'R1', builds: [], win: false, _matchSid: 'R1|c|d|0' },
+      { player: 'd', round: 'R1', builds: [], win: false, _matchSid: 'R1|c|d|0' }
+    ]
+  }));
+  assert.equal(res.status, 200, 'seed PUT must succeed');
+
+  // Live push: ONLY match A rows, in-progress O, NOT submitted.
+  res = await onRequest(makePagesCtx(env, 'PUT', 'https://x/api/beyresults', {
+    adminUsername: 'admin', adminPassword: 'secret', eventId, mergeMode: true, builds: {}, deletedSids: [],
+    beyResults: [
+      { player: 'a', round: 'R1', builds: [{ finishes: ['O'] }], win: false, _matchSid: 'R1|a|b|0' },
+      { player: 'b', round: 'R1', builds: [], win: false, _matchSid: 'R1|a|b|0' }
+    ]
+  }));
+  assert.equal(res.status, 200, 'patch PUT must succeed');
+
+  const getRes = await onRequest(makePagesCtx(env, 'GET', 'https://x/api/beyresults?eventId=' + eventId, null));
+  const data = await getRes.json();
+  const sids = new Set(data.beyResults.map(r => r._matchSid));
+  assert.ok(sids.has('R1|c|d|0'), 'match C/D preserved by subset patch');
+  const aRow = data.beyResults.find(r => r._matchSid === 'R1|a|b|0' && r.player === 'a');
+  assert.deepEqual(aRow.builds, [{ finishes: ['O'] }], 'patch applied to match A');
 });
