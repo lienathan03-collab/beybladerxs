@@ -17,6 +17,18 @@ function extractBetween(startNeedle, endNeedle) {
   return html.slice(start, end);
 }
 
+test('live sync indicator starts hidden before an event is selected', () => {
+  const match = html.match(/<span id="live-indicator" style="([^"]*)"/);
+  assert.ok(match, 'live indicator markup must exist');
+
+  const displayDeclarations = match[1]
+    .split(';')
+    .map(part => part.trim())
+    .filter(part => part.startsWith('display:'));
+
+  assert.deepEqual(displayDeclarations, ['display:none']);
+});
+
 function loadQueueHelpers(context) {
   const start = html.indexOf('let _createMatchSaveQueue');
   const end = html.indexOf('function startLiveSync', start);
@@ -189,6 +201,28 @@ test('Finding 1: stale live-sync after a non-confirming PUT does NOT delete the 
 
   assert.equal(context.matchesState.length, 1);
   assert.equal(context.matchesState[0]._pendingServerSave, true);
+});
+
+test('dirty live-sync does NOT remove a locally scored match before auto-submit saves it', () => {
+  const localMatch = {
+    id: 1,
+    _sid: 'R1|A|B|0',
+    round: 'R1',
+    p1: { player: 'A', builds: [{ build: 'Alpha', finishes: ['S'] }], win: true },
+    p2: { player: 'B', builds: [{ build: 'Beta', finishes: [] }], win: false },
+    submitted: false
+  };
+  const context = createContext([localMatch]);
+  context.dirty = true;
+  loadMergeHelper(context);
+
+  vm.runInContext('mergeIncomingMatches({}, [])', context);
+
+  assert.equal(context.matchesState.length, 1,
+    'a stale server poll must not make a local Done/autosubmit-pending match disappear');
+  assert.equal(context.matchesState[0]._sid, 'R1|A|B|0');
+  assert.equal(context.matchesState[0].p1.win, true,
+    'the locally scored result must remain available for auto-submit/finalize');
 });
 
 test('Finding 1: confirming PUT response (sid echoed) clears the pending flag', async () => {
@@ -618,4 +652,40 @@ test('auto-submit: team topcut match arms when a team reaches 2 individual wins'
   loadAutoSubmit(c);
   vm.runInContext('evaluateAutoSubmit(1)', c);
   assert.ok(vm.runInContext('_autoSubmit.timers[1]', c), 'topcut team with 2 wins must arm');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE SCORING — match-level patch body (Task 1)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function loadPatchHelpers(context) {
+  vm.runInContext(
+    extractBetween('// LIVE-PUSH PATCH HELPERS (start)', '// LIVE-PUSH PATCH HELPERS (end)'),
+    context
+  );
+}
+
+test('buildMatchPatchBody emits only the target match rows in merge mode', () => {
+  const matchA = { id: 1, _sid: 'R1|a|b|0', round: 'R1',
+    p1: { player: 'a', builds: [{ finishes: ['O'] }], win: false },
+    p2: { player: 'b', builds: [], win: false } };
+  const matchB = { id: 2, _sid: 'R1|c|d|0', round: 'R1',
+    p1: { player: 'c', builds: [], win: false },
+    p2: { player: 'd', builds: [], win: false } };
+  const context = vm.createContext({
+    matchesState: [matchA, matchB],
+    buildsState: {},
+    adminUser: 'admin', adminPass: 'secret',
+    calcPoints: (builds) => (builds || []).reduce((n, b) =>
+      n + (b.finishes || []).filter(f => f !== 'L').length, 0),
+    autoCheckWin() {}, autoCheckTeamWin() {}
+  });
+  loadPatchHelpers(context);
+  const { body } = context.buildMatchPatchBody('evt-1', matchA);
+
+  assert.equal(body.eventId, 'evt-1');
+  assert.equal(body.mergeMode, true);
+  const sids = new Set(body.beyResults.map(r => r._matchSid));
+  assert.deepEqual([...sids], ['R1|a|b|0']);
+  assert.equal(body.beyResults.length, 2); // p1 + p2 of matchA only
 });

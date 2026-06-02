@@ -1509,7 +1509,7 @@
   <span class="topbar-sep">|</span>
   <span class="topbar-title">Event Manager</span>
   <div class="topbar-right">
-    <span id="live-indicator" style="display:none;font-family:'Share Tech Mono',monospace;font-size:10px;display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:4px;background:rgba(76,175,80,0.1);border:1px solid rgba(76,175,80,0.25);color:#4caf50">
+    <span id="live-indicator" style="display:none;font-family:'Share Tech Mono',monospace;font-size:10px;align-items:center;gap:5px;padding:3px 8px;border-radius:4px;background:rgba(76,175,80,0.1);border:1px solid rgba(76,175,80,0.25);color:#4caf50">
       <span id="live-dot" style="width:6px;height:6px;border-radius:50%;background:#4caf50;display:inline-block"></span>
       <span id="live-label">LIVE</span>
     </span>
@@ -3127,6 +3127,51 @@ function flattenMatchesToResults() {
     }
   }
 }
+
+// LIVE-PUSH PATCH HELPERS (start)
+// Flatten ONE match to its server rows (mirrors flattenMatchesToResults per-match
+// logic) so we can PUT just this match without touching any other match.
+function flattenSingleMatch(match) {
+  const rows = [];
+  if (!match) return rows;
+  if (!match.isTeamMatch) autoCheckWin(match); else autoCheckTeamWin(match);
+  const sid = match._sid || undefined;
+  if (match.isTeamMatch) {
+    let firstT1 = true;
+    for (const member of (match.team1 ? match.team1.members : [])) {
+      const entry = { player: member.player, round: match.round, builds: member.builds, pointsTotal: calcPoints(member.builds), win: member.win, team: match.team1.teamName, _matchSid: sid };
+      if (firstT1) { if (match._playOrder) entry._playOrder = match._playOrder; firstT1 = false; }
+      if (match.submitted) entry._submitted = true;
+      rows.push(entry);
+    }
+    for (const member of (match.team2 ? match.team2.members : [])) {
+      const entry = { player: member.player, round: match.round, builds: member.builds, pointsTotal: calcPoints(member.builds), win: member.win, team: match.team2.teamName, _matchSid: sid };
+      if (match.submitted) entry._submitted = true;
+      rows.push(entry);
+    }
+  } else {
+    if (match.p1) rows.push({ player: match.p1.player, entryId: match.p1.entryId || undefined, entryType: match.p1.entryType || undefined, displayLabel: match.p1.displayLabel || undefined, round: match.round, builds: match.p1.builds, pointsTotal: calcPoints(match.p1.builds), win: match.p1.win, _submitted: match.submitted || undefined, _matchSid: sid });
+    if (match.p2) rows.push({ player: match.p2.player, entryId: match.p2.entryId || undefined, entryType: match.p2.entryType || undefined, displayLabel: match.p2.displayLabel || undefined, round: match.round, builds: match.p2.builds, pointsTotal: calcPoints(match.p2.builds), win: match.p2.win, _submitted: match.submitted || undefined, _matchSid: sid });
+  }
+  return rows;
+}
+
+// Merge-mode PUT body carrying ONLY this match's rows. No deletedSids here —
+// deletions go through removeMatch's own immediate push, never the live-push.
+function buildMatchPatchBody(eventId, match) {
+  const beyResults = flattenSingleMatch(match);
+  // Include only builds keys this match's players reference (shallow-merged server-side).
+  const builds = {};
+  for (const row of beyResults) {
+    if (row.player && buildsState && Object.prototype.hasOwnProperty.call(buildsState, row.player)) {
+      builds[row.player] = buildsState[row.player];
+    }
+  }
+  return {
+    body: { adminUsername: adminUser, adminPassword: adminPass, eventId, builds, beyResults, mergeMode: true }
+  };
+}
+// LIVE-PUSH PATCH HELPERS (end)
 
 function autoCheckTeamWin(m) {
   if (!m.team1 || !m.team2) return;
@@ -6292,11 +6337,12 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
     const serverSids = new Set(serverMatches.map(m => m._sid).filter(Boolean));
     const localSids  = new Set(matchesState.map(m => m._sid).filter(Boolean));
 
-    // Remove server-known matches deleted elsewhere, but retain newly-created
-    // local matches until a successful save confirms that the server has them.
-    const before = matchesState.length;
-    matchesState = matchesState.filter(m => m._pendingServerSave || !m._sid || serverSids.has(m._sid));
-    if (matchesState.length !== before) changed = true;
+    // Do not remove local matches while this page has dirty work. A live-sync
+    // poll can arrive during the 4s auto-submit window with a stale server
+    // snapshot that lacks the just-scored match; treating that omission as a
+    // deletion makes the card disappear before submitMatch can persist it.
+    // True remote deletions are enforced by server tombstones on the next PUT,
+    // and by the non-dirty full-replace path once local work is settled.
 
     // Add any new matches that appeared on the server, OR if a local
     // unsynced match (no _sid) corresponds to one of the server matches
