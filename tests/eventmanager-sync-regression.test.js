@@ -824,3 +824,38 @@ test('scheduleLivePush coalesces rapid calls into one push after the debounce', 
   await new Promise(r => setTimeout(r, 60));
   assert.equal(puts, 1, 'three rapid taps -> one PUT');
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE SCORING — reconnect flush (Task 5)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('flushOutbox pushes every queued op and clears acked ones', async () => {
+  const sent = [];
+  const ls = makeLocalStorage();
+  const context = vm.createContext({
+    setTimeout, clearTimeout,
+    localStorage: ls,
+    currentEvent: { id: 'evt-1' },
+    adminUser: 'admin', adminPass: 'secret',
+    _concurrencyMode: 'durable-object',
+    navigator: { onLine: true },
+    Promise,
+    crypto: { randomUUID: (() => { let n = 0; return () => 'op-' + (++n); })() },
+    sidsFromServerPayload: (rows) => new Set((rows || []).map(r => r._matchSid)),
+    fetch: async (url, init) => {
+      const body = JSON.parse(init.body);
+      sent.push(body.beyResults[0]._matchSid);
+      return { ok: true, headers: { get: () => 'durable-object' },
+        json: async () => ({ beyResults: body.beyResults }) };
+    }
+  });
+  loadOutboxHelpers(context);
+  loadLivePush(context);
+
+  context.enqueueOutboxOp('R1|a|b|0', { eventId: 'evt-1', beyResults: [{ _matchSid: 'R1|a|b|0' }] });
+  context.enqueueOutboxOp('R1|c|d|0', { eventId: 'evt-1', beyResults: [{ _matchSid: 'R1|c|d|0' }] });
+
+  await context.flushOutbox();
+  assert.deepEqual(sent.sort(), ['R1|a|b|0', 'R1|c|d|0']);
+  assert.equal(context.loadOutbox('evt-1').length, 0, 'acked ops cleared');
+});
