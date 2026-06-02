@@ -17,6 +17,18 @@ function extractBetween(startNeedle, endNeedle) {
   return html.slice(start, end);
 }
 
+test('live sync indicator starts hidden before an event is selected', () => {
+  const match = html.match(/<span id="live-indicator" style="([^"]*)"/);
+  assert.ok(match, 'live indicator markup must exist');
+
+  const displayDeclarations = match[1]
+    .split(';')
+    .map(part => part.trim())
+    .filter(part => part.startsWith('display:'));
+
+  assert.deepEqual(displayDeclarations, ['display:none']);
+});
+
 function loadQueueHelpers(context) {
   const start = html.indexOf('let _createMatchSaveQueue');
   const end = html.indexOf('function startLiveSync', start);
@@ -52,6 +64,7 @@ function createContext(matchesState) {
     _matchIdCounter: 20,
     _lastSyncHash: '',
     _syncPaused: false,
+    _activeLiveMatchSid: null,
     fetch: async () => ({ ok: true, json: async () => ({ success: true }) }),
     flattenMatchesToResults() {
       context.resultsState = context.matchesState.flatMap(m => [
@@ -100,6 +113,25 @@ test('live sync preserves a newly-created match until the server confirms it', (
 
   assert.equal(context.matchesState.length, 1);
   assert.equal(context.matchesState[0]._pendingServerSave, true);
+});
+
+test('live sync does NOT wipe a pending match even when dirty is false (non-dirty full-replace path)', () => {
+  // Reproduces the multi-device data-loss report: a locally-created match that
+  // the server has not echoed back yet must survive a full-replace live-sync,
+  // not just the dirty-branch sync. dirty can be false here (e.g. a Finalize
+  // cleared it while a concurrent write meant the server response didn't echo
+  // this device's sid).
+  const context = createContext([makePendingMatch(1, '1')]);
+  context.dirty = false;
+  loadMergeHelper(context);
+
+  // Server returns no entries for this event — the pending match isn't there yet.
+  vm.runInContext('mergeIncomingMatches({}, [])', context);
+
+  assert.equal(context.matchesState.length, 1,
+    'non-dirty full-replace must not delete an unconfirmed pending match');
+  assert.equal(context.matchesState[0]._pendingServerSave, true,
+    'the pending flag must remain set until the server confirms the sid');
 });
 
 test('automatic creation saves are serialized so the latest list is persisted last', async () => {
@@ -170,6 +202,28 @@ test('Finding 1: stale live-sync after a non-confirming PUT does NOT delete the 
 
   assert.equal(context.matchesState.length, 1);
   assert.equal(context.matchesState[0]._pendingServerSave, true);
+});
+
+test('dirty live-sync does NOT remove a locally scored match before auto-submit saves it', () => {
+  const localMatch = {
+    id: 1,
+    _sid: 'R1|A|B|0',
+    round: 'R1',
+    p1: { player: 'A', builds: [{ build: 'Alpha', finishes: ['S'] }], win: true },
+    p2: { player: 'B', builds: [{ build: 'Beta', finishes: [] }], win: false },
+    submitted: false
+  };
+  const context = createContext([localMatch]);
+  context.dirty = true;
+  loadMergeHelper(context);
+
+  vm.runInContext('mergeIncomingMatches({}, [])', context);
+
+  assert.equal(context.matchesState.length, 1,
+    'a stale server poll must not make a local Done/autosubmit-pending match disappear');
+  assert.equal(context.matchesState[0]._sid, 'R1|A|B|0');
+  assert.equal(context.matchesState[0].p1.win, true,
+    'the locally scored result must remain available for auto-submit/finalize');
 });
 
 test('Finding 1: confirming PUT response (sid echoed) clears the pending flag', async () => {
@@ -479,5 +533,408 @@ test('client: pending deletions from event A do not appear in event-B PUT body',
   assert.deepEqual(
     result.body.deletedSids, [],
     'event-B deletedSids must be empty when no event-B deletions exist'
+  );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Auto-submit on winner detection. When a local scoring action leaves a match
+// with one decisive winner, a short cancelable countdown arms and then fires
+// the existing submitMatch(). It must NOT arm without a winner, when the toggle
+// is off, or for an already-submitted match — and re-evaluating after the
+// winner is removed must cancel it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function loadAutoSubmit(context) {
+  vm.runInContext(
+    extractBetween('// ─── AUTO-SUBMIT ENGINE (start)', '// ─── AUTO-SUBMIT ENGINE (end)'),
+    context
+  );
+}
+
+function autoCtx(matchesState) {
+  const intervals = [];
+  const context = {
+    matchesState,
+    calcPoints(builds) {
+      let pts = 0;
+      for (const b of (builds || [])) {
+        for (const f of (b.finishes || [])) {
+          if (f !== 'L') pts += ({ S: 1, O: 2, E: 3, B: 2 })[f] || 0;
+        }
+      }
+      return pts;
+    },
+    setInterval(fn) { const id = intervals.length + 1; intervals.push({ id, fn }); return id; },
+    clearInterval() {},
+    renderResults() { context._renders = (context._renders || 0) + 1; },
+    submitMatch(mid) { (context._submitted = context._submitted || []).push(mid); },
+    console, JSON, Set, Array, Object
+  };
+  context.__intervals = intervals;
+  vm.createContext(context);
+  return context;
+}
+
+function soloMatch(winA, winB) {
+  return [{ id: 1, round: 'R1',
+    p1: { player: 'A', win: winA, builds: [] },
+    p2: { player: 'B', win: winB, builds: [] } }];
+}
+
+test('auto-submit: solo match with exactly one winner arms a 4s countdown', () => {
+  const c = autoCtx(soloMatch(true, false));
+  loadAutoSubmit(c);
+  vm.runInContext('evaluateAutoSubmit(1)', c);
+  const t = vm.runInContext('_autoSubmit.timers[1]', c);
+  assert.ok(t, 'timer must be armed for a decided match');
+  assert.equal(t.remaining, 4);
+});
+
+test('auto-submit: no winner (both pending) does NOT arm', () => {
+  const c = autoCtx(soloMatch(false, false));
+  loadAutoSubmit(c);
+  vm.runInContext('evaluateAutoSubmit(1)', c);
+  assert.equal(vm.runInContext('_autoSubmit.timers[1]', c), undefined);
+});
+
+test('auto-submit: both sides marked win is NOT decisive, does not arm', () => {
+  const c = autoCtx(soloMatch(true, true));
+  loadAutoSubmit(c);
+  vm.runInContext('evaluateAutoSubmit(1)', c);
+  assert.equal(vm.runInContext('_autoSubmit.timers[1]', c), undefined);
+});
+
+test('auto-submit: an already-submitted match never arms', () => {
+  const ms = soloMatch(true, false);
+  ms[0].submitted = true;
+  const c = autoCtx(ms);
+  loadAutoSubmit(c);
+  vm.runInContext('evaluateAutoSubmit(1)', c);
+  assert.equal(vm.runInContext('_autoSubmit.timers[1]', c), undefined);
+});
+
+test('auto-submit: toggle off prevents arming and cancels running timers', () => {
+  const c = autoCtx(soloMatch(true, false));
+  loadAutoSubmit(c);
+  vm.runInContext('evaluateAutoSubmit(1)', c);
+  assert.ok(vm.runInContext('_autoSubmit.timers[1]', c), 'armed while enabled');
+  vm.runInContext('setAutoSubmitEnabled(false)', c);
+  assert.equal(vm.runInContext('_autoSubmit.timers[1]', c), undefined, 'turning off cancels it');
+  vm.runInContext('evaluateAutoSubmit(1)', c);
+  assert.equal(vm.runInContext('_autoSubmit.timers[1]', c), undefined, 'cannot re-arm while off');
+});
+
+test('auto-submit: re-evaluating after the winner is removed cancels the countdown', () => {
+  const ms = soloMatch(true, false);
+  const c = autoCtx(ms);
+  loadAutoSubmit(c);
+  vm.runInContext('evaluateAutoSubmit(1)', c);
+  assert.ok(vm.runInContext('_autoSubmit.timers[1]', c));
+  ms[0].p1.win = false; // judge un-scored the deciding finish
+  vm.runInContext('evaluateAutoSubmit(1)', c);
+  assert.equal(vm.runInContext('_autoSubmit.timers[1]', c), undefined);
+});
+
+test('auto-submit: countdown fires submitMatch once it reaches zero', () => {
+  const c = autoCtx(soloMatch(true, false));
+  loadAutoSubmit(c);
+  vm.runInContext('evaluateAutoSubmit(1)', c);
+  const tick = c.__intervals[0].fn;
+  tick(); tick(); tick(); tick(); // 4 → 3 → 2 → 1 → fire
+  assert.deepEqual(c._submitted, [1], 'submitMatch must fire exactly once');
+  assert.equal(vm.runInContext('_autoSubmit.timers[1]', c), undefined, 'timer cleared after firing');
+});
+
+test('auto-submit: team topcut match arms when a team reaches 2 individual wins', () => {
+  const ms = [{ id: 1, round: 'SF', isTeamMatch: true,
+    team1: { members: [{ win: true, builds: [] }, { win: true, builds: [] }, { win: false, builds: [] }] },
+    team2: { members: [{ win: false, builds: [] }, { win: false, builds: [] }, { win: false, builds: [] }] } }];
+  const c = autoCtx(ms);
+  loadAutoSubmit(c);
+  vm.runInContext('evaluateAutoSubmit(1)', c);
+  assert.ok(vm.runInContext('_autoSubmit.timers[1]', c), 'topcut team with 2 wins must arm');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE SCORING — match-level patch body (Task 1)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function loadPatchHelpers(context) {
+  vm.runInContext(
+    extractBetween('// LIVE-PUSH PATCH HELPERS (start)', '// LIVE-PUSH PATCH HELPERS (end)'),
+    context
+  );
+}
+
+test('buildMatchPatchBody emits only the target match rows in merge mode', () => {
+  const matchA = { id: 1, _sid: 'R1|a|b|0', round: 'R1',
+    p1: { player: 'a', builds: [{ finishes: ['O'] }], win: false },
+    p2: { player: 'b', builds: [], win: false } };
+  const matchB = { id: 2, _sid: 'R1|c|d|0', round: 'R1',
+    p1: { player: 'c', builds: [], win: false },
+    p2: { player: 'd', builds: [], win: false } };
+  const context = vm.createContext({
+    matchesState: [matchA, matchB],
+    buildsState: {},
+    adminUser: 'admin', adminPass: 'secret',
+    calcPoints: (builds) => (builds || []).reduce((n, b) =>
+      n + (b.finishes || []).filter(f => f !== 'L').length, 0),
+    autoCheckWin() {}, autoCheckTeamWin() {}
+  });
+  loadPatchHelpers(context);
+  const { body } = context.buildMatchPatchBody('evt-1', matchA);
+
+  assert.equal(body.eventId, 'evt-1');
+  assert.equal(body.mergeMode, true);
+  const sids = new Set(body.beyResults.map(r => r._matchSid));
+  assert.deepEqual([...sids], ['R1|a|b|0']);
+  assert.equal(body.beyResults.length, 2); // p1 + p2 of matchA only
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE SCORING — idempotent offline outbox (Task 2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function makeLocalStorage() {
+  const m = new Map();
+  return {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k)
+  };
+}
+
+function loadOutboxHelpers(context) {
+  vm.runInContext(
+    extractBetween('// LIVE OUTBOX (start)', '// LIVE OUTBOX (end)'),
+    context
+  );
+}
+
+test('outbox supersedes older op for the same matchSid and is idempotent by opId', () => {
+  const context = vm.createContext({
+    localStorage: makeLocalStorage(),
+    currentEvent: { id: 'evt-1' },
+    crypto: { randomUUID: (() => { let n = 0; return () => 'op-' + (++n); })() }
+  });
+  loadOutboxHelpers(context);
+
+  context.enqueueOutboxOp('R1|a|b|0', { eventId: 'evt-1', beyResults: [{ _matchSid: 'R1|a|b|0', win: false }] });
+  context.enqueueOutboxOp('R1|a|b|0', { eventId: 'evt-1', beyResults: [{ _matchSid: 'R1|a|b|0', win: true }] });
+  context.enqueueOutboxOp('R1|c|d|0', { eventId: 'evt-1', beyResults: [{ _matchSid: 'R1|c|d|0', win: false }] });
+
+  const ops = context.loadOutbox('evt-1');
+  assert.equal(ops.length, 2, 'only latest op per sid is kept');
+  const aOp = ops.find(o => o.matchSid === 'R1|a|b|0');
+  assert.equal(aOp.payload.beyResults[0].win, true, 'newest payload wins');
+
+  context.confirmOutboxAcked('evt-1', new Set(['R1|a|b|0']));
+  assert.equal(context.loadOutbox('evt-1').length, 1);
+});
+
+test('getClientId is stable across calls', () => {
+  const context = vm.createContext({
+    localStorage: makeLocalStorage(),
+    crypto: { randomUUID: (() => { let n = 0; return () => 'cid-' + (++n); })() }
+  });
+  loadOutboxHelpers(context);
+  assert.equal(context.getClientId(), context.getClientId());
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE SCORING — in-progress score adoption in merge (Task 3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('merge adopts in-progress (non-submitted) server score for a non-active match', () => {
+  const local = { id: 1, _sid: 'R1|a|b|0', round: 'R1',
+    p1: { player: 'a', entryId: 'a', builds: [], win: false },
+    p2: { player: 'b', entryId: 'b', builds: [], win: false },
+    submitted: false };
+  const context = createContext([local]);
+  context._activeLiveMatchSid = null;       // not actively editing this match
+  loadMergeHelper(context);
+
+  const serverResults = [
+    { player: 'a', entryId: 'a', round: 'R1', builds: [{ finishes: ['O'] }], win: false, _matchSid: 'R1|a|b|0' },
+    { player: 'b', entryId: 'b', round: 'R1', builds: [], win: false, _matchSid: 'R1|a|b|0' }
+  ];
+  context.mergeIncomingMatches({}, serverResults);
+
+  const m = context.matchesState.find(x => x._sid === 'R1|a|b|0');
+  assert.deepEqual(m.p1.builds, [{ finishes: ['O'] }], 'in-progress score adopted');
+});
+
+test('merge does NOT clobber the actively-edited match', () => {
+  const local = { id: 1, _sid: 'R1|a|b|0', round: 'R1',
+    p1: { player: 'a', entryId: 'a', builds: [{ finishes: ['O', 'O'] }], win: false },
+    p2: { player: 'b', entryId: 'b', builds: [], win: false },
+    submitted: false };
+  const context = createContext([local]);
+  context._activeLiveMatchSid = 'R1|a|b|0'; // judge is scoring this match right now
+  loadMergeHelper(context);
+
+  const serverResults = [
+    { player: 'a', entryId: 'a', round: 'R1', builds: [], win: false, _matchSid: 'R1|a|b|0' },
+    { player: 'b', entryId: 'b', round: 'R1', builds: [], win: false, _matchSid: 'R1|a|b|0' }
+  ];
+  context.mergeIncomingMatches({}, serverResults);
+
+  const m = context.matchesState.find(x => x._sid === 'R1|a|b|0');
+  assert.deepEqual(m.p1.builds, [{ finishes: ['O', 'O'] }], 'local edits preserved');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE SCORING — debounced per-match live push (Task 4)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function loadLivePush(context) {
+  vm.runInContext(
+    extractBetween('// LIVE PUSH ENGINE (start)', '// LIVE PUSH ENGINE (end)'),
+    context
+  );
+}
+
+test('scheduleLivePush coalesces rapid calls into one push after the debounce', async () => {
+  let puts = 0;
+  const match = { id: 1, _sid: 'R1|a|b|0', round: 'R1',
+    p1: { player: 'a', builds: [{ finishes: ['O'] }], win: false },
+    p2: { player: 'b', builds: [], win: false } };
+  const context = vm.createContext({
+    setTimeout, clearTimeout,
+    matchesState: [match],
+    buildsState: {},
+    currentEvent: { id: 'evt-1' },
+    adminUser: 'admin', adminPass: 'secret',
+    _concurrencyMode: 'durable-object',
+    navigator: { onLine: true },
+    calcPoints: () => 1, autoCheckWin() {}, autoCheckTeamWin() {},
+    enqueueOutboxOp: () => ({ opId: 'op-1' }),
+    dropOutboxOp() {}, confirmOutboxAcked() {},
+    sidsFromServerPayload: () => new Set(['R1|a|b|0']),
+    LIVE_PUSH_DEBOUNCE_MS: 20,
+    Promise,
+    fetch: async () => { puts++; return { ok: true, headers: { get: () => 'durable-object' }, json: async () => ({ beyResults: [{ _matchSid: 'R1|a|b|0' }] }) }; }
+  });
+  loadPatchHelpers(context);
+  loadLivePush(context);
+
+  context.scheduleLivePush(1);
+  context.scheduleLivePush(1);
+  context.scheduleLivePush(1);
+  await new Promise(r => setTimeout(r, 60));
+  assert.equal(puts, 1, 'three rapid taps -> one PUT');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE SCORING — reconnect flush (Task 5)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('flushOutbox pushes every queued op and clears acked ones', async () => {
+  const sent = [];
+  const ls = makeLocalStorage();
+  const context = vm.createContext({
+    setTimeout, clearTimeout,
+    localStorage: ls,
+    currentEvent: { id: 'evt-1' },
+    adminUser: 'admin', adminPass: 'secret',
+    _concurrencyMode: 'durable-object',
+    navigator: { onLine: true },
+    Promise,
+    crypto: { randomUUID: (() => { let n = 0; return () => 'op-' + (++n); })() },
+    sidsFromServerPayload: (rows) => new Set((rows || []).map(r => r._matchSid)),
+    fetch: async (url, init) => {
+      const body = JSON.parse(init.body);
+      sent.push(body.beyResults[0]._matchSid);
+      return { ok: true, headers: { get: () => 'durable-object' },
+        json: async () => ({ beyResults: body.beyResults }) };
+    }
+  });
+  loadOutboxHelpers(context);
+  loadLivePush(context);
+
+  context.enqueueOutboxOp('R1|a|b|0', { eventId: 'evt-1', beyResults: [{ _matchSid: 'R1|a|b|0' }] });
+  context.enqueueOutboxOp('R1|c|d|0', { eventId: 'evt-1', beyResults: [{ _matchSid: 'R1|c|d|0' }] });
+
+  await context.flushOutbox();
+  assert.deepEqual(sent.sort(), ['R1|a|b|0', 'R1|c|d|0']);
+  assert.equal(context.loadOutbox('evt-1').length, 0, 'acked ops cleared');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE SCORING — concurrency-mode detection + gating (Task 6)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function loadConcurrencyHelpers(context) {
+  vm.runInContext(
+    extractBetween('// CONCURRENCY GATE (start)', '// CONCURRENCY GATE (end)'),
+    context
+  );
+}
+
+test('best-effort-kv header disables live push; durable-object enables it', () => {
+  const warnings = [];
+  const context = vm.createContext({
+    document: { getElementById: () => null },
+    showToast: (msg) => warnings.push(msg)
+  });
+  loadConcurrencyHelpers(context);
+
+  context.applyConcurrencyHeader({ headers: { get: () => 'best-effort-kv' } });
+  assert.equal(vm.runInContext('_concurrencyMode', context), 'best-effort-kv');
+  assert.equal(context.liveScoringAllowed(), false);
+
+  context.applyConcurrencyHeader({ headers: { get: () => 'durable-object' } });
+  assert.equal(vm.runInContext('_concurrencyMode', context), 'durable-object');
+  assert.equal(context.liveScoringAllowed(), true);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE SCORING — Finalize becomes archive/stats only (Task 7)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('Finalize (saveAll) flushes the outbox and does not full-event PUT', () => {
+  const start = html.indexOf('async function saveAll()');
+  const end = html.indexOf('async function', start + 10);
+  const src = html.slice(start, end);
+  assert.ok(/flushOutbox\(\)/.test(src), 'saveAll must flush the outbox');
+  assert.ok(!/buildMergePutBody\(/.test(src), 'saveAll must not build a full-event PUT body');
+  assert.ok(/archiveBeyResultsToGamedata\(\)/.test(src), 'saveAll still archives');
+  assert.ok(/syncBladerStats\(\)/.test(src), 'saveAll still syncs stats');
+});
+
+// Score-affecting paths must feed the same live-push hook. The hook lives at
+// the start of evaluateAutoSubmit(), so calling it schedules the match-level
+// live patch even when no winner has been reached yet.
+function functionSource(name, nextName) {
+  const start = html.indexOf(`function ${name}(`);
+  const end = html.indexOf(`function ${nextName}(`, start + 1);
+  assert.notEqual(start, -1, `Missing function ${name}`);
+  assert.notEqual(end, -1, `Missing next function ${nextName}`);
+  return html.slice(start, end);
+}
+
+test('manual win toggles schedule live push through evaluateAutoSubmit', () => {
+  assert.match(
+    functionSource('mToggleWin', 'mToggleDeploy'),
+    /evaluateAutoSubmit\(mid\)/,
+    'solo manual win toggle must live-push the changed match'
+  );
+  assert.match(
+    functionSource('mToggleTeamWin', 'mToggleTeamDeploy'),
+    /evaluateAutoSubmit\(mid\)/,
+    'team manual win toggle must live-push the changed match'
+  );
+});
+
+test('live-mode finish and undo schedule in-progress live push before Done', () => {
+  assert.match(
+    functionSource('lmApplyFinish', 'lmUpdateScoreBar'),
+    /lmScheduleLivePushForState\(\)/,
+    'each live-mode finish tap must push in-progress scoring'
+  );
+  assert.match(
+    functionSource('lmUndo', 'lmSetScoringSideAndHighlight'),
+    /lmScheduleLivePushForState\(\)/,
+    'live-mode undo must push the reverted in-progress score'
   );
 });

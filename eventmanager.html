@@ -1509,7 +1509,7 @@
   <span class="topbar-sep">|</span>
   <span class="topbar-title">Event Manager</span>
   <div class="topbar-right">
-    <span id="live-indicator" style="display:none;font-family:'Share Tech Mono',monospace;font-size:10px;display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:4px;background:rgba(76,175,80,0.1);border:1px solid rgba(76,175,80,0.25);color:#4caf50">
+    <span id="live-indicator" style="display:none;font-family:'Share Tech Mono',monospace;font-size:10px;align-items:center;gap:5px;padding:3px 8px;border-radius:4px;background:rgba(76,175,80,0.1);border:1px solid rgba(76,175,80,0.25);color:#4caf50">
       <span id="live-dot" style="width:6px;height:6px;border-radius:50%;background:#4caf50;display:inline-block"></span>
       <span id="live-label">LIVE</span>
     </span>
@@ -1669,7 +1669,13 @@
             <div style="font-size:15px;font-weight:700;color:var(--text)">Match Results</div>
             <div style="font-size:12px;color:var(--muted);margin-top:2px">Add a match, pick both players, enter finishes after they report.</div>
           </div>
-          <button class="btn gold" onclick="openNewMatchModal()">⚔️ New Match</button>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <label title="When a winner is detected, the match auto-submits after a short countdown. Tap Cancel on the card to stop it." style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;user-select:none">
+              <input type="checkbox" id="auto-submit-toggle" onchange="setAutoSubmitEnabled(this.checked)" style="cursor:pointer">
+              Auto-submit
+            </label>
+            <button class="btn gold" onclick="openNewMatchModal()">⚔️ New Match</button>
+          </div>
         </div>
 
         <!-- Legend -->
@@ -2078,7 +2084,7 @@
 let adminUser = '';
 let adminPass = '';
 let allEvents = [];
-const APP_VERSION = 'rxs-em-v13';
+const APP_VERSION = 'rxs-em-v14';
 
 let currentEvent = null;
 
@@ -2286,6 +2292,8 @@ async function loadEventList() {
 }
 
 function loadEvent(id) {
+  // Switching events: cancel any pending auto-submit countdowns from the prior event.
+  for (const k of Object.keys(_autoSubmit.timers)) _clearAutoSubmitTimer(k);
   if (!id) {
     currentEvent = null;
     document.getElementById('event-info').style.display = 'none';
@@ -3120,6 +3128,51 @@ function flattenMatchesToResults() {
   }
 }
 
+// LIVE-PUSH PATCH HELPERS (start)
+// Flatten ONE match to its server rows (mirrors flattenMatchesToResults per-match
+// logic) so we can PUT just this match without touching any other match.
+function flattenSingleMatch(match) {
+  const rows = [];
+  if (!match) return rows;
+  if (!match.isTeamMatch) autoCheckWin(match); else autoCheckTeamWin(match);
+  const sid = match._sid || undefined;
+  if (match.isTeamMatch) {
+    let firstT1 = true;
+    for (const member of (match.team1 ? match.team1.members : [])) {
+      const entry = { player: member.player, round: match.round, builds: member.builds, pointsTotal: calcPoints(member.builds), win: member.win, team: match.team1.teamName, _matchSid: sid };
+      if (firstT1) { if (match._playOrder) entry._playOrder = match._playOrder; firstT1 = false; }
+      if (match.submitted) entry._submitted = true;
+      rows.push(entry);
+    }
+    for (const member of (match.team2 ? match.team2.members : [])) {
+      const entry = { player: member.player, round: match.round, builds: member.builds, pointsTotal: calcPoints(member.builds), win: member.win, team: match.team2.teamName, _matchSid: sid };
+      if (match.submitted) entry._submitted = true;
+      rows.push(entry);
+    }
+  } else {
+    if (match.p1) rows.push({ player: match.p1.player, entryId: match.p1.entryId || undefined, entryType: match.p1.entryType || undefined, displayLabel: match.p1.displayLabel || undefined, round: match.round, builds: match.p1.builds, pointsTotal: calcPoints(match.p1.builds), win: match.p1.win, _submitted: match.submitted || undefined, _matchSid: sid });
+    if (match.p2) rows.push({ player: match.p2.player, entryId: match.p2.entryId || undefined, entryType: match.p2.entryType || undefined, displayLabel: match.p2.displayLabel || undefined, round: match.round, builds: match.p2.builds, pointsTotal: calcPoints(match.p2.builds), win: match.p2.win, _submitted: match.submitted || undefined, _matchSid: sid });
+  }
+  return rows;
+}
+
+// Merge-mode PUT body carrying ONLY this match's rows. No deletedSids here —
+// deletions go through removeMatch's own immediate push, never the live-push.
+function buildMatchPatchBody(eventId, match) {
+  const beyResults = flattenSingleMatch(match);
+  // Include only builds keys this match's players reference (shallow-merged server-side).
+  const builds = {};
+  for (const row of beyResults) {
+    if (row.player && buildsState && Object.prototype.hasOwnProperty.call(buildsState, row.player)) {
+      builds[row.player] = buildsState[row.player];
+    }
+  }
+  return {
+    body: { adminUsername: adminUser, adminPassword: adminPass, eventId, builds, beyResults, mergeMode: true }
+  };
+}
+// LIVE-PUSH PATCH HELPERS (end)
+
 function autoCheckTeamWin(m) {
   if (!m.team1 || !m.team2) return;
   const isFinals   = m.round === 'F';
@@ -3547,6 +3600,189 @@ function renderRoundFilter() {
 // ─────────────────────────────────────────────
 // RENDER MATCH CARDS
 // ─────────────────────────────────────────────
+// ─── AUTO-SUBMIT ENGINE (start) ──────────────────────────────────────────────
+// When a LOCAL scoring action leaves a match with one decisive winner, arm a
+// short, cancelable countdown that then fires the normal submitMatch(). This is
+// purely a UI affordance in front of the existing submit — it changes no server
+// contract, so the Durable Object concurrency protection is untouched.
+//
+// It is invoked ONLY from the judge's own scoring actions (pickFinish,
+// finish-removal, Live Mode commit), never from renderResults / live-sync /
+// event load — so opening an event full of already-won matches, or receiving
+// another device's win, never mass-submits.
+const AUTO_SUBMIT_SECONDS = 4;
+let _autoSubmit = {
+  enabled: (typeof localStorage !== 'undefined')
+    ? (localStorage.getItem('rxs_autosubmit') !== '0')   // default ON
+    : true,
+  timers: {}   // mid -> { remaining, intervalId }
+};
+
+// Solo: exactly one side has win=true.
+// Team: mirrors the card's WIN summary — topcut (TC/QF/SF/F) a team reached 2
+//       individual wins; regular round all members played and win counts differ.
+function matchHasDecisiveWinner(match) {
+  if (!match) return false;
+  if (match.isTeamMatch) {
+    const t1 = match.team1, t2 = match.team2;
+    if (!t1 || !t2) return false;
+    const t1wins = t1.members.filter(m => m.win).length;
+    const t2wins = t2.members.filter(m => m.win).length;
+    if (['TC', 'QF', 'SF', 'F'].includes(match.round)) {
+      return Math.max(t1wins, t2wins) >= 2;
+    }
+    const allPlayed = [...t1.members, ...t2.members]
+      .every(mem => mem.win || calcPoints(mem.builds) > 0);
+    return allPlayed && t1wins !== t2wins;
+  }
+  const p1w = !!(match.p1 && match.p1.win);
+  const p2w = !!(match.p2 && match.p2.win);
+  return p1w !== p2w; // exactly one winner
+}
+
+function _clearAutoSubmitTimer(mid) {
+  const t = _autoSubmit.timers[mid];
+  if (t && t.intervalId != null) { try { clearInterval(t.intervalId); } catch (e) {} }
+  delete _autoSubmit.timers[mid];
+}
+
+function _updateAutoSubmitButton(mid) {
+  if (typeof document === 'undefined') return;
+  const el = document.getElementById('autosubmit-btn-' + mid);
+  const t = _autoSubmit.timers[mid];
+  if (el && t) el.textContent = `⏳ Auto-submit ${t.remaining}s · Cancel`;
+}
+
+// Cancel a countdown (Cancel button, un-score, unsubmit, remove, toggle-off).
+function cancelAutoSubmit(mid, rerender = true) {
+  _clearAutoSubmitTimer(mid);
+  if (rerender && typeof renderResults === 'function') renderResults();
+}
+
+// IDEMPOTENT: call after ANY local scoring change. Clears a stale countdown and
+// (re)arms only when the toggle is on, the match is unsubmitted, and it now has
+// one decisive winner. Calling it on a match that lost its winner cancels it.
+function evaluateAutoSubmit(mid) {
+  if (typeof scheduleLivePush === 'function') scheduleLivePush(mid); // live-push every scoring change
+  _clearAutoSubmitTimer(mid);
+  if (!_autoSubmit.enabled) return;
+  const match = matchesState.find(m => m.id === mid);
+  if (!match || match.submitted) return;
+  if (!matchHasDecisiveWinner(match)) return;
+
+  const entry = { remaining: AUTO_SUBMIT_SECONDS, intervalId: null };
+  _autoSubmit.timers[mid] = entry;
+  // Render once so the Submit button swaps to the live countdown; per-second
+  // ticks then patch only the button text (cheap, survives re-renders by id).
+  if (typeof renderResults === 'function') renderResults();
+
+  entry.intervalId = setInterval(() => {
+    entry.remaining -= 1;
+    if (entry.remaining > 0) { _updateAutoSubmitButton(mid); return; }
+    _clearAutoSubmitTimer(mid);
+    const m = matchesState.find(x => x.id === mid);
+    if (m && !m.submitted && typeof submitMatch === 'function') submitMatch(mid);
+    else if (typeof renderResults === 'function') renderResults();
+  }, 1000);
+}
+
+function setAutoSubmitEnabled(on) {
+  _autoSubmit.enabled = !!on;
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('rxs_autosubmit', on ? '1' : '0');
+    }
+  } catch (e) {}
+  if (!on) {
+    for (const mid of Object.keys(_autoSubmit.timers)) _clearAutoSubmitTimer(mid);
+  }
+  if (typeof renderResults === 'function') renderResults();
+}
+
+// Single source of truth for a card's submit / countdown / unsubmit button.
+function submitAreaHtml(match) {
+  const mid = match.id;
+  if (match.submitted) {
+    return `<button class="btn danger unsubmit-btn" style="font-size:10px;padding:2px 8px;margin-left:4px;border-color:#c0932a;color:#c0932a" onclick="event.stopPropagation();unsubmitMatch(${mid})">↩ Unsubmit</button>`;
+  }
+  if (_autoSubmit.timers[mid]) {
+    const secs = _autoSubmit.timers[mid].remaining;
+    return `<button id="autosubmit-btn-${mid}" class="btn" style="font-size:10px;padding:2px 8px;margin-left:4px;border-color:var(--gold);color:var(--gold)" onclick="event.stopPropagation();cancelAutoSubmit(${mid})">⏳ Auto-submit ${secs}s · Cancel</button>`;
+  }
+  return `<button class="btn success" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();submitMatch(${mid})">⬆ Submit</button>`;
+}
+// ─── AUTO-SUBMIT ENGINE (end) ────────────────────────────────────────────────
+
+// LIVE PUSH ENGINE (start)
+// Per-tap live push: debounce per match, then PUT only that match's rows.
+// Skips when offline or when the server path is not the atomic DO (best-effort-kv).
+const LIVE_PUSH_DEBOUNCE_MS = 800;
+let _livePushTimers = {};      // mid -> timeout id
+let _livePushQueue = Promise.resolve(); // serialize concurrent pushes
+
+// Tests may set globalThis.LIVE_PUSH_DEBOUNCE_MS to shorten the debounce; a
+// top-level const can't be reassigned, so resolve the override at call time.
+function _livePushDebounceMs() {
+  if (typeof globalThis !== 'undefined' && typeof globalThis.LIVE_PUSH_DEBOUNCE_MS === 'number') {
+    return globalThis.LIVE_PUSH_DEBOUNCE_MS;
+  }
+  return LIVE_PUSH_DEBOUNCE_MS;
+}
+
+function scheduleLivePush(mid) {
+  if (typeof _concurrencyMode !== 'undefined' && _concurrencyMode === 'best-effort-kv') return;
+  if (_livePushTimers[mid]) clearTimeout(_livePushTimers[mid]);
+  _livePushTimers[mid] = setTimeout(() => {
+    delete _livePushTimers[mid];
+    const match = matchesState.find(m => m.id === mid);
+    if (match) pushMatchLive(match);
+  }, _livePushDebounceMs());
+}
+
+// Persist one match's current (non-submitted) state. Always enqueues to the
+// outbox first so a failed/offline push is retried later; clears the op on ack.
+async function pushMatchLive(match) {
+  if (!currentEvent || !match || !match._sid) return;
+  const eventId = currentEvent.id;
+  const { body } = buildMatchPatchBody(eventId, match);
+  const op = enqueueOutboxOp(match._sid, body);
+  if (typeof navigator !== 'undefined' && navigator && navigator.onLine === false) return; // stays queued
+  _livePushQueue = _livePushQueue.catch(() => {}).then(async () => {
+    const res = await fetch('/api/beyresults', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    if (typeof applyConcurrencyHeader === 'function') applyConcurrencyHeader(res);
+    let data = {}; try { data = await res.json(); } catch (e) {}
+    if (!res.ok) throw new Error((data && data.error) || 'live push failed');
+    const acked = sidsFromServerPayload(data.beyResults);
+    if (acked && acked.has(match._sid)) { if (op) dropOutboxOp(eventId, op.opId); }
+    confirmOutboxAcked(eventId, acked);
+  });
+  try { await _livePushQueue; } catch (e) { /* op stays in outbox for retry */ }
+}
+
+// Push every queued op for the current event (called on reconnect + each poll).
+async function flushOutbox() {
+  if (!currentEvent) return;
+  if (typeof _concurrencyMode !== 'undefined' && _concurrencyMode === 'best-effort-kv') return;
+  if (typeof navigator !== 'undefined' && navigator && navigator.onLine === false) return;
+  const eventId = currentEvent.id;
+  const ops = loadOutbox(eventId);
+  for (const op of ops) {
+    try {
+      const res = await fetch('/api/beyresults', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(op.payload)
+      });
+      if (typeof applyConcurrencyHeader === 'function') applyConcurrencyHeader(res);
+      let data = {}; try { data = await res.json(); } catch (e) {}
+      if (!res.ok) continue; // leave queued for next attempt
+      const acked = sidsFromServerPayload(data.beyResults);
+      if (acked && acked.has(op.matchSid)) dropOutboxOp(eventId, op.opId);
+    } catch (e) { /* leave queued */ }
+  }
+}
+// LIVE PUSH ENGINE (end)
+
 function renderResults() {
   renderRoundFilter();
   const el = document.getElementById('results-content');
@@ -3608,9 +3844,7 @@ function renderMatchCard(match) {
             <span style="color:var(--gold2)">${escHtml(p2Label)}</span>
           </span>
           <span class="match-result-summary">${summary}</span>
-          ${match.submitted
-            ? `<button class="btn danger unsubmit-btn" style="font-size:10px;padding:2px 8px;margin-left:4px;border-color:#c0932a;color:#c0932a" onclick="event.stopPropagation();unsubmitMatch(${mid})">↩ Unsubmit</button>`
-            : `<button class="btn success" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();submitMatch(${mid})">⬆ Submit</button>`}
+          ${submitAreaHtml(match)}
           <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕ Remove</button>
           <span style="color:var(--muted2);font-size:12px;margin-left:4px">${match.collapsed ? '▼' : '▲'}</span>
         </div>
@@ -3683,9 +3917,7 @@ function renderTeamMatchCard(match) {
             <span style="color:var(--gold2)">${escHtml(t2.teamName)}</span>
           </span>
           <span class="match-result-summary">${summary}</span>
-          ${match.submitted
-            ? `<button class="btn danger unsubmit-btn" style="font-size:10px;padding:2px 8px;margin-left:4px;border-color:#c0932a;color:#c0932a" onclick="event.stopPropagation();unsubmitMatch(${mid})">↩ Unsubmit</button>`
-            : `<button class="btn success" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();submitMatch(${mid})">⬆ Submit</button>`}
+          ${submitAreaHtml(match)}
           <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕ Remove</button>
           <span style="color:var(--muted2);font-size:12px;margin-left:4px">▼</span>
         </div>
@@ -3721,9 +3953,7 @@ function renderTeamMatchCard(match) {
           <span style="color:var(--gold2)">${escHtml(t2.teamName)}</span>
         </span>
         <span class="match-result-summary">${summary}</span>
-        ${match.submitted
-          ? `<button class="btn danger unsubmit-btn" style="font-size:10px;padding:2px 8px;margin-left:4px;border-color:#c0932a;color:#c0932a" onclick="event.stopPropagation();unsubmitMatch(${mid})">↩ Unsubmit</button>`
-          : `<button class="btn success" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();submitMatch(${mid})">⬆ Submit</button>`}
+        ${submitAreaHtml(match)}
         <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕ Remove</button>
         <span style="color:var(--muted2);font-size:12px;margin-left:4px">▲</span>
       </div>
@@ -3917,6 +4147,7 @@ function toggleMatchCollapse(mid) {
 async function removeMatch(mid) {
   const match = matchesState.find(m => m.id === mid);
   if (!match) return;
+  _clearAutoSubmitTimer(mid);
   const msg = match.submitted
     ? 'This match is already submitted. Remove it completely? This will be deleted from the server immediately.'
     : 'Remove this match? It will be deleted from the server immediately.';
@@ -3987,6 +4218,7 @@ function mToggleWin(mid, side) {
   flattenMatchesToResults();
   markDirty();
   renderResults();
+  evaluateAutoSubmit(mid);
 }
 
 function mToggleDeploy(mid, side, buildIdx, val) {
@@ -4019,6 +4251,7 @@ function mRemoveFinish(mid, side, buildIdx, finishIdx) {
   flattenMatchesToResults();
   markDirty();
   renderResults();
+  evaluateAutoSubmit(mid); // re-check: an un-score may have removed the winner
 }
 
 // Rename a build for a specific solo match round only (does not affect other rounds)
@@ -4128,6 +4361,7 @@ function mToggleTeamWin(mid, teamKey, memberIdx) {
   flattenMatchesToResults();
   markDirty();
   renderResults();
+  evaluateAutoSubmit(mid);
 }
 
 function mToggleTeamDeploy(mid, teamKey, memberIdx, buildIdx, val) {
@@ -4172,6 +4406,7 @@ function mRemoveTeamFinish(mid, teamKey, memberIdx, buildIdx, finishIdx) {
   flattenMatchesToResults();
   markDirty();
   renderResults();
+  evaluateAutoSubmit(mid); // re-check: an un-score may have removed the winner
 }
 
 function openTeamPicker(event, mid, teamKey, memberIdx, buildIdx) {
@@ -4218,6 +4453,7 @@ function openPicker(event, mid, side, buildIdx) {
 
 function pickFinish(type) {
   if (!_pickerTarget) return;
+  const _amid = _pickerTarget.mid; // capture before closePicker() clears the target
 
   if (_pickerTarget.isTeam) {
     const { mid, teamKey, memberIdx, buildIdx } = _pickerTarget;
@@ -4254,6 +4490,7 @@ function pickFinish(type) {
   markDirty();
   closePicker();
   renderResults();
+  evaluateAutoSubmit(_amid); // arm auto-submit if this finish decided the match
 }
 
 // ─────────────────────────────────────────────
@@ -4421,21 +4658,34 @@ function lmDoShuffle() {
   });
 }
 
+function lmSyncSoloProxyToReal() {
+  if (!lmState) return null;
+  const { match } = lmState;
+  if (!(match._isSolo && match._soloRef)) return match;
+  const real = match._soloRef;
+  const m1 = match.team1.members[0];
+  const m2 = match.team2 ? match.team2.members[0] : null;
+  real.p1.builds = JSON.parse(JSON.stringify(m1.builds));
+  real.p1.win    = m1.win;
+  if (m2 && real.p2) {
+    real.p2.builds = JSON.parse(JSON.stringify(m2.builds));
+    real.p2.win    = m2.win;
+  }
+  return real;
+}
+
+function lmScheduleLivePushForState() {
+  const target = lmSyncSoloProxyToReal();
+  if (!target) return;
+  _activeLiveMatchSid = target._sid || null;
+  evaluateAutoSubmit(target.id);
+}
+
 function closeLiveMode() {
+  _activeLiveMatchSid = null;
   // Commit any in-progress scores back to the real match before closing
   if (lmState) {
-    const { match } = lmState;
-    if (match._isSolo && match._soloRef) {
-      const real = match._soloRef;
-      const m1 = match.team1.members[0];
-      const m2 = match.team2 ? match.team2.members[0] : null;
-      real.p1.builds = JSON.parse(JSON.stringify(m1.builds));
-      real.p1.win    = m1.win;
-      if (m2 && real.p2) {
-        real.p2.builds = JSON.parse(JSON.stringify(m2.builds));
-        real.p2.win    = m2.win;
-      }
-    }
+    lmSyncSoloProxyToReal();
     flattenMatchesToResults();
     markDirty();
     renderResults();
@@ -4464,6 +4714,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.target === overlay) closeLiveMode();
     });
   }
+  // Reflect the persisted auto-submit preference in the toolbar checkbox.
+  const asToggle = document.getElementById('auto-submit-toggle');
+  if (asToggle) asToggle.checked = _autoSubmit.enabled;
 });
 
 function lmSetScoringSide(side) {
@@ -4476,6 +4729,10 @@ function lmSetScoringSide(side) {
 // ── Apply a finish (S/O/E/B) from the scoring side ──
 function lmApplyFinish(type) {
   if (!lmState) return;
+  {
+    const _am = (lmState.match._isSolo && lmState.match._soloRef) ? lmState.match._soloRef : lmState.match;
+    _activeLiveMatchSid = _am && _am._sid ? _am._sid : null;
+  }
   const clash = lmState.clashes[lmState.activeClashIdx];
   if (!clash || clash.done) return;
 
@@ -4610,6 +4867,7 @@ function lmApplyFinish(type) {
         if (!matchDone) {
           flattenMatchesToResults();
           markDirty();
+          lmScheduleLivePushForState();
 
           // Mark current clash done and push a new one for the next pair
           clash.done = true;
@@ -4649,6 +4907,7 @@ function lmApplyFinish(type) {
   }
 
   markDirty();
+  lmScheduleLivePushForState();
 
   // Re-render whichever screen is active
   const wrap = document.getElementById('clash-landscape-wrap');
@@ -4759,6 +5018,7 @@ function lmUndo() {
 
   flattenMatchesToResults();
   markDirty();
+  lmScheduleLivePushForState();
 
   const wrap2 = document.getElementById('clash-landscape-wrap');
   if (wrap2?.classList.contains('active')) {
@@ -5405,6 +5665,9 @@ function lmCommitAndClose() {
   flattenMatchesToResults();
   markDirty();
   renderResults();
+  // Arm auto-submit on the REAL match (solo proxy writes back to _soloRef).
+  const _tid = (match._isSolo && match._soloRef) ? match._soloRef.id : match.id;
+  evaluateAutoSubmit(_tid);
   closeLiveMode();
   showToast('⚡ Live scoring committed!', 'success');
 }
@@ -5895,6 +6158,27 @@ document.addEventListener('click', (e) => {
 // ─────────────────────────────────────────────
 let _syncInterval   = null;
 let _syncPaused     = false; // pause during active user edits
+let _activeLiveMatchSid = null; // sid of the match the judge is currently scoring; never overwritten by sync
+// CONCURRENCY GATE (start)
+let _concurrencyMode = 'unknown'; // 'durable-object' | 'best-effort-kv' | 'unknown'
+function liveScoringAllowed() { return _concurrencyMode !== 'best-effort-kv'; }
+function applyConcurrencyHeader(res) {
+  try {
+    const v = res && res.headers && res.headers.get && res.headers.get('X-BEY-CONCURRENCY');
+    if (v === 'durable-object' || v === 'best-effort-kv') {
+      const changed = v !== _concurrencyMode;
+      _concurrencyMode = v;
+      if (changed && typeof renderConcurrencyBanner === 'function') renderConcurrencyBanner();
+    }
+  } catch (e) {}
+}
+function renderConcurrencyBanner() {
+  if (typeof document === 'undefined') return;
+  if (_concurrencyMode === 'best-effort-kv') {
+    if (typeof showToast === 'function') showToast('⚠ Live multi-phone scoring is OFF: server is in best-effort-kv mode (Durable Object not bound). Scores may be lost if judges score at the same time. Use one device or enable the DO binding.', 'error');
+  }
+}
+// CONCURRENCY GATE (end)
 let _lastSyncHash   = '';    // fingerprint of last known server state
 let _syncErrorCount = 0;
 let _createMatchSaveQueue = Promise.resolve();
@@ -5910,6 +6194,58 @@ function getEventDeletedSids(eventId) {
   if (!_pendingDeletedSids.has(eventId)) _pendingDeletedSids.set(eventId, new Set());
   return _pendingDeletedSids.get(eventId);
 }
+
+// LIVE OUTBOX (start)
+// Idempotent per-device queue of un-acked match patches. Keyed by eventId in
+// localStorage. Each op: { eventId, matchSid, clientId, opId, payload, createdAt }.
+// Only the LATEST op per matchSid is retained (older ones are superseded).
+function _uuid() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+}
+
+function getClientId() {
+  let id = null;
+  try { id = localStorage.getItem('rxs_client_id'); } catch (e) {}
+  if (!id) { id = _uuid(); try { localStorage.setItem('rxs_client_id', id); } catch (e) {} }
+  return id;
+}
+
+function _outboxKey(eventId) { return 'rxs_outbox_' + eventId; }
+
+function loadOutbox(eventId) {
+  try {
+    const raw = localStorage.getItem(_outboxKey(eventId));
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) { return []; }
+}
+
+function saveOutbox(eventId, ops) {
+  try { localStorage.setItem(_outboxKey(eventId), JSON.stringify(ops)); } catch (e) {}
+}
+
+function enqueueOutboxOp(matchSid, payload) {
+  if (!currentEvent || !matchSid) return null;
+  const eventId = currentEvent.id;
+  const ops = loadOutbox(eventId).filter(o => o.matchSid !== matchSid); // supersede
+  const op = { eventId, matchSid, clientId: getClientId(), opId: _uuid(), payload, createdAt: Date.now() };
+  ops.push(op);
+  saveOutbox(eventId, ops);
+  return op;
+}
+
+function dropOutboxOp(eventId, opId) {
+  saveOutbox(eventId, loadOutbox(eventId).filter(o => o.opId !== opId));
+}
+
+// Clear ops whose matchSid the server has confirmed it holds.
+function confirmOutboxAcked(eventId, observedSids) {
+  if (!observedSids || !observedSids.size) return;
+  saveOutbox(eventId, loadOutbox(eventId).filter(o => !observedSids.has(o.matchSid)));
+}
+// LIVE OUTBOX (end)
 
 function getMatchSidSnapshot() {
   return new Set(matchesState.map(m => m._sid).filter(Boolean));
@@ -6066,6 +6402,8 @@ function setLiveIndicator(state) {
 
 async function doLiveSync() {
   if (!currentEvent || _syncPaused) return;
+  // Opportunistic outbox drain in case the 'online' event was missed (mobile).
+  if (typeof flushOutbox === 'function' && loadOutbox(currentEvent.id).length) { flushOutbox(); }
   // Don't sync while modal is open — user is mid-action
   const modal = document.getElementById('new-match-modal');
   if (modal && modal.style.display !== 'none') return;
@@ -6073,6 +6411,7 @@ async function doLiveSync() {
   setLiveIndicator('syncing');
   try {
     const res = await fetch(`/api/beyresults?eventId=${currentEvent.id}&_t=${Date.now()}`);
+    applyConcurrencyHeader(res);
     if (!res.ok) throw new Error('fetch failed');
     const data = await res.json();
 
@@ -6167,11 +6506,12 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
     const serverSids = new Set(serverMatches.map(m => m._sid).filter(Boolean));
     const localSids  = new Set(matchesState.map(m => m._sid).filter(Boolean));
 
-    // Remove server-known matches deleted elsewhere, but retain newly-created
-    // local matches until a successful save confirms that the server has them.
-    const before = matchesState.length;
-    matchesState = matchesState.filter(m => m._pendingServerSave || !m._sid || serverSids.has(m._sid));
-    if (matchesState.length !== before) changed = true;
+    // Do not remove local matches while this page has dirty work. A live-sync
+    // poll can arrive during the 4s auto-submit window with a stale server
+    // snapshot that lacks the just-scored match; treating that omission as a
+    // deletion makes the card disappear before submitMatch can persist it.
+    // True remote deletions are enforced by server tombstones on the next PUT,
+    // and by the non-dirty full-replace path once local work is settled.
 
     // Add any new matches that appeared on the server, OR if a local
     // unsynced match (no _sid) corresponds to one of the server matches
@@ -6183,7 +6523,10 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
         const local = matchesState.find(m => m._sid === sm._sid);
         if (local) {
           if (local._pendingServerSave) delete local._pendingServerSave;
-          if (sm.submitted || local.submitted) {
+          const isActive = _activeLiveMatchSid && sm._sid === _activeLiveMatchSid;
+          if (!isActive && (sm.submitted || local.submitted ||
+              JSON.stringify({ p1: sm.p1, p2: sm.p2, team1: sm.team1, team2: sm.team2 }) !==
+              JSON.stringify({ p1: local.p1, p2: local.p2, team1: local.team1, team2: local.team2 }))) {
             const snap = JSON.stringify({ p1: local.p1, p2: local.p2, submitted: local.submitted,
               team1: local.team1, team2: local.team2, _playOrder: local._playOrder });
             local.submitted = sm.submitted;
@@ -6248,6 +6591,21 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
     return sm;
   });
 
+  // CRITICAL: never let a full-replace drop a locally-created match that the
+  // server hasn't confirmed yet. A match is "unconfirmed" when it is still
+  // flagged _pendingServerSave (its create-PUT hasn't been echoed back) or it
+  // has no _sid at all (never pushed). dirty can be false here even while such
+  // a match exists — e.g. a Finalize cleared dirty but a concurrent best-effort
+  // write meant the server response didn't echo this device's sid. Without this
+  // guard the next poll's full-replace would silently delete the match before it
+  // is ever persisted. Mirror the protection the dirty branch already applies.
+  const serverSidSet = new Set(serverMatches.map(m => m._sid).filter(Boolean));
+  for (const m of matchesState) {
+    if ((m._pendingServerSave || !m._sid) && (!m._sid || !serverSidSet.has(m._sid))) {
+      newState.push(m);
+    }
+  }
+
   // Merge server builds too
   for (const [k, v] of Object.entries(serverBuilds)) {
     if (!buildsState[k] || JSON.stringify(buildsState[k]) !== JSON.stringify(v)) {
@@ -6270,6 +6628,7 @@ async function submitMatch(mid) {
   if (!currentEvent) return;
   const match = matchesState.find(m => m.id === mid);
   if (!match) return;
+  _clearAutoSubmitTimer(mid); // this submit supersedes any running countdown
 
   // Check match has a result
   const hasResult = match.isTeamMatch
@@ -6370,6 +6729,7 @@ async function unsubmitMatch(mid) {
   if (!currentEvent) return;
   const match = matchesState.find(m => m.id === mid);
   if (!match) return;
+  _clearAutoSubmitTimer(mid);
 
   // Clear all finish data
   if (match.isTeamMatch) {
@@ -6628,38 +6988,19 @@ async function saveAll() {
   _syncPaused = true; // pause auto-sync during save
 
   try {
-    // ── MERGE-BEFORE-SAVE: fetch latest server state first ──
+    // Live score data is already server-backed by the per-match live push.
+    // Finalize no longer does a whole-event PUT (that reintroduced stale
+    // overwrite risk). Ensure any not-yet-pushed scores reach the server first.
+    await flushOutbox();
+    // Pull the now-current server state so the archive reflects all devices.
     const latestRes = await fetch(`/api/beyresults?eventId=${currentEvent.id}&_t=${Date.now()}`);
     if (latestRes.ok) {
+      applyConcurrencyHeader(latestRes);
       const latestData = await latestRes.json();
-      const serverResults = latestData.beyResults || [];
-      const serverBuilds  = latestData.builds     || {};
-      // Merge any server matches we don't have locally
-      mergeIncomingMatches(serverBuilds, serverResults);
-      // Update fingerprint so next poll doesn't think it's new
-      _lastSyncHash = JSON.stringify(serverResults);
+      mergeIncomingMatches(latestData.builds || {}, latestData.beyResults || []);
+      _lastSyncHash = JSON.stringify(latestData.beyResults || []);
+      flattenMatchesToResults();
     }
-
-    // Now flatten and save the fully merged state
-    flattenMatchesToResults();
-
-    // 1. Save bey results to events KV
-    const savedSids = getMatchSidSnapshot();
-    const { body: putBody, deletedSnapshot } = buildMergePutBody(currentEvent.id, buildsState, resultsState);
-    const res = await fetch('/api/beyresults', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(putBody)
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Save failed.');
-
-    clearAckedDeletedSids(currentEvent.id, deletedSnapshot);
-    // Server-observed acknowledgement only — pending matches stay protected
-    // until the server echoes the sid back (Finding 1).
-    confirmPendingMatchesSaved(sidsFromServerPayload(data.beyResults));
-    // Update fingerprint after successful save
-    _lastSyncHash = JSON.stringify(resultsState);
 
     // 2. Archive bey results into gamedata so they survive event deletion
     await archiveBeyResultsToGamedata();
@@ -7042,7 +7383,7 @@ function updateNetworkStatus() {
     clearTimeout(window._netStatusTimer);
   }
 }
-window.addEventListener('online',  updateNetworkStatus);
+window.addEventListener('online',  () => { updateNetworkStatus(); if (typeof flushOutbox === 'function') flushOutbox(); });
 window.addEventListener('offline', updateNetworkStatus);
 window.addEventListener('load',    updateNetworkStatus);
 
