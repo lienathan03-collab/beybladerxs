@@ -782,3 +782,45 @@ test('merge does NOT clobber the actively-edited match', () => {
   const m = context.matchesState.find(x => x._sid === 'R1|a|b|0');
   assert.deepEqual(m.p1.builds, [{ finishes: ['O', 'O'] }], 'local edits preserved');
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE SCORING — debounced per-match live push (Task 4)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function loadLivePush(context) {
+  vm.runInContext(
+    extractBetween('// LIVE PUSH ENGINE (start)', '// LIVE PUSH ENGINE (end)'),
+    context
+  );
+}
+
+test('scheduleLivePush coalesces rapid calls into one push after the debounce', async () => {
+  let puts = 0;
+  const match = { id: 1, _sid: 'R1|a|b|0', round: 'R1',
+    p1: { player: 'a', builds: [{ finishes: ['O'] }], win: false },
+    p2: { player: 'b', builds: [], win: false } };
+  const context = vm.createContext({
+    setTimeout, clearTimeout,
+    matchesState: [match],
+    buildsState: {},
+    currentEvent: { id: 'evt-1' },
+    adminUser: 'admin', adminPass: 'secret',
+    _concurrencyMode: 'durable-object',
+    navigator: { onLine: true },
+    calcPoints: () => 1, autoCheckWin() {}, autoCheckTeamWin() {},
+    enqueueOutboxOp: () => ({ opId: 'op-1' }),
+    dropOutboxOp() {}, confirmOutboxAcked() {},
+    sidsFromServerPayload: () => new Set(['R1|a|b|0']),
+    LIVE_PUSH_DEBOUNCE_MS: 20,
+    Promise,
+    fetch: async () => { puts++; return { ok: true, headers: { get: () => 'durable-object' }, json: async () => ({ beyResults: [{ _matchSid: 'R1|a|b|0' }] }) }; }
+  });
+  loadPatchHelpers(context);
+  loadLivePush(context);
+
+  context.scheduleLivePush(1);
+  context.scheduleLivePush(1);
+  context.scheduleLivePush(1);
+  await new Promise(r => setTimeout(r, 60));
+  assert.equal(puts, 1, 'three rapid taps -> one PUT');
+});
