@@ -4218,6 +4218,7 @@ function mToggleWin(mid, side) {
   flattenMatchesToResults();
   markDirty();
   renderResults();
+  evaluateAutoSubmit(mid);
 }
 
 function mToggleDeploy(mid, side, buildIdx, val) {
@@ -4360,6 +4361,7 @@ function mToggleTeamWin(mid, teamKey, memberIdx) {
   flattenMatchesToResults();
   markDirty();
   renderResults();
+  evaluateAutoSubmit(mid);
 }
 
 function mToggleTeamDeploy(mid, teamKey, memberIdx, buildIdx, val) {
@@ -4656,22 +4658,34 @@ function lmDoShuffle() {
   });
 }
 
+function lmSyncSoloProxyToReal() {
+  if (!lmState) return null;
+  const { match } = lmState;
+  if (!(match._isSolo && match._soloRef)) return match;
+  const real = match._soloRef;
+  const m1 = match.team1.members[0];
+  const m2 = match.team2 ? match.team2.members[0] : null;
+  real.p1.builds = JSON.parse(JSON.stringify(m1.builds));
+  real.p1.win    = m1.win;
+  if (m2 && real.p2) {
+    real.p2.builds = JSON.parse(JSON.stringify(m2.builds));
+    real.p2.win    = m2.win;
+  }
+  return real;
+}
+
+function lmScheduleLivePushForState() {
+  const target = lmSyncSoloProxyToReal();
+  if (!target) return;
+  _activeLiveMatchSid = target._sid || null;
+  evaluateAutoSubmit(target.id);
+}
+
 function closeLiveMode() {
   _activeLiveMatchSid = null;
   // Commit any in-progress scores back to the real match before closing
   if (lmState) {
-    const { match } = lmState;
-    if (match._isSolo && match._soloRef) {
-      const real = match._soloRef;
-      const m1 = match.team1.members[0];
-      const m2 = match.team2 ? match.team2.members[0] : null;
-      real.p1.builds = JSON.parse(JSON.stringify(m1.builds));
-      real.p1.win    = m1.win;
-      if (m2 && real.p2) {
-        real.p2.builds = JSON.parse(JSON.stringify(m2.builds));
-        real.p2.win    = m2.win;
-      }
-    }
+    lmSyncSoloProxyToReal();
     flattenMatchesToResults();
     markDirty();
     renderResults();
@@ -4853,6 +4867,7 @@ function lmApplyFinish(type) {
         if (!matchDone) {
           flattenMatchesToResults();
           markDirty();
+          lmScheduleLivePushForState();
 
           // Mark current clash done and push a new one for the next pair
           clash.done = true;
@@ -4892,6 +4907,7 @@ function lmApplyFinish(type) {
   }
 
   markDirty();
+  lmScheduleLivePushForState();
 
   // Re-render whichever screen is active
   const wrap = document.getElementById('clash-landscape-wrap');
@@ -5002,6 +5018,7 @@ function lmUndo() {
 
   flattenMatchesToResults();
   markDirty();
+  lmScheduleLivePushForState();
 
   const wrap2 = document.getElementById('clash-landscape-wrap');
   if (wrap2?.classList.contains('active')) {

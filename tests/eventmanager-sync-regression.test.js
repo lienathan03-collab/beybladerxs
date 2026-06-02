@@ -901,3 +901,40 @@ test('Finalize (saveAll) flushes the outbox and does not full-event PUT', () => 
   assert.ok(/archiveBeyResultsToGamedata\(\)/.test(src), 'saveAll still archives');
   assert.ok(/syncBladerStats\(\)/.test(src), 'saveAll still syncs stats');
 });
+
+// Score-affecting paths must feed the same live-push hook. The hook lives at
+// the start of evaluateAutoSubmit(), so calling it schedules the match-level
+// live patch even when no winner has been reached yet.
+function functionSource(name, nextName) {
+  const start = html.indexOf(`function ${name}(`);
+  const end = html.indexOf(`function ${nextName}(`, start + 1);
+  assert.notEqual(start, -1, `Missing function ${name}`);
+  assert.notEqual(end, -1, `Missing next function ${nextName}`);
+  return html.slice(start, end);
+}
+
+test('manual win toggles schedule live push through evaluateAutoSubmit', () => {
+  assert.match(
+    functionSource('mToggleWin', 'mToggleDeploy'),
+    /evaluateAutoSubmit\(mid\)/,
+    'solo manual win toggle must live-push the changed match'
+  );
+  assert.match(
+    functionSource('mToggleTeamWin', 'mToggleTeamDeploy'),
+    /evaluateAutoSubmit\(mid\)/,
+    'team manual win toggle must live-push the changed match'
+  );
+});
+
+test('live-mode finish and undo schedule in-progress live push before Done', () => {
+  assert.match(
+    functionSource('lmApplyFinish', 'lmUpdateScoreBar'),
+    /lmScheduleLivePushForState\(\)/,
+    'each live-mode finish tap must push in-progress scoring'
+  );
+  assert.match(
+    functionSource('lmUndo', 'lmSetScoringSideAndHighlight'),
+    /lmScheduleLivePushForState\(\)/,
+    'live-mode undo must push the reverted in-progress score'
+  );
+});
