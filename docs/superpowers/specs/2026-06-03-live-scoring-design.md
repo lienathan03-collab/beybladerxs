@@ -32,6 +32,13 @@ the connection returns.
   back. It is never restored as a competing "truth" while online.
 - When a phone reconnects after losing internet, any queued un-pushed scores
   flush to the server automatically.
+- Each push is a **match-level patch** (only the changed `matchSid` rows), never
+  a full-event save.
+- Live scoring is gated on the atomic Durable Object path; the UI detects and
+  warns/blocks when the server reports `best-effort-kv`.
+- Outbox ops are idempotent (`clientId` + `opId`) so retries cannot double-apply.
+- Conflicts resolve by **server receive order** per `matchSid`, never client time.
+- Finalize is archive/stats only — it does not save match data.
 - Must stay on the Cloudflare **free** tier. No paid plan, no new paid service.
 
 ## Non-Goals
@@ -74,12 +81,28 @@ the connection returns.
 
 ## Design (Approach A — Live per-match push)
 
-### 1. Debounced live-push on every score change
+### 1. Debounced live-push on every score change — MATCH-LEVEL PATCH ONLY
 
 Add `pushMatchLive(match)` — a lightweight push that persists a single match's
-**current** state to the server WITHOUT setting `submitted = true`. It reuses
-`flattenMatchesToResults()` + `buildMergePutBody()` + `PUT /api/beyresults`
-(merge mode), exactly like `submitMatch` but without the submitted flag and
+**current** state to the server WITHOUT setting `submitted = true`.
+
+**It must send only the changed match's rows, never the full event.** Add a new
+`buildMatchPatchBody(eventId, matchSid)` that flattens **only** the rows for that
+one `matchSid` (plus any builds keys those rows reference) into a merge-mode PUT
+body. It does NOT send `resultsState` in full. This is safe because
+`mergeBeyResults` (`functions/api/beyresults.js:161`) merges incoming rows by sid
+into existing state and only removes a match via an explicit `deletedSids`
+tombstone — so a subset PUT preserves every match not named in the patch.
+Likewise `mergeBuilds` is a shallow per-key merge, so sending only the touched
+builds keys is safe.
+
+Sending the whole event per tap (as `buildMergePutBody` does today) would
+recreate the stale-overwrite risk this spec exists to remove, so the full-event
+PUT is **not** used on the live-push path. The DO merge (`workers/bey-state-do/
+src/merge.js`) must mirror the same subset-merge semantics (it already runs
+`effectiveMergeMode`); the plan verifies this with an integration test.
+
+Otherwise it behaves like `submitMatch` but without the submitted flag and
 without the "no winner yet?" confirm.
 
 Hook it into the scoring mutation points in Live Mode (the O/X tap handler and
@@ -111,18 +134,36 @@ The phone currently scoring a match is protected by:
 Result: a tap on phone A reaches the server within ~800ms and shows on phones
 B/C on their next 3s poll.
 
-### 3. localStorage as offline outbox
+### 3. localStorage as offline outbox — with idempotent patch records
 
-Reframe the local draft as an **outbox of un-acked changes**:
+Reframe the local draft as an **outbox of un-acked patch operations**. Each
+queued entry is a self-describing, idempotent record:
 
-- Online: `localAutoSave()` still writes the working state, but entries are
-  considered pending only until the server echoes the corresponding sid/state
-  back (reusing `confirmPendingMatchesSaved` / `sidsFromServerPayload`). The
-  draft is NOT treated as authoritative — server payload always wins in merge.
-- Offline: the outbox accumulates the queued match changes; the existing
-  "OFFLINE — SAVING LOCALLY" banner communicates this.
-- On reload while online: server state is fetched and wins; a local draft is
-  only used to recover changes whose sids the server does not yet have.
+```
+{
+  eventId,        // which event this patch belongs to
+  matchSid,       // the single match the patch mutates
+  clientId,       // stable per-device id (generated once, persisted)
+  opId,           // unique id for THIS operation (uuid)
+  payload,        // the match's rows + touched builds keys (the patch body)
+  createdAt       // ms timestamp the op was queued
+}
+```
+
+`clientId` + `opId` make reconnect/retry safe: re-sending the same `opId` can
+never double-apply in a harmful way, and the server's per-sid LWW (Section 5)
+means the newest received op for a sid wins regardless of how many times an
+earlier op is retried. The outbox is keyed so only the **latest** queued op per
+`matchSid` needs to be in flight (older ops for the same sid are superseded and
+can be dropped before send).
+
+- Online: an op is written to the outbox, pushed, and removed once the server
+  echoes the sid back (reusing `confirmPendingMatchesSaved` /
+  `sidsFromServerPayload`). The outbox is NOT authoritative — server payload
+  always wins in merge.
+- Offline: ops accumulate; the existing "OFFLINE — SAVING LOCALLY" banner shows.
+- On reload while online: server state is fetched and wins; queued ops are only
+  replayed for sids the server does not yet reflect.
 
 ### 4. Auto-flush on reconnect
 
@@ -135,13 +176,59 @@ are `navigator.onLine`, attempt a flush) so a stuck queue always recovers.
 Each flushed match goes through the same `pushMatchLive` / merge-PUT path, so
 conflict detection and server-observed acknowledgement apply identically.
 
-### 5. Conflict handling — last-write-wins per match
+### 5. Conflict handling — last-write-wins by SERVER RECEIVE ORDER per matchSid
 
-If two devices push the same match sid close together, the later PUT wins (the
-merge-PUT mode on the server already serializes writes per event in the DO).
+If two devices push the same `matchSid` close together, the patch the **server
+receives last** wins — **not** the one with the latest client timestamp. The DO
+is single-threaded per event, so the read-merge-write for a given event is
+serialized; per-sid receive order is therefore well-defined and authoritative.
+Client clocks and offline outbox `createdAt` values are explicitly NOT used to
+decide the winner, because offline queues and skewed device clocks can lie. The
+`createdAt` field exists only for local outbox housekeeping (superseding older
+ops for the same sid before send), never for server-side conflict resolution.
+
 In normal use one judge owns one match, so contention is rare. We do not
 implement field-level merge. `submitMatch` keeps its existing "already submitted
 on another device" conflict toast for the submit case.
+
+### 6. Durable Object is REQUIRED for live scoring mode
+
+This spec's guarantees hold only on the atomic DO write path. The server already
+announces which path served a request via the `X-BEY-CONCURRENCY` response
+header (`functions/api/beyresults.js:355`, `:630`):
+
+- `durable-object` — atomic, per-event serialized. Live scoring is safe.
+- `best-effort-kv` — racy read-merge-write; concurrent judge pushes can be lost.
+  KV **cannot** satisfy this spec.
+
+The client reads `X-BEY-CONCURRENCY` on its sync/push responses. If it ever sees
+`best-effort-kv` for the active event, the UI **warns and blocks (or downgrades)
+multi-phone live scoring** — e.g. a persistent banner explaining the DO binding
+is missing and that simultaneous scoring may lose updates, and (preferably)
+disabling the per-tap live-push so it falls back to explicit Submit-only. The
+exact UX (hard block vs. prominent warning + single-device fallback) is settled
+in the implementation plan, but detection via the header is mandatory.
+
+### 7. Finalize becomes archive/stats only — not "save all match data"
+
+Today `saveAll()` (`eventmanager.html:6755`) does a full-event merge-PUT and
+THEN archives + runs `syncBladerStats`. Under this spec, live score data is
+already continuously server-backed by the per-match live-push, so the full-event
+PUT inside Finalize is redundant and reintroduces the stale-overwrite risk we
+are removing. Finalize is redefined to:
+
+1. Ensure the outbox is empty — call `flushOutbox()` and wait for acks so no
+   un-pushed score is missed. (This replaces the full-event PUT.)
+2. Run `archiveBeyResultsToGamedata()` — archive **submitted** matches only
+   (it already filters to submitted, `eventmanager.html:6892`).
+3. Run `syncBladerStats()` — update leaderboard/bladerStats from submitted
+   matches.
+4. Clear `dirty` and the per-event draft.
+
+So Finalize's job becomes "freeze the leaderboard/archive from submitted
+results," not "save match data." Live scores already live on the server; Finalize
+never does a whole-event overwrite. The existing "N matches not yet submitted →
+won't count in stats" confirm is preserved.
 
 ## Data Flow (score tap, happy path)
 
@@ -189,11 +276,23 @@ on another device" conflict toast for the submit case.
   in-progress (non-submitted) server score is adopted for a match the local
   phone is not editing; the actively-edited match is NOT clobbered while
   `_syncPaused` / active-match marker is set.
-- **Outbox/flush:** un-acked match is retained while offline and pushed on
-  reconnect; ack clears the outbox entry; a sid echoed by the server clears its
-  pending flag.
+- **Match-level patch:** a PUT carrying only one `matchSid`'s rows preserves all
+  other matches server-side (asserts `mergeBeyResults` + DO `merge.js` subset
+  semantics); touched builds keys merge without dropping others.
+- **Concurrency gating:** when a response carries
+  `X-BEY-CONCURRENCY: best-effort-kv`, the client enters the warn/block state;
+  `durable-object` keeps live scoring enabled.
+- **Outbox idempotency/flush:** un-acked op is retained while offline and pushed
+  on reconnect; replaying the same `opId` does not corrupt state; a sid echoed
+  by the server clears its pending flag; a newer op supersedes an older one for
+  the same `matchSid`.
+- **Conflict order:** two patches for the same sid resolve to the server's
+  last-received one regardless of `createdAt`.
+- **Finalize:** Finalize performs no full-event PUT; it flushes the outbox then
+  archives/stats from submitted matches only.
 - **Integration:** `tests/integration/do-integration.test.js` — a non-submitted
-  live-push round-trips through the DO and is returned to a second reader.
+  match-level live-push round-trips through the DO and is returned to a second
+  reader without disturbing other matches.
 - **Manual:** two phones, one event — tap O on A, confirm B shows it within ~3s;
   airplane-mode A mid-score, tap, re-enable, confirm the queued score flushes.
 
