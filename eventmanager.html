@@ -6971,38 +6971,19 @@ async function saveAll() {
   _syncPaused = true; // pause auto-sync during save
 
   try {
-    // ── MERGE-BEFORE-SAVE: fetch latest server state first ──
+    // Live score data is already server-backed by the per-match live push.
+    // Finalize no longer does a whole-event PUT (that reintroduced stale
+    // overwrite risk). Ensure any not-yet-pushed scores reach the server first.
+    await flushOutbox();
+    // Pull the now-current server state so the archive reflects all devices.
     const latestRes = await fetch(`/api/beyresults?eventId=${currentEvent.id}&_t=${Date.now()}`);
     if (latestRes.ok) {
+      applyConcurrencyHeader(latestRes);
       const latestData = await latestRes.json();
-      const serverResults = latestData.beyResults || [];
-      const serverBuilds  = latestData.builds     || {};
-      // Merge any server matches we don't have locally
-      mergeIncomingMatches(serverBuilds, serverResults);
-      // Update fingerprint so next poll doesn't think it's new
-      _lastSyncHash = JSON.stringify(serverResults);
+      mergeIncomingMatches(latestData.builds || {}, latestData.beyResults || []);
+      _lastSyncHash = JSON.stringify(latestData.beyResults || []);
+      flattenMatchesToResults();
     }
-
-    // Now flatten and save the fully merged state
-    flattenMatchesToResults();
-
-    // 1. Save bey results to events KV
-    const savedSids = getMatchSidSnapshot();
-    const { body: putBody, deletedSnapshot } = buildMergePutBody(currentEvent.id, buildsState, resultsState);
-    const res = await fetch('/api/beyresults', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(putBody)
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Save failed.');
-
-    clearAckedDeletedSids(currentEvent.id, deletedSnapshot);
-    // Server-observed acknowledgement only — pending matches stay protected
-    // until the server echoes the sid back (Finding 1).
-    confirmPendingMatchesSaved(sidsFromServerPayload(data.beyResults));
-    // Update fingerprint after successful save
-    _lastSyncHash = JSON.stringify(resultsState);
 
     // 2. Archive bey results into gamedata so they survive event deletion
     await archiveBeyResultsToGamedata();

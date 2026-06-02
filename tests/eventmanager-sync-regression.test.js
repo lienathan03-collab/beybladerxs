@@ -887,3 +887,17 @@ test('best-effort-kv header disables live push; durable-object enables it', () =
   assert.equal(vm.runInContext('_concurrencyMode', context), 'durable-object');
   assert.equal(context.liveScoringAllowed(), true);
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE SCORING — Finalize becomes archive/stats only (Task 7)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('Finalize (saveAll) flushes the outbox and does not full-event PUT', () => {
+  const start = html.indexOf('async function saveAll()');
+  const end = html.indexOf('async function', start + 10);
+  const src = html.slice(start, end);
+  assert.ok(/flushOutbox\(\)/.test(src), 'saveAll must flush the outbox');
+  assert.ok(!/buildMergePutBody\(/.test(src), 'saveAll must not build a full-event PUT body');
+  assert.ok(/archiveBeyResultsToGamedata\(\)/.test(src), 'saveAll still archives');
+  assert.ok(/syncBladerStats\(\)/.test(src), 'saveAll still syncs stats');
+});
