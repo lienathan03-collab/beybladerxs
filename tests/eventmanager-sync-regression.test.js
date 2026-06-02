@@ -689,3 +689,53 @@ test('buildMatchPatchBody emits only the target match rows in merge mode', () =>
   assert.deepEqual([...sids], ['R1|a|b|0']);
   assert.equal(body.beyResults.length, 2); // p1 + p2 of matchA only
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE SCORING — idempotent offline outbox (Task 2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function makeLocalStorage() {
+  const m = new Map();
+  return {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k)
+  };
+}
+
+function loadOutboxHelpers(context) {
+  vm.runInContext(
+    extractBetween('// LIVE OUTBOX (start)', '// LIVE OUTBOX (end)'),
+    context
+  );
+}
+
+test('outbox supersedes older op for the same matchSid and is idempotent by opId', () => {
+  const context = vm.createContext({
+    localStorage: makeLocalStorage(),
+    currentEvent: { id: 'evt-1' },
+    crypto: { randomUUID: (() => { let n = 0; return () => 'op-' + (++n); })() }
+  });
+  loadOutboxHelpers(context);
+
+  context.enqueueOutboxOp('R1|a|b|0', { eventId: 'evt-1', beyResults: [{ _matchSid: 'R1|a|b|0', win: false }] });
+  context.enqueueOutboxOp('R1|a|b|0', { eventId: 'evt-1', beyResults: [{ _matchSid: 'R1|a|b|0', win: true }] });
+  context.enqueueOutboxOp('R1|c|d|0', { eventId: 'evt-1', beyResults: [{ _matchSid: 'R1|c|d|0', win: false }] });
+
+  const ops = context.loadOutbox('evt-1');
+  assert.equal(ops.length, 2, 'only latest op per sid is kept');
+  const aOp = ops.find(o => o.matchSid === 'R1|a|b|0');
+  assert.equal(aOp.payload.beyResults[0].win, true, 'newest payload wins');
+
+  context.confirmOutboxAcked('evt-1', new Set(['R1|a|b|0']));
+  assert.equal(context.loadOutbox('evt-1').length, 1);
+});
+
+test('getClientId is stable across calls', () => {
+  const context = vm.createContext({
+    localStorage: makeLocalStorage(),
+    crypto: { randomUUID: (() => { let n = 0; return () => 'cid-' + (++n); })() }
+  });
+  loadOutboxHelpers(context);
+  assert.equal(context.getClientId(), context.getClientId());
+});

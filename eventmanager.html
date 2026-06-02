@@ -6081,6 +6081,58 @@ function getEventDeletedSids(eventId) {
   return _pendingDeletedSids.get(eventId);
 }
 
+// LIVE OUTBOX (start)
+// Idempotent per-device queue of un-acked match patches. Keyed by eventId in
+// localStorage. Each op: { eventId, matchSid, clientId, opId, payload, createdAt }.
+// Only the LATEST op per matchSid is retained (older ones are superseded).
+function _uuid() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+}
+
+function getClientId() {
+  let id = null;
+  try { id = localStorage.getItem('rxs_client_id'); } catch (e) {}
+  if (!id) { id = _uuid(); try { localStorage.setItem('rxs_client_id', id); } catch (e) {} }
+  return id;
+}
+
+function _outboxKey(eventId) { return 'rxs_outbox_' + eventId; }
+
+function loadOutbox(eventId) {
+  try {
+    const raw = localStorage.getItem(_outboxKey(eventId));
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) { return []; }
+}
+
+function saveOutbox(eventId, ops) {
+  try { localStorage.setItem(_outboxKey(eventId), JSON.stringify(ops)); } catch (e) {}
+}
+
+function enqueueOutboxOp(matchSid, payload) {
+  if (!currentEvent || !matchSid) return null;
+  const eventId = currentEvent.id;
+  const ops = loadOutbox(eventId).filter(o => o.matchSid !== matchSid); // supersede
+  const op = { eventId, matchSid, clientId: getClientId(), opId: _uuid(), payload, createdAt: Date.now() };
+  ops.push(op);
+  saveOutbox(eventId, ops);
+  return op;
+}
+
+function dropOutboxOp(eventId, opId) {
+  saveOutbox(eventId, loadOutbox(eventId).filter(o => o.opId !== opId));
+}
+
+// Clear ops whose matchSid the server has confirmed it holds.
+function confirmOutboxAcked(eventId, observedSids) {
+  if (!observedSids || !observedSids.size) return;
+  saveOutbox(eventId, loadOutbox(eventId).filter(o => !observedSids.has(o.matchSid)));
+}
+// LIVE OUTBOX (end)
+
 function getMatchSidSnapshot() {
   return new Set(matchesState.map(m => m._sid).filter(Boolean));
 }
