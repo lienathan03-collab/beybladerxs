@@ -4586,6 +4586,7 @@ function lmDoShuffle() {
 }
 
 function closeLiveMode() {
+  _activeLiveMatchSid = null;
   // Commit any in-progress scores back to the real match before closing
   if (lmState) {
     const { match } = lmState;
@@ -4643,6 +4644,10 @@ function lmSetScoringSide(side) {
 // ── Apply a finish (S/O/E/B) from the scoring side ──
 function lmApplyFinish(type) {
   if (!lmState) return;
+  {
+    const _am = (lmState.match._isSolo && lmState.match._soloRef) ? lmState.match._soloRef : lmState.match;
+    _activeLiveMatchSid = _am && _am._sid ? _am._sid : null;
+  }
   const clash = lmState.clashes[lmState.activeClashIdx];
   if (!clash || clash.done) return;
 
@@ -6065,6 +6070,7 @@ document.addEventListener('click', (e) => {
 // ─────────────────────────────────────────────
 let _syncInterval   = null;
 let _syncPaused     = false; // pause during active user edits
+let _activeLiveMatchSid = null; // sid of the match the judge is currently scoring; never overwritten by sync
 let _lastSyncHash   = '';    // fingerprint of last known server state
 let _syncErrorCount = 0;
 let _createMatchSaveQueue = Promise.resolve();
@@ -6406,7 +6412,10 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
         const local = matchesState.find(m => m._sid === sm._sid);
         if (local) {
           if (local._pendingServerSave) delete local._pendingServerSave;
-          if (sm.submitted || local.submitted) {
+          const isActive = _activeLiveMatchSid && sm._sid === _activeLiveMatchSid;
+          if (!isActive && (sm.submitted || local.submitted ||
+              JSON.stringify({ p1: sm.p1, p2: sm.p2, team1: sm.team1, team2: sm.team2 }) !==
+              JSON.stringify({ p1: local.p1, p2: local.p2, team1: local.team1, team2: local.team2 }))) {
             const snap = JSON.stringify({ p1: local.p1, p2: local.p2, submitted: local.submitted,
               team1: local.team1, team2: local.team2, _playOrder: local._playOrder });
             local.submitted = sm.submitted;

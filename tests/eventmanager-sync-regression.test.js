@@ -64,6 +64,7 @@ function createContext(matchesState) {
     _matchIdCounter: 20,
     _lastSyncHash: '',
     _syncPaused: false,
+    _activeLiveMatchSid: null,
     fetch: async () => ({ ok: true, json: async () => ({ success: true }) }),
     flattenMatchesToResults() {
       context.resultsState = context.matchesState.flatMap(m => [
@@ -738,4 +739,46 @@ test('getClientId is stable across calls', () => {
   });
   loadOutboxHelpers(context);
   assert.equal(context.getClientId(), context.getClientId());
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE SCORING — in-progress score adoption in merge (Task 3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('merge adopts in-progress (non-submitted) server score for a non-active match', () => {
+  const local = { id: 1, _sid: 'R1|a|b|0', round: 'R1',
+    p1: { player: 'a', entryId: 'a', builds: [], win: false },
+    p2: { player: 'b', entryId: 'b', builds: [], win: false },
+    submitted: false };
+  const context = createContext([local]);
+  context._activeLiveMatchSid = null;       // not actively editing this match
+  loadMergeHelper(context);
+
+  const serverResults = [
+    { player: 'a', entryId: 'a', round: 'R1', builds: [{ finishes: ['O'] }], win: false, _matchSid: 'R1|a|b|0' },
+    { player: 'b', entryId: 'b', round: 'R1', builds: [], win: false, _matchSid: 'R1|a|b|0' }
+  ];
+  context.mergeIncomingMatches({}, serverResults);
+
+  const m = context.matchesState.find(x => x._sid === 'R1|a|b|0');
+  assert.deepEqual(m.p1.builds, [{ finishes: ['O'] }], 'in-progress score adopted');
+});
+
+test('merge does NOT clobber the actively-edited match', () => {
+  const local = { id: 1, _sid: 'R1|a|b|0', round: 'R1',
+    p1: { player: 'a', entryId: 'a', builds: [{ finishes: ['O', 'O'] }], win: false },
+    p2: { player: 'b', entryId: 'b', builds: [], win: false },
+    submitted: false };
+  const context = createContext([local]);
+  context._activeLiveMatchSid = 'R1|a|b|0'; // judge is scoring this match right now
+  loadMergeHelper(context);
+
+  const serverResults = [
+    { player: 'a', entryId: 'a', round: 'R1', builds: [], win: false, _matchSid: 'R1|a|b|0' },
+    { player: 'b', entryId: 'b', round: 'R1', builds: [], win: false, _matchSid: 'R1|a|b|0' }
+  ];
+  context.mergeIncomingMatches({}, serverResults);
+
+  const m = context.matchesState.find(x => x._sid === 'R1|a|b|0');
+  assert.deepEqual(m.p1.builds, [{ finishes: ['O', 'O'] }], 'local edits preserved');
 });
