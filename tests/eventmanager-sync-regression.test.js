@@ -102,6 +102,25 @@ test('live sync preserves a newly-created match until the server confirms it', (
   assert.equal(context.matchesState[0]._pendingServerSave, true);
 });
 
+test('live sync does NOT wipe a pending match even when dirty is false (non-dirty full-replace path)', () => {
+  // Reproduces the multi-device data-loss report: a locally-created match that
+  // the server has not echoed back yet must survive a full-replace live-sync,
+  // not just the dirty-branch sync. dirty can be false here (e.g. a Finalize
+  // cleared it while a concurrent write meant the server response didn't echo
+  // this device's sid).
+  const context = createContext([makePendingMatch(1, '1')]);
+  context.dirty = false;
+  loadMergeHelper(context);
+
+  // Server returns no entries for this event — the pending match isn't there yet.
+  vm.runInContext('mergeIncomingMatches({}, [])', context);
+
+  assert.equal(context.matchesState.length, 1,
+    'non-dirty full-replace must not delete an unconfirmed pending match');
+  assert.equal(context.matchesState[0]._pendingServerSave, true,
+    'the pending flag must remain set until the server confirms the sid');
+});
+
 test('automatic creation saves are serialized so the latest list is persisted last', async () => {
   const context = createContext([makePendingMatch(1, '1')]);
   const requestRowCounts = [];
@@ -480,4 +499,123 @@ test('client: pending deletions from event A do not appear in event-B PUT body',
     result.body.deletedSids, [],
     'event-B deletedSids must be empty when no event-B deletions exist'
   );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Auto-submit on winner detection. When a local scoring action leaves a match
+// with one decisive winner, a short cancelable countdown arms and then fires
+// the existing submitMatch(). It must NOT arm without a winner, when the toggle
+// is off, or for an already-submitted match — and re-evaluating after the
+// winner is removed must cancel it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function loadAutoSubmit(context) {
+  vm.runInContext(
+    extractBetween('// ─── AUTO-SUBMIT ENGINE (start)', '// ─── AUTO-SUBMIT ENGINE (end)'),
+    context
+  );
+}
+
+function autoCtx(matchesState) {
+  const intervals = [];
+  const context = {
+    matchesState,
+    calcPoints(builds) {
+      let pts = 0;
+      for (const b of (builds || [])) {
+        for (const f of (b.finishes || [])) {
+          if (f !== 'L') pts += ({ S: 1, O: 2, E: 3, B: 2 })[f] || 0;
+        }
+      }
+      return pts;
+    },
+    setInterval(fn) { const id = intervals.length + 1; intervals.push({ id, fn }); return id; },
+    clearInterval() {},
+    renderResults() { context._renders = (context._renders || 0) + 1; },
+    submitMatch(mid) { (context._submitted = context._submitted || []).push(mid); },
+    console, JSON, Set, Array, Object
+  };
+  context.__intervals = intervals;
+  vm.createContext(context);
+  return context;
+}
+
+function soloMatch(winA, winB) {
+  return [{ id: 1, round: 'R1',
+    p1: { player: 'A', win: winA, builds: [] },
+    p2: { player: 'B', win: winB, builds: [] } }];
+}
+
+test('auto-submit: solo match with exactly one winner arms a 4s countdown', () => {
+  const c = autoCtx(soloMatch(true, false));
+  loadAutoSubmit(c);
+  vm.runInContext('evaluateAutoSubmit(1)', c);
+  const t = vm.runInContext('_autoSubmit.timers[1]', c);
+  assert.ok(t, 'timer must be armed for a decided match');
+  assert.equal(t.remaining, 4);
+});
+
+test('auto-submit: no winner (both pending) does NOT arm', () => {
+  const c = autoCtx(soloMatch(false, false));
+  loadAutoSubmit(c);
+  vm.runInContext('evaluateAutoSubmit(1)', c);
+  assert.equal(vm.runInContext('_autoSubmit.timers[1]', c), undefined);
+});
+
+test('auto-submit: both sides marked win is NOT decisive, does not arm', () => {
+  const c = autoCtx(soloMatch(true, true));
+  loadAutoSubmit(c);
+  vm.runInContext('evaluateAutoSubmit(1)', c);
+  assert.equal(vm.runInContext('_autoSubmit.timers[1]', c), undefined);
+});
+
+test('auto-submit: an already-submitted match never arms', () => {
+  const ms = soloMatch(true, false);
+  ms[0].submitted = true;
+  const c = autoCtx(ms);
+  loadAutoSubmit(c);
+  vm.runInContext('evaluateAutoSubmit(1)', c);
+  assert.equal(vm.runInContext('_autoSubmit.timers[1]', c), undefined);
+});
+
+test('auto-submit: toggle off prevents arming and cancels running timers', () => {
+  const c = autoCtx(soloMatch(true, false));
+  loadAutoSubmit(c);
+  vm.runInContext('evaluateAutoSubmit(1)', c);
+  assert.ok(vm.runInContext('_autoSubmit.timers[1]', c), 'armed while enabled');
+  vm.runInContext('setAutoSubmitEnabled(false)', c);
+  assert.equal(vm.runInContext('_autoSubmit.timers[1]', c), undefined, 'turning off cancels it');
+  vm.runInContext('evaluateAutoSubmit(1)', c);
+  assert.equal(vm.runInContext('_autoSubmit.timers[1]', c), undefined, 'cannot re-arm while off');
+});
+
+test('auto-submit: re-evaluating after the winner is removed cancels the countdown', () => {
+  const ms = soloMatch(true, false);
+  const c = autoCtx(ms);
+  loadAutoSubmit(c);
+  vm.runInContext('evaluateAutoSubmit(1)', c);
+  assert.ok(vm.runInContext('_autoSubmit.timers[1]', c));
+  ms[0].p1.win = false; // judge un-scored the deciding finish
+  vm.runInContext('evaluateAutoSubmit(1)', c);
+  assert.equal(vm.runInContext('_autoSubmit.timers[1]', c), undefined);
+});
+
+test('auto-submit: countdown fires submitMatch once it reaches zero', () => {
+  const c = autoCtx(soloMatch(true, false));
+  loadAutoSubmit(c);
+  vm.runInContext('evaluateAutoSubmit(1)', c);
+  const tick = c.__intervals[0].fn;
+  tick(); tick(); tick(); tick(); // 4 → 3 → 2 → 1 → fire
+  assert.deepEqual(c._submitted, [1], 'submitMatch must fire exactly once');
+  assert.equal(vm.runInContext('_autoSubmit.timers[1]', c), undefined, 'timer cleared after firing');
+});
+
+test('auto-submit: team topcut match arms when a team reaches 2 individual wins', () => {
+  const ms = [{ id: 1, round: 'SF', isTeamMatch: true,
+    team1: { members: [{ win: true, builds: [] }, { win: true, builds: [] }, { win: false, builds: [] }] },
+    team2: { members: [{ win: false, builds: [] }, { win: false, builds: [] }, { win: false, builds: [] }] } }];
+  const c = autoCtx(ms);
+  loadAutoSubmit(c);
+  vm.runInContext('evaluateAutoSubmit(1)', c);
+  assert.ok(vm.runInContext('_autoSubmit.timers[1]', c), 'topcut team with 2 wins must arm');
 });

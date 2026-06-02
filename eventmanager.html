@@ -1669,7 +1669,13 @@
             <div style="font-size:15px;font-weight:700;color:var(--text)">Match Results</div>
             <div style="font-size:12px;color:var(--muted);margin-top:2px">Add a match, pick both players, enter finishes after they report.</div>
           </div>
-          <button class="btn gold" onclick="openNewMatchModal()">⚔️ New Match</button>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <label title="When a winner is detected, the match auto-submits after a short countdown. Tap Cancel on the card to stop it." style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;user-select:none">
+              <input type="checkbox" id="auto-submit-toggle" onchange="setAutoSubmitEnabled(this.checked)" style="cursor:pointer">
+              Auto-submit
+            </label>
+            <button class="btn gold" onclick="openNewMatchModal()">⚔️ New Match</button>
+          </div>
         </div>
 
         <!-- Legend -->
@@ -2078,7 +2084,7 @@
 let adminUser = '';
 let adminPass = '';
 let allEvents = [];
-const APP_VERSION = 'rxs-em-v13';
+const APP_VERSION = 'rxs-em-v14';
 
 let currentEvent = null;
 
@@ -2286,6 +2292,8 @@ async function loadEventList() {
 }
 
 function loadEvent(id) {
+  // Switching events: cancel any pending auto-submit countdowns from the prior event.
+  for (const k of Object.keys(_autoSubmit.timers)) _clearAutoSubmitTimer(k);
   if (!id) {
     currentEvent = null;
     document.getElementById('event-info').style.display = 'none';
@@ -3547,6 +3555,118 @@ function renderRoundFilter() {
 // ─────────────────────────────────────────────
 // RENDER MATCH CARDS
 // ─────────────────────────────────────────────
+// ─── AUTO-SUBMIT ENGINE (start) ──────────────────────────────────────────────
+// When a LOCAL scoring action leaves a match with one decisive winner, arm a
+// short, cancelable countdown that then fires the normal submitMatch(). This is
+// purely a UI affordance in front of the existing submit — it changes no server
+// contract, so the Durable Object concurrency protection is untouched.
+//
+// It is invoked ONLY from the judge's own scoring actions (pickFinish,
+// finish-removal, Live Mode commit), never from renderResults / live-sync /
+// event load — so opening an event full of already-won matches, or receiving
+// another device's win, never mass-submits.
+const AUTO_SUBMIT_SECONDS = 4;
+let _autoSubmit = {
+  enabled: (typeof localStorage !== 'undefined')
+    ? (localStorage.getItem('rxs_autosubmit') !== '0')   // default ON
+    : true,
+  timers: {}   // mid -> { remaining, intervalId }
+};
+
+// Solo: exactly one side has win=true.
+// Team: mirrors the card's WIN summary — topcut (TC/QF/SF/F) a team reached 2
+//       individual wins; regular round all members played and win counts differ.
+function matchHasDecisiveWinner(match) {
+  if (!match) return false;
+  if (match.isTeamMatch) {
+    const t1 = match.team1, t2 = match.team2;
+    if (!t1 || !t2) return false;
+    const t1wins = t1.members.filter(m => m.win).length;
+    const t2wins = t2.members.filter(m => m.win).length;
+    if (['TC', 'QF', 'SF', 'F'].includes(match.round)) {
+      return Math.max(t1wins, t2wins) >= 2;
+    }
+    const allPlayed = [...t1.members, ...t2.members]
+      .every(mem => mem.win || calcPoints(mem.builds) > 0);
+    return allPlayed && t1wins !== t2wins;
+  }
+  const p1w = !!(match.p1 && match.p1.win);
+  const p2w = !!(match.p2 && match.p2.win);
+  return p1w !== p2w; // exactly one winner
+}
+
+function _clearAutoSubmitTimer(mid) {
+  const t = _autoSubmit.timers[mid];
+  if (t && t.intervalId != null) { try { clearInterval(t.intervalId); } catch (e) {} }
+  delete _autoSubmit.timers[mid];
+}
+
+function _updateAutoSubmitButton(mid) {
+  if (typeof document === 'undefined') return;
+  const el = document.getElementById('autosubmit-btn-' + mid);
+  const t = _autoSubmit.timers[mid];
+  if (el && t) el.textContent = `⏳ Auto-submit ${t.remaining}s · Cancel`;
+}
+
+// Cancel a countdown (Cancel button, un-score, unsubmit, remove, toggle-off).
+function cancelAutoSubmit(mid, rerender = true) {
+  _clearAutoSubmitTimer(mid);
+  if (rerender && typeof renderResults === 'function') renderResults();
+}
+
+// IDEMPOTENT: call after ANY local scoring change. Clears a stale countdown and
+// (re)arms only when the toggle is on, the match is unsubmitted, and it now has
+// one decisive winner. Calling it on a match that lost its winner cancels it.
+function evaluateAutoSubmit(mid) {
+  _clearAutoSubmitTimer(mid);
+  if (!_autoSubmit.enabled) return;
+  const match = matchesState.find(m => m.id === mid);
+  if (!match || match.submitted) return;
+  if (!matchHasDecisiveWinner(match)) return;
+
+  const entry = { remaining: AUTO_SUBMIT_SECONDS, intervalId: null };
+  _autoSubmit.timers[mid] = entry;
+  // Render once so the Submit button swaps to the live countdown; per-second
+  // ticks then patch only the button text (cheap, survives re-renders by id).
+  if (typeof renderResults === 'function') renderResults();
+
+  entry.intervalId = setInterval(() => {
+    entry.remaining -= 1;
+    if (entry.remaining > 0) { _updateAutoSubmitButton(mid); return; }
+    _clearAutoSubmitTimer(mid);
+    const m = matchesState.find(x => x.id === mid);
+    if (m && !m.submitted && typeof submitMatch === 'function') submitMatch(mid);
+    else if (typeof renderResults === 'function') renderResults();
+  }, 1000);
+}
+
+function setAutoSubmitEnabled(on) {
+  _autoSubmit.enabled = !!on;
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('rxs_autosubmit', on ? '1' : '0');
+    }
+  } catch (e) {}
+  if (!on) {
+    for (const mid of Object.keys(_autoSubmit.timers)) _clearAutoSubmitTimer(mid);
+  }
+  if (typeof renderResults === 'function') renderResults();
+}
+
+// Single source of truth for a card's submit / countdown / unsubmit button.
+function submitAreaHtml(match) {
+  const mid = match.id;
+  if (match.submitted) {
+    return `<button class="btn danger unsubmit-btn" style="font-size:10px;padding:2px 8px;margin-left:4px;border-color:#c0932a;color:#c0932a" onclick="event.stopPropagation();unsubmitMatch(${mid})">↩ Unsubmit</button>`;
+  }
+  if (_autoSubmit.timers[mid]) {
+    const secs = _autoSubmit.timers[mid].remaining;
+    return `<button id="autosubmit-btn-${mid}" class="btn" style="font-size:10px;padding:2px 8px;margin-left:4px;border-color:var(--gold);color:var(--gold)" onclick="event.stopPropagation();cancelAutoSubmit(${mid})">⏳ Auto-submit ${secs}s · Cancel</button>`;
+  }
+  return `<button class="btn success" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();submitMatch(${mid})">⬆ Submit</button>`;
+}
+// ─── AUTO-SUBMIT ENGINE (end) ────────────────────────────────────────────────
+
 function renderResults() {
   renderRoundFilter();
   const el = document.getElementById('results-content');
@@ -3608,9 +3728,7 @@ function renderMatchCard(match) {
             <span style="color:var(--gold2)">${escHtml(p2Label)}</span>
           </span>
           <span class="match-result-summary">${summary}</span>
-          ${match.submitted
-            ? `<button class="btn danger unsubmit-btn" style="font-size:10px;padding:2px 8px;margin-left:4px;border-color:#c0932a;color:#c0932a" onclick="event.stopPropagation();unsubmitMatch(${mid})">↩ Unsubmit</button>`
-            : `<button class="btn success" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();submitMatch(${mid})">⬆ Submit</button>`}
+          ${submitAreaHtml(match)}
           <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕ Remove</button>
           <span style="color:var(--muted2);font-size:12px;margin-left:4px">${match.collapsed ? '▼' : '▲'}</span>
         </div>
@@ -3683,9 +3801,7 @@ function renderTeamMatchCard(match) {
             <span style="color:var(--gold2)">${escHtml(t2.teamName)}</span>
           </span>
           <span class="match-result-summary">${summary}</span>
-          ${match.submitted
-            ? `<button class="btn danger unsubmit-btn" style="font-size:10px;padding:2px 8px;margin-left:4px;border-color:#c0932a;color:#c0932a" onclick="event.stopPropagation();unsubmitMatch(${mid})">↩ Unsubmit</button>`
-            : `<button class="btn success" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();submitMatch(${mid})">⬆ Submit</button>`}
+          ${submitAreaHtml(match)}
           <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕ Remove</button>
           <span style="color:var(--muted2);font-size:12px;margin-left:4px">▼</span>
         </div>
@@ -3721,9 +3837,7 @@ function renderTeamMatchCard(match) {
           <span style="color:var(--gold2)">${escHtml(t2.teamName)}</span>
         </span>
         <span class="match-result-summary">${summary}</span>
-        ${match.submitted
-          ? `<button class="btn danger unsubmit-btn" style="font-size:10px;padding:2px 8px;margin-left:4px;border-color:#c0932a;color:#c0932a" onclick="event.stopPropagation();unsubmitMatch(${mid})">↩ Unsubmit</button>`
-          : `<button class="btn success" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();submitMatch(${mid})">⬆ Submit</button>`}
+        ${submitAreaHtml(match)}
         <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕ Remove</button>
         <span style="color:var(--muted2);font-size:12px;margin-left:4px">▲</span>
       </div>
@@ -3917,6 +4031,7 @@ function toggleMatchCollapse(mid) {
 async function removeMatch(mid) {
   const match = matchesState.find(m => m.id === mid);
   if (!match) return;
+  _clearAutoSubmitTimer(mid);
   const msg = match.submitted
     ? 'This match is already submitted. Remove it completely? This will be deleted from the server immediately.'
     : 'Remove this match? It will be deleted from the server immediately.';
@@ -4019,6 +4134,7 @@ function mRemoveFinish(mid, side, buildIdx, finishIdx) {
   flattenMatchesToResults();
   markDirty();
   renderResults();
+  evaluateAutoSubmit(mid); // re-check: an un-score may have removed the winner
 }
 
 // Rename a build for a specific solo match round only (does not affect other rounds)
@@ -4172,6 +4288,7 @@ function mRemoveTeamFinish(mid, teamKey, memberIdx, buildIdx, finishIdx) {
   flattenMatchesToResults();
   markDirty();
   renderResults();
+  evaluateAutoSubmit(mid); // re-check: an un-score may have removed the winner
 }
 
 function openTeamPicker(event, mid, teamKey, memberIdx, buildIdx) {
@@ -4218,6 +4335,7 @@ function openPicker(event, mid, side, buildIdx) {
 
 function pickFinish(type) {
   if (!_pickerTarget) return;
+  const _amid = _pickerTarget.mid; // capture before closePicker() clears the target
 
   if (_pickerTarget.isTeam) {
     const { mid, teamKey, memberIdx, buildIdx } = _pickerTarget;
@@ -4254,6 +4372,7 @@ function pickFinish(type) {
   markDirty();
   closePicker();
   renderResults();
+  evaluateAutoSubmit(_amid); // arm auto-submit if this finish decided the match
 }
 
 // ─────────────────────────────────────────────
@@ -4464,6 +4583,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.target === overlay) closeLiveMode();
     });
   }
+  // Reflect the persisted auto-submit preference in the toolbar checkbox.
+  const asToggle = document.getElementById('auto-submit-toggle');
+  if (asToggle) asToggle.checked = _autoSubmit.enabled;
 });
 
 function lmSetScoringSide(side) {
@@ -5405,6 +5527,9 @@ function lmCommitAndClose() {
   flattenMatchesToResults();
   markDirty();
   renderResults();
+  // Arm auto-submit on the REAL match (solo proxy writes back to _soloRef).
+  const _tid = (match._isSolo && match._soloRef) ? match._soloRef.id : match.id;
+  evaluateAutoSubmit(_tid);
   closeLiveMode();
   showToast('⚡ Live scoring committed!', 'success');
 }
@@ -6248,6 +6373,21 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
     return sm;
   });
 
+  // CRITICAL: never let a full-replace drop a locally-created match that the
+  // server hasn't confirmed yet. A match is "unconfirmed" when it is still
+  // flagged _pendingServerSave (its create-PUT hasn't been echoed back) or it
+  // has no _sid at all (never pushed). dirty can be false here even while such
+  // a match exists — e.g. a Finalize cleared dirty but a concurrent best-effort
+  // write meant the server response didn't echo this device's sid. Without this
+  // guard the next poll's full-replace would silently delete the match before it
+  // is ever persisted. Mirror the protection the dirty branch already applies.
+  const serverSidSet = new Set(serverMatches.map(m => m._sid).filter(Boolean));
+  for (const m of matchesState) {
+    if ((m._pendingServerSave || !m._sid) && (!m._sid || !serverSidSet.has(m._sid))) {
+      newState.push(m);
+    }
+  }
+
   // Merge server builds too
   for (const [k, v] of Object.entries(serverBuilds)) {
     if (!buildsState[k] || JSON.stringify(buildsState[k]) !== JSON.stringify(v)) {
@@ -6270,6 +6410,7 @@ async function submitMatch(mid) {
   if (!currentEvent) return;
   const match = matchesState.find(m => m.id === mid);
   if (!match) return;
+  _clearAutoSubmitTimer(mid); // this submit supersedes any running countdown
 
   // Check match has a result
   const hasResult = match.isTeamMatch
@@ -6370,6 +6511,7 @@ async function unsubmitMatch(mid) {
   if (!currentEvent) return;
   const match = matchesState.find(m => m.id === mid);
   if (!match) return;
+  _clearAutoSubmitTimer(mid);
 
   // Clear all finish data
   if (match.isTeamMatch) {
