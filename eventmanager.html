@@ -3301,7 +3301,7 @@ function buildImportPlan({ matches, pidMap, matchesState, isTeam }) {
     if (alreadyImported(matchesState, cmId)) { plan.push({ challongeMatchId: cmId, skip: true, reason: 'duplicate' }); continue; }
     const side1Ref = pidMap[m.player1_id] || null;
     const side2Ref = pidMap[m.player2_id] || null;
-    const base = { challongeMatchId: cmId, round: challongeRoundLabel(m.round), groupId: m.group_id || null, side1Ref, side2Ref };
+    const base = { challongeMatchId: cmId, round: challongeRoundLabel(m.round), groupId: m.group_id ?? null, side1Ref, side2Ref };
     if (!side1Ref || !side2Ref) { plan.push({ ...base, skip: false, reason: 'unmapped' }); continue; }
     if (!isTeam && isSameOwnerSolo(side1Ref, side2Ref)) { plan.push({ ...base, skip: true, reason: 'same-owner' }); continue; }
     plan.push({ ...base, skip: false, reason: 'create' });
