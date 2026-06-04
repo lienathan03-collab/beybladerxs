@@ -3506,14 +3506,17 @@ async function challongeImportOpenMatches() {
     let created = 0;
     for (const item of plan) {
       if (item.skip) continue;
-      const newId = _matchIdCounter++;
       if (isTeam) {
-        const t1 = (currentEvent.joiners || []).find(j => j.type === 'team' && j.teamName === item.side1Ref.teamName);
-        const t2 = (currentEvent.joiners || []).find(j => j.type === 'team' && j.teamName === item.side2Ref.teamName);
+        const t1 = (currentEvent.joiners || []).find(j => j.type === 'team' && j.teamName === item.side1Ref?.teamName);
+        const t2 = (currentEvent.joiners || []).find(j => j.type === 'team' && j.teamName === item.side2Ref?.teamName);
         if (!t1 || !t2) continue;
+        const teamPairCount = matchesState.filter(m =>
+          m.isTeamMatch && m.round === item.round &&
+          m.team1?.teamName === t1.teamName && m.team2?.teamName === t2.teamName
+        ).length;
         matchesState.push({
-          id: newId,
-          _sid: _teamSid(item.round, t1.teamName, t2.teamName, 0),
+          id: _matchIdCounter++,
+          _sid: _teamSid(item.round, t1.teamName, t2.teamName, teamPairCount),
           _pendingServerSave: true,
           _challongeMatchId: item.challongeMatchId,
           division: currentEvent.challongeGroupMap?.[item.groupId] ?? null,
@@ -3521,17 +3524,22 @@ async function challongeImportOpenMatches() {
           isTeamMatch: true,
           team1: JSON.parse(JSON.stringify(t1)),
           team2: JSON.parse(JSON.stringify(t2)),
-          p1: JSON.parse(JSON.stringify(t1.members[0] || { player: t1.teamName, builds: [] })),
-          p2: JSON.parse(JSON.stringify(t2.members[0] || { player: t2.teamName, builds: [] })),
+          p1: JSON.parse(JSON.stringify((t1.members || [])[0] || { player: t1.teamName, builds: [] })),
+          p2: JSON.parse(JSON.stringify((t2.members || [])[0] || { player: t2.teamName, builds: [] })),
           collapsed: false,
         });
       } else {
         const e1 = challongeEntryToMatchSlot(item.side1Ref);
         const e2 = challongeEntryToMatchSlot(item.side2Ref);
         if (!e1 || !e2) continue;
+        const soloPairCount = matchesState.filter(m =>
+          !m.isTeamMatch && m.round === item.round &&
+          (e1.entryId ? m.p1?.entryId === e1.entryId : m.p1?.player === e1.player) &&
+          (e2.entryId ? m.p2?.entryId === e2.entryId : m.p2?.player === e2.player)
+        ).length;
         matchesState.push({
-          id: newId,
-          _sid: _soloSid(item.round, e1, e2, 0),
+          id: _matchIdCounter++,
+          _sid: _soloSid(item.round, e1, e2, soloPairCount),
           _pendingServerSave: true,
           _challongeMatchId: item.challongeMatchId,
           needsPlayerPick: item.reason === 'unmapped' || undefined,
@@ -3552,6 +3560,7 @@ async function challongeImportOpenMatches() {
     return created;
   } catch (e) {
     console.error('challongeImportOpenMatches error:', e);
+    showToast('⚠️ Challonge import failed: ' + e.message, 'error');
     return 0;
   }
 }
