@@ -14,6 +14,9 @@ export function resolveChallongeTarget(env, params) {
     if (acc && acc.proxyUrl) {
       return { proxyUrl: acc.proxyUrl, key: customKey || acc.key || null };
     }
+    // Unknown account key — return null so onRequest surfaces a 500 instead of
+    // silently falling through to the season-URL path.
+    return { proxyUrl: null, key: null };
   }
   // (c) season fallback (existing behaviour)
   const proxyUrl = season === '3'
@@ -29,13 +32,14 @@ export async function onRequest(context) {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
-  const reqUrl = new URL(request.url);
+  const url = new URL(request.url);
   const target = resolveChallongeTarget(env, {
-    account:   reqUrl.searchParams.get('account')   || undefined,
-    customKey: reqUrl.searchParams.get('customKey') || undefined,
-    season:    reqUrl.searchParams.get('season')    || '2',
+    account:   url.searchParams.get('account')   || undefined,
+    customKey: url.searchParams.get('customKey') || undefined,
+    season:    url.searchParams.get('season')    || '2',
   });
   const PROXY_URL = target.proxyUrl;
+  // target.key forwarded in Phase 2 write-back (action=report)
 
   if (!PROXY_URL) {
     return new Response(
@@ -44,7 +48,6 @@ export async function onRequest(context) {
     );
   }
 
-  const url = new URL(request.url);
   const action = url.searchParams.get('action');
   const tournament_id = url.searchParams.get('tournament_id');
 
