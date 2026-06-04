@@ -635,6 +635,18 @@ test('auto-submit: re-evaluating after the winner is removed cancels the countdo
   assert.equal(vm.runInContext('_autoSubmit.timers[1]', c), undefined);
 });
 
+test('auto-submit: scoring changes after Challonge success make the match reportable again', () => {
+  const ms = soloMatch(true, false);
+  ms[0]._challongeMatchId = 123;
+  ms[0]._challongePushState = 'ok';
+  const c = autoCtx(ms);
+  loadAutoSubmit(c);
+
+  vm.runInContext('evaluateAutoSubmit(1)', c);
+
+  assert.equal(ms[0]._challongePushState, undefined);
+});
+
 test('auto-submit: countdown fires submitMatch once it reaches zero', () => {
   const c = autoCtx(soloMatch(true, false));
   loadAutoSubmit(c);

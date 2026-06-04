@@ -4193,14 +4193,21 @@ function cancelAutoSubmit(mid, rerender = true) {
   if (rerender && typeof renderResults === 'function') renderResults();
 }
 
+function invalidateChallongePushState(match) {
+  if (match && match._challongeMatchId && match._challongePushState === 'ok') {
+    delete match._challongePushState;
+  }
+}
+
 // IDEMPOTENT: call after ANY local scoring change. Clears a stale countdown and
 // (re)arms only when the toggle is on, the match is unsubmitted, and it now has
 // one decisive winner. Calling it on a match that lost its winner cancels it.
 function evaluateAutoSubmit(mid) {
   if (typeof scheduleLivePush === 'function') scheduleLivePush(mid); // live-push every scoring change
   _clearAutoSubmitTimer(mid);
-  if (!_autoSubmit.enabled) return;
   const match = matchesState.find(m => m.id === mid);
+  invalidateChallongePushState(match);
+  if (!_autoSubmit.enabled) return;
   if (!match || match.submitted) return;
   if (!matchHasDecisiveWinner(match)) return;
 
