@@ -2357,6 +2357,8 @@ function loadEvent(id) {
   _matchIdCounter = 1;
   activeRoundFilter = 'ALL';
   activeDivisionFilter = 'ALL';
+  const _searchEl = document.getElementById('match-search');
+  if (_searchEl) _searchEl.value = '';
   loadMatchesFromResults();
   dirty = false;
   setSaveStatus('—');
