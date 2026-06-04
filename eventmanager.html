@@ -3646,6 +3646,7 @@ async function challongeReportMatch(match) {
   const pmap = currentEvent.challongeParticipantMap || {};
 
   function findPid(key, isTeam) {
+    if (!key) return null;
     return Object.keys(pmap).find(pid =>
       isTeam ? pmap[pid].teamName === key : pmap[pid].entryId === key
     ) || null;
@@ -3671,6 +3672,7 @@ async function challongeReportMatch(match) {
 
   const { scores_csv, winner_id } = eventPointsToScoresCsv(p1pts, p2pts, winnerId, p1Id, p2Id);
 
+  if (match._challongePushState === 'pending') return;
   match._challongePushState = 'pending';
   if (typeof renderResults === 'function') renderResults();
 
@@ -3698,7 +3700,7 @@ async function challongeReportMatch(match) {
 function challongeRetryFailedPushes() {
   if (!currentEvent || !currentEvent.challongeTournamentId) return;
   (matchesState || []).forEach(m => {
-    if (m._challongeMatchId && m._challongePushState === 'error') {
+    if (m._challongeMatchId && m._challongePushState === 'error' && !m.submitted) {
       challongeReportMatch(m);
     }
   });
