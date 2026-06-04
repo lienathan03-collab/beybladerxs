@@ -3406,33 +3406,39 @@ function challongeLinkTournament() {
 async function challongeBuildParticipantMap() {
   if (!currentEvent || !currentEvent.challongeTournamentId) return;
   const isTeam = currentEvent.type === '3v3';
-  const res = await fetch(
-    '/api/challonge?action=participants&tournament_id=' +
-    encodeURIComponent(currentEvent.challongeTournamentId) + '&' + challongeAccountParams()
-  );
-  const data = await res.json();
-  const participants = (Array.isArray(data) ? data : []).map(p => p.participant || p);
-  const players = isTeam ? null : getPlayers();
-  const teams = isTeam ? (currentEvent.joiners || []).filter(j => j.type === 'team') : null;
-  const map = currentEvent.challongeParticipantMap || {};
-  const unmatched = [];
-  for (const p of participants) {
-    if (map[p.id]) continue; // keep prior manual resolutions
-    const nm = p.display_name || p.name || '';
-    const ref = isTeam ? matchTeamParticipant(nm, teams) : matchSoloParticipant(nm, players);
-    if (ref) {
-      map[p.id] = isTeam ? { teamName: ref.teamName } : { name: ref.name, entryId: ref.entryId, entryType: ref.entryType, displayLabel: ref.displayLabel };
-    } else {
-      unmatched.push({ id: p.id, name: nm });
+  try {
+    const res = await fetch(
+      '/api/challonge?action=participants&tournament_id=' +
+      encodeURIComponent(currentEvent.challongeTournamentId) + '&' + challongeAccountParams()
+    );
+    if (!res.ok) throw new Error('Challonge API error ' + res.status);
+    const data = await res.json();
+    const participants = (Array.isArray(data) ? data : []).map(p => p.participant || p);
+    const players = isTeam ? null : getPlayers();
+    const teams = isTeam ? (currentEvent.joiners || []).filter(j => j.type === 'team') : null;
+    const map = currentEvent.challongeParticipantMap || {};
+    const unmatched = [];
+    for (const p of participants) {
+      if (map[p.id]) continue;
+      const nm = p.display_name || p.name || '';
+      const ref = isTeam ? matchTeamParticipant(nm, teams) : matchSoloParticipant(nm, players);
+      if (ref) {
+        map[p.id] = isTeam ? { teamName: ref.teamName } : { name: ref.name, entryId: ref.entryId, entryType: ref.entryType, displayLabel: ref.displayLabel };
+      } else {
+        unmatched.push({ id: p.id, name: nm });
+      }
     }
+    currentEvent.challongeParticipantMap = map;
+    await rosterSaveJoiners('✅ Participant map saved.');
+    if (unmatched.length) openChallongeMappingModal(unmatched, isTeam);
+    else showToast('✅ All ' + participants.length + ' participants mapped.', 'success');
+  } catch (e) {
+    showToast('⚠ Failed to build participant map: ' + e.message, 'error');
   }
-  currentEvent.challongeParticipantMap = map;
-  rosterSaveJoiners('✅ Participant map saved.');
-  if (unmatched.length) openChallongeMappingModal(unmatched, isTeam);
-  else showToast('✅ All ' + participants.length + ' participants mapped.', 'success');
 }
 
 function openChallongeMappingModal(unmatched, isTeam) {
+  document.getElementById('challonge-mapping-modal')?.remove();
   const options = isTeam
     ? (currentEvent.joiners || []).filter(j => j.type === 'team')
         .map(t => `<option value="${escHtml(t.teamName)}">${escHtml(t.teamName)}</option>`).join('')
@@ -3453,7 +3459,7 @@ function openChallongeMappingModal(unmatched, isTeam) {
   document.body.appendChild(wrap);
 }
 
-function challongeSaveMapping(isTeam) {
+async function challongeSaveMapping(isTeam) {
   const sels = document.querySelectorAll('#challonge-mapping-modal select[data-pid]');
   const map = currentEvent.challongeParticipantMap || {};
   sels.forEach(s => {
@@ -3466,8 +3472,8 @@ function challongeSaveMapping(isTeam) {
     }
   });
   currentEvent.challongeParticipantMap = map;
-  rosterSaveJoiners('✅ Mapping saved.');
-  document.getElementById('challonge-mapping-modal').remove();
+  await rosterSaveJoiners('✅ Mapping saved.');
+  document.getElementById('challonge-mapping-modal')?.remove();
   showToast('✅ Mapping saved.', 'success');
 }
 
