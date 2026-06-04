@@ -3477,6 +3477,85 @@ async function challongeSaveMapping(isTeam) {
   showToast('✅ Mapping saved.', 'success');
 }
 
+function challongeEntryToMatchSlot(ref) {
+  if (!ref) return null;
+  const players = getPlayers();
+  const full = players.find(p => ref.entryId ? p.entryId === ref.entryId : p.name === ref.name) || ref;
+  return JSON.parse(JSON.stringify({
+    player: full.name || full.player || '',
+    entryId: full.entryId || null,
+    entryType: full.entryType || 'main',
+    displayLabel: full.displayLabel || full.name || full.player || '',
+    builds: full.builds || [],
+  }));
+}
+
+async function challongeImportOpenMatches() {
+  if (!currentEvent || !currentEvent.challongeTournamentId) return 0;
+  const isTeam = currentEvent.type === '3v3';
+  try {
+    const res = await fetch(
+      '/api/challonge?action=matches&tournament_id=' +
+      encodeURIComponent(currentEvent.challongeTournamentId) + '&' + challongeAccountParams()
+    );
+    if (!res.ok) throw new Error('Challonge API error ' + res.status);
+    const matches = await res.json();
+    const pidMap = {};
+    Object.entries(currentEvent.challongeParticipantMap || {}).forEach(([pid, ref]) => { pidMap[pid] = ref; });
+    const plan = buildImportPlan({ matches, pidMap, matchesState, isTeam });
+    let created = 0;
+    for (const item of plan) {
+      if (item.skip) continue;
+      const newId = _matchIdCounter++;
+      if (isTeam) {
+        const t1 = (currentEvent.joiners || []).find(j => j.type === 'team' && j.teamName === item.side1Ref.teamName);
+        const t2 = (currentEvent.joiners || []).find(j => j.type === 'team' && j.teamName === item.side2Ref.teamName);
+        if (!t1 || !t2) continue;
+        matchesState.push({
+          id: newId,
+          _sid: _teamSid(item.round, t1.teamName, t2.teamName, 0),
+          _pendingServerSave: true,
+          _challongeMatchId: item.challongeMatchId,
+          division: currentEvent.challongeGroupMap?.[item.groupId] ?? null,
+          round: item.round,
+          isTeamMatch: true,
+          team1: JSON.parse(JSON.stringify(t1)),
+          team2: JSON.parse(JSON.stringify(t2)),
+          p1: JSON.parse(JSON.stringify(t1.members[0] || { player: t1.teamName, builds: [] })),
+          p2: JSON.parse(JSON.stringify(t2.members[0] || { player: t2.teamName, builds: [] })),
+          collapsed: false,
+        });
+      } else {
+        const e1 = challongeEntryToMatchSlot(item.side1Ref);
+        const e2 = challongeEntryToMatchSlot(item.side2Ref);
+        if (!e1 || !e2) continue;
+        matchesState.push({
+          id: newId,
+          _sid: _soloSid(item.round, e1, e2, 0),
+          _pendingServerSave: true,
+          _challongeMatchId: item.challongeMatchId,
+          needsPlayerPick: item.reason === 'unmapped' || undefined,
+          round: item.round,
+          p1: JSON.parse(JSON.stringify(e1)),
+          p2: JSON.parse(JSON.stringify(e2)),
+          collapsed: false,
+        });
+      }
+      created++;
+    }
+    if (created) {
+      flattenMatchesToResults();
+      markDirty();
+      renderResults();
+      await queueCreatedMatchSave();
+    }
+    return created;
+  } catch (e) {
+    console.error('challongeImportOpenMatches error:', e);
+    return 0;
+  }
+}
+
 // ─────────────────────────────────────────────
 // NEW MATCH MODAL
 // ─────────────────────────────────────────────
