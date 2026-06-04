@@ -1657,6 +1657,10 @@
           </div>
         </div>
 
+        <input id="roster-search" type="search" class="form-input" placeholder="🔍 Search player…"
+          style="width:100%;margin-bottom:12px;font-size:13px;box-sizing:border-box"
+          oninput="renderRoster()" />
+
         <div id="roster-content"><div class="empty-state"><div class="icon">👥</div>Select an event to see the roster.</div></div>
       </div>
 
@@ -2408,6 +2412,8 @@ function loadEvent(id) {
   ].map(([k,v]) => `<span class="info-chip">${escHtml(k)}: <span>${escHtml(v)}</span></span>`).join('');
 
   document.getElementById('event-info').style.display = 'block';
+  const rosterSearch = document.getElementById('roster-search');
+  if (rosterSearch) rosterSearch.value = '';
   renderRoster();
   renderBuilds();
   renderResults();
@@ -2558,9 +2564,15 @@ function switchTab(tab, btn) {
 // ─────────────────────────────────────────────
 function renderRoster() {
   const el = document.getElementById('roster-content');
-  const players = getPlayers();
+  const q = (document.getElementById('roster-search')?.value || '').toLowerCase().trim();
+  let players = getPlayers();
   if (!players.length) {
     el.innerHTML = '<div class="empty-state"><div class="icon">👥</div>No players registered for this event yet.</div>';
+    return;
+  }
+  if (q) players = players.filter(p => (p.displayLabel || p.name).toLowerCase().includes(q));
+  if (!players.length) {
+    el.innerHTML = '<div class="empty-state"><div class="icon">🔍</div>No players match your search.</div>';
     return;
   }
   const isTeam = currentEvent.type === '3v3';
