@@ -1683,6 +1683,7 @@
               Auto-submit
             </label>
             <button class="btn gold" onclick="openNewMatchModal()">⚔️ New Match</button>
+            <button class="btn" onclick="challongeManualSync()" title="Pull new pairings from Challonge">🔄 Sync from Challonge</button>
           </div>
         </div>
 
@@ -2323,10 +2324,12 @@ async function loadEventList() {
 function loadEvent(id) {
   // Switching events: cancel any pending auto-submit countdowns from the prior event.
   for (const k of Object.keys(_autoSubmit.timers)) _clearAutoSubmitTimer(k);
+  stopChallongePoll();
   if (!id) {
     currentEvent = null;
     document.getElementById('event-info').style.display = 'none';
     stopLiveSync();
+    stopChallongePoll();
     return;
   }
   currentEvent = allEvents.find(e => e.id === id);
@@ -2393,6 +2396,7 @@ function loadEvent(id) {
   // Set initial sync hash so first poll doesn't trigger a false "updated"
   _lastSyncHash = JSON.stringify(currentEvent.beyResults || []);
   startLiveSync();
+  if (currentEvent && currentEvent.challongeTournamentId) startChallongePoll();
 }
 
 // ─────────────────────────────────────────────
@@ -3562,6 +3566,33 @@ async function challongeImportOpenMatches() {
     console.error('challongeImportOpenMatches error:', e);
     showToast('⚠️ Challonge import failed: ' + e.message, 'error');
     return 0;
+  }
+}
+
+let _challongePollTimer = null;
+
+async function challongeManualSync() {
+  try {
+    const n = await challongeImportOpenMatches();
+    showToast(n ? `⚡ Imported ${n} match(es).` : 'No new matches.', n ? 'success' : '');
+  } catch (e) {
+    showToast('Sync failed: ' + e.message, 'error');
+  }
+}
+
+function startChallongePoll() {
+  if (_challongePollTimer) clearInterval(_challongePollTimer);
+  _challongePollTimer = setInterval(() => {
+    if (currentEvent && currentEvent.challongeTournamentId && navigator.onLine !== false) {
+      challongeImportOpenMatches().catch(() => {});
+    }
+  }, 25000);
+}
+
+function stopChallongePoll() {
+  if (_challongePollTimer) {
+    clearInterval(_challongePollTimer);
+    _challongePollTimer = null;
   }
 }
 
