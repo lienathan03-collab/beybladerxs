@@ -1,6 +1,6 @@
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
@@ -39,17 +39,74 @@ export async function onRequest(context) {
     season:    url.searchParams.get('season')    || '2',
   });
   const PROXY_URL = target.proxyUrl;
-  // target.key forwarded in Phase 2 write-back (action=report)
 
+  const action = url.searchParams.get('action');
+  const tournament_id = url.searchParams.get('tournament_id');
+
+  // action=report: write match result directly to Challonge (no proxy needed)
+  if (action === 'report' && (request.method === 'PUT' || request.method === 'POST')) {
+    const match_id = url.searchParams.get('match_id');
+
+    if (!tournament_id || !match_id) {
+      return new Response(
+        JSON.stringify({ error: 'tournament_id and match_id are required.' }),
+        { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!target.key) {
+      return new Response(
+        JSON.stringify({ error: 'No Challonge API key available for write-back.' }),
+        { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    let body = {};
+    try { body = await request.json(); } catch (e) { body = {}; }
+    const { scores_csv, winner_id } = body;
+
+    const challongeUrl =
+      `https://api.challonge.com/v1/tournaments/${encodeURIComponent(tournament_id)}/matches/${encodeURIComponent(match_id)}.json` +
+      `?api_key=${encodeURIComponent(target.key)}`;
+
+    const formBody =
+      `match[scores_csv]=${encodeURIComponent(scores_csv ?? '')}` +
+      `&match[winner_id]=${encodeURIComponent(winner_id ?? '')}`;
+
+    try {
+      const res = await fetch(challongeUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formBody,
+      });
+      const text = await res.text();
+
+      if (!res.ok) {
+        return new Response(
+          JSON.stringify({ error: `Challonge error ${res.status}: ${text.slice(0, 120)}` }),
+          { status: res.status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      return new Response(text, {
+        status: res.status,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      });
+    } catch (err) {
+      return new Response(
+        JSON.stringify({ error: err.message || String(err) }),
+        { status: 502, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      );
+    }
+  }
+
+  // Proxy-based actions require a resolved proxy URL
   if (!PROXY_URL) {
     return new Response(
       JSON.stringify({ error: 'No Challonge proxy resolved (account/season not configured).' }),
       { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
     );
   }
-
-  const action = url.searchParams.get('action');
-  const tournament_id = url.searchParams.get('tournament_id');
 
   try {
     let proxyPath = '';
