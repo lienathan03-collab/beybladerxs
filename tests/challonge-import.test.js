@@ -149,3 +149,38 @@ test('buildImportPlan: imports open matches, skips non-open and duplicates', () 
   assert.equal(plan.find(p => p.challongeMatchId === 102).reason, 'same-owner');
   assert.equal(plan.find(p => p.challongeMatchId === 103).reason, 'duplicate');
 });
+
+test('eventPointsToScoresCsv: p1 wins', () => {
+  const { eventPointsToScoresCsv } = loadChallongeHelpers();
+  const result = eventPointsToScoresCsv(5, 3, 10, 10, 11);
+  assert.equal(result.scores_csv, '5-3');
+  assert.equal(result.winner_id, 10);
+});
+
+test('eventPointsToScoresCsv: p2 wins', () => {
+  const { eventPointsToScoresCsv } = loadChallongeHelpers();
+  const result = eventPointsToScoresCsv(2, 7, 11, 10, 11);
+  assert.equal(result.scores_csv, '7-2');
+  assert.equal(result.winner_id, 11);
+});
+
+test('eventPointsToScoresCsv: equal points, p1 wins', () => {
+  const { eventPointsToScoresCsv } = loadChallongeHelpers();
+  const result = eventPointsToScoresCsv(4, 4, 10, 10, 11);
+  assert.equal(result.scores_csv, '4-4');
+  assert.equal(result.winner_id, 10);
+});
+
+test('eventPointsToScoresCsv: null winnerId fallback (pts decides order)', () => {
+  const { eventPointsToScoresCsv } = loadChallongeHelpers();
+  const result = eventPointsToScoresCsv(6, 2, null, 10, 11);
+  assert.equal(result.scores_csv, '6-2');
+  assert.equal(result.winner_id, null);
+});
+
+test('eventPointsToScoresCsv: zero-zero tie', () => {
+  const { eventPointsToScoresCsv } = loadChallongeHelpers();
+  const result = eventPointsToScoresCsv(0, 0, 11, 10, 11);
+  assert.equal(result.scores_csv, '0-0');
+  assert.equal(result.winner_id, 11);
+});

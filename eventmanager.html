@@ -3355,6 +3355,30 @@ function buildImportPlan({ matches, pidMap, matchesState, isTeam }) {
   }
   return plan;
 }
+
+function eventPointsToScoresCsv(p1pts, p2pts, winnerId, p1Id, p2Id) {
+  let scores_csv;
+  let winner_id;
+
+  if (winnerId === p1Id) {
+    // p1 is the winner
+    scores_csv = `${p1pts}-${p2pts}`;
+    winner_id = p1Id;
+  } else if (winnerId === p2Id) {
+    // p2 is the winner
+    scores_csv = `${p2pts}-${p1pts}`;
+    winner_id = p2Id;
+  } else {
+    // winnerId is null/undefined or doesn't match either participant
+    // Fall back to comparing points - higher score first
+    const maxPts = Math.max(p1pts, p2pts);
+    const minPts = Math.min(p1pts, p2pts);
+    scores_csv = `${maxPts}-${minPts}`;
+    winner_id = winnerId;
+  }
+
+  return { scores_csv, winner_id };
+}
 // === CHALLONGE-HELPERS END ===
 
 // ─────────────────────────────────────────────
