@@ -2309,6 +2309,11 @@ function loadEvent(id) {
   // Load existing beyResults/builds from server
   buildsState = JSON.parse(JSON.stringify(currentEvent.builds || {}));
   resultsState = JSON.parse(JSON.stringify(currentEvent.beyResults || []));
+  currentEvent.challongeAccount        = currentEvent.challongeAccount        || null;
+  currentEvent.challongeCustomKey      = currentEvent.challongeCustomKey      || null;
+  currentEvent.challongeTournamentId   = currentEvent.challongeTournamentId   || null;
+  currentEvent.challongeParticipantMap = currentEvent.challongeParticipantMap || {};
+  currentEvent.challongeGroupMap       = currentEvent.challongeGroupMap       || {};
   // Refresh known build names to include this event's builds
   const buildSet = new Set(_knownBuildNames);
   Object.values(buildsState).forEach(arr => (arr||[]).forEach(b => { if(b&&b.trim()) buildSet.add(b.trim()); }));
