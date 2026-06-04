@@ -1499,6 +1499,11 @@
     .lcfb-letter { font-size: 40px !important; }
   }
 
+  /* ── CHALLONGE SYNC ── */
+  .challonge-status { font-size:12px; color: var(--muted); }
+  .challonge-status.connected { color: #4caf50; }
+  .challonge-status.error { color: #f44336; }
+
 </style>
 </head>
 <body>
@@ -1690,6 +1695,27 @@
           <span class="legend-item"><span class="finish-tag B">B</span> Burst (2pt)</span>
           <span class="legend-item"><span class="finish-tag L">L</span> Loss (0pt)</span>
           <span style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace;margin-left:4px">· no finishes = not deployed</span>
+        </div>
+
+        <!-- Challonge Sync panel -->
+        <div id="challonge-sync-panel" style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <strong style="color:var(--gold)">⚡ Challonge Sync</strong>
+            <span id="challonge-conn-status" class="challonge-status" style="margin-left:auto">● Not connected</span>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:end">
+            <label style="font-size:12px;color:var(--muted)">Account
+              <select id="challonge-account-select" style="display:block"></select>
+            </label>
+            <label style="font-size:12px;color:var(--muted)">Custom key (optional, stored on event)
+              <input id="challonge-custom-key" type="text" placeholder="paste API key" style="display:block">
+            </label>
+            <button class="btn" onclick="challongeConnect()">Connect</button>
+            <label style="font-size:12px;color:var(--muted)">Tournament
+              <select id="challonge-tournament-select" style="display:block"></select>
+            </label>
+            <button class="btn gold" onclick="challongeLinkTournament()">Link</button>
+          </div>
         </div>
 
         <!-- Round filter pills -->
@@ -2314,6 +2340,7 @@ function loadEvent(id) {
   currentEvent.challongeTournamentId   = currentEvent.challongeTournamentId   || null;
   currentEvent.challongeParticipantMap = currentEvent.challongeParticipantMap || {};
   currentEvent.challongeGroupMap       = currentEvent.challongeGroupMap       || {};
+  renderChallongeAccountOptions();
   // Refresh known build names to include this event's builds
   const buildSet = new Set(_knownBuildNames);
   Object.values(buildsState).forEach(arr => (arr||[]).forEach(b => { if(b&&b.trim()) buildSet.add(b.trim()); }));
@@ -3314,6 +3341,62 @@ function buildImportPlan({ matches, pidMap, matchesState, isTeam }) {
   return plan;
 }
 // === CHALLONGE-HELPERS END ===
+
+// ─────────────────────────────────────────────
+// CHALLONGE SYNC — SETTINGS PANEL
+// ─────────────────────────────────────────────
+const CHALLONGE_NAMED_ACCOUNTS = ['lienathanS2', 'lienathanS3']; // mirror env CHALLONGE_ACCOUNTS keys
+
+function challongeAccountParams() {
+  const account = document.getElementById('challonge-account-select').value || '';
+  const customKey = document.getElementById('challonge-custom-key').value.trim();
+  const qs = [];
+  if (account) qs.push('account=' + encodeURIComponent(account));
+  if (customKey) qs.push('customKey=' + encodeURIComponent(customKey));
+  if (currentEvent && currentEvent.season) qs.push('season=' + encodeURIComponent(currentEvent.season));
+  return qs.join('&');
+}
+
+function renderChallongeAccountOptions() {
+  const sel = document.getElementById('challonge-account-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— pick account —</option>' +
+    CHALLONGE_NAMED_ACCOUNTS.map(a => `<option value="${a}">${a}</option>`).join('');
+  if (currentEvent && currentEvent.challongeAccount) sel.value = currentEvent.challongeAccount;
+}
+
+async function challongeConnect() {
+  const status = document.getElementById('challonge-conn-status');
+  status.textContent = '● Connecting…'; status.className = 'challonge-status';
+  try {
+    const res = await fetch('/api/challonge?action=list&' + challongeAccountParams());
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.status);
+    const tours = Array.isArray(data) ? data : (data.tournaments || data);
+    const tsel = document.getElementById('challonge-tournament-select');
+    tsel.innerHTML = '<option value="">— pick tournament —</option>' +
+      (tours || []).map(t => {
+        const tt = t.tournament || t;
+        return `<option value="${tt.url || tt.id}">${tt.name} (${tt.url || tt.id})</option>`;
+      }).join('');
+    if (currentEvent && currentEvent.challongeTournamentId) tsel.value = currentEvent.challongeTournamentId;
+    status.textContent = '● Connected'; status.className = 'challonge-status connected';
+  } catch (e) {
+    status.textContent = '● Error: ' + e.message; status.className = 'challonge-status error';
+  }
+}
+
+function challongeLinkTournament() {
+  const tid = document.getElementById('challonge-tournament-select').value;
+  const account = document.getElementById('challonge-account-select').value || null;
+  const customKey = document.getElementById('challonge-custom-key').value.trim() || null;
+  if (!tid) { showToast('Pick a tournament first.', 'error'); return; }
+  currentEvent.challongeTournamentId = tid;
+  currentEvent.challongeAccount = account;
+  currentEvent.challongeCustomKey = customKey;
+  rosterSaveJoiners('⚡ Linked to Challonge tournament.');
+  challongeBuildParticipantMap(); // Task 7 — will be defined later
+}
 
 // ─────────────────────────────────────────────
 // NEW MATCH MODAL
