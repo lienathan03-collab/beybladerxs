@@ -4,24 +4,45 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
+export function resolveChallongeTarget(env, params) {
+  const { account, customKey, season } = params || {};
+  // (a) named account from JSON env map
+  if (account && env.CHALLONGE_ACCOUNTS) {
+    let map = {};
+    try { map = JSON.parse(env.CHALLONGE_ACCOUNTS); } catch (e) { map = {}; }
+    const acc = map[account];
+    if (acc && acc.proxyUrl) {
+      return { proxyUrl: acc.proxyUrl, key: customKey || acc.key || null };
+    }
+  }
+  // (c) season fallback (existing behaviour)
+  const proxyUrl = season === '3'
+    ? (env.CHALLONGE_PROXY_URL_S3 || env.CHALLONGE_PROXY_URL)
+    : env.CHALLONGE_PROXY_URL;
+  // (b) custom key with the default proxy
+  return { proxyUrl: proxyUrl || null, key: customKey || null };
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
-const url2 = new URL(request.url);
-const season = url2.searchParams.get('season') || '2';
-const PROXY_URL = season === '3'
-  ? (env.CHALLONGE_PROXY_URL_S3 || env.CHALLONGE_PROXY_URL)
-  : env.CHALLONGE_PROXY_URL;
+  const reqUrl = new URL(request.url);
+  const target = resolveChallongeTarget(env, {
+    account:   reqUrl.searchParams.get('account')   || undefined,
+    customKey: reqUrl.searchParams.get('customKey') || undefined,
+    season:    reqUrl.searchParams.get('season')    || '2',
+  });
+  const PROXY_URL = target.proxyUrl;
 
-if (!PROXY_URL) {
-  return new Response(
-    JSON.stringify({ error: 'CHALLONGE_PROXY_URL not set in Cloudflare Environment Variables.' }),
-    { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
-  );
-}
+  if (!PROXY_URL) {
+    return new Response(
+      JSON.stringify({ error: 'No Challonge proxy resolved (account/season not configured).' }),
+      { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+    );
+  }
 
   const url = new URL(request.url);
   const action = url.searchParams.get('action');
