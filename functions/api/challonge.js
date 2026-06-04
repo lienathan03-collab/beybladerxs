@@ -33,9 +33,10 @@ export async function onRequest(context) {
   }
 
   const url = new URL(request.url);
+  const customKeyParam = url.searchParams.get('customKey') || undefined;
   const target = resolveChallongeTarget(env, {
     account:   url.searchParams.get('account')   || undefined,
-    customKey: url.searchParams.get('customKey') || undefined,
+    customKey: customKeyParam,
     season:    url.searchParams.get('season')    || '2',
   });
   const PROXY_URL = target.proxyUrl;
@@ -107,8 +108,14 @@ export async function onRequest(context) {
     }
   }
 
-  // Proxy-based actions require a resolved proxy URL
-  if (!PROXY_URL) {
+  // Read actions (list/participants/matches): when an explicit API key was
+  // supplied, talk to Challonge directly so the caller's own account is used.
+  // A proxy may be bound to a different account, which would hide the caller's
+  // own tournaments. Without an explicit key, fall back to the proxy.
+  const CHALLONGE_API = 'https://api.challonge.com/v1';
+  const useDirect = !!customKeyParam && !!target.key;
+
+  if (!useDirect && !PROXY_URL) {
     return new Response(
       JSON.stringify({ error: 'No Challonge proxy resolved (account/season not configured).' }),
       { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
@@ -116,14 +123,21 @@ export async function onRequest(context) {
   }
 
   try {
-    let proxyPath = '';
+    const keyQS = useDirect ? `api_key=${encodeURIComponent(target.key)}` : '';
+    let readUrl = '';
 
     if (action === 'list') {
-      proxyPath = `${PROXY_URL}/challonge/tournaments.json?state=all&per_page=50`;
+      readUrl = useDirect
+        ? `${CHALLONGE_API}/tournaments.json?state=all&per_page=50&${keyQS}`
+        : `${PROXY_URL}/challonge/tournaments.json?state=all&per_page=50`;
     } else if (action === 'participants' && tournament_id) {
-      proxyPath = `${PROXY_URL}/challonge/tournaments/${encodeURIComponent(tournament_id)}/participants.json`;
+      readUrl = useDirect
+        ? `${CHALLONGE_API}/tournaments/${encodeURIComponent(tournament_id)}/participants.json?${keyQS}`
+        : `${PROXY_URL}/challonge/tournaments/${encodeURIComponent(tournament_id)}/participants.json`;
     } else if (action === 'matches' && tournament_id) {
-      proxyPath = `${PROXY_URL}/challonge/tournaments/${encodeURIComponent(tournament_id)}/matches.json`;
+      readUrl = useDirect
+        ? `${CHALLONGE_API}/tournaments/${encodeURIComponent(tournament_id)}/matches.json?${keyQS}`
+        : `${PROXY_URL}/challonge/tournaments/${encodeURIComponent(tournament_id)}/matches.json`;
     } else {
       return new Response(
         JSON.stringify({ error: 'Invalid action.' }),
@@ -131,12 +145,12 @@ export async function onRequest(context) {
       );
     }
 
-    const res = await fetch(proxyPath);
+    const res = await fetch(readUrl);
     const text = await res.text();
 
     if (!res.ok) {
       return new Response(
-        JSON.stringify({ error: `Proxy error ${res.status}: ${text.slice(0, 120)}` }),
+        JSON.stringify({ error: `${useDirect ? 'Challonge' : 'Proxy'} error ${res.status}: ${text.slice(0, 120)}` }),
         { status: res.status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
       );
     }

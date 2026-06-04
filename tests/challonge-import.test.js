@@ -54,6 +54,62 @@ test('resolveChallongeTarget: falls back to season URLs', async () => {
   assert.equal(resolveChallongeTarget(env, { season: '2' }).proxyUrl, 'https://proxy.example/default');
 });
 
+async function importChallongeApi() {
+  return import(
+    'file://' + path.join(__dirname, '..', 'functions', 'api', 'challonge.js').replace(/\\/g, '/')
+  );
+}
+
+test('onRequest: list with explicit customKey hits Challonge API directly', async () => {
+  const { onRequest } = await importChallongeApi();
+  const origFetch = global.fetch;
+  let calledUrl = '';
+  global.fetch = async (u) => { calledUrl = String(u); return new Response('[]', { status: 200 }); };
+  try {
+    const request = new Request('https://example.com/api/challonge?action=list&customKey=MYKEY&season=2');
+    const res = await onRequest({ request, env: { CHALLONGE_PROXY_URL: 'https://proxy.example/default' } });
+    assert.equal(res.status, 200);
+    assert.match(calledUrl, /^https:\/\/api\.challonge\.com\/v1\/tournaments\.json/);
+    assert.match(calledUrl, /api_key=MYKEY/);
+    assert.match(calledUrl, /state=all/);
+  } finally {
+    global.fetch = origFetch;
+  }
+});
+
+test('onRequest: list without customKey uses the proxy (unchanged behaviour)', async () => {
+  const { onRequest } = await importChallongeApi();
+  const origFetch = global.fetch;
+  let calledUrl = '';
+  global.fetch = async (u) => { calledUrl = String(u); return new Response('[]', { status: 200 }); };
+  try {
+    const request = new Request('https://example.com/api/challonge?action=list&season=2');
+    const res = await onRequest({ request, env: { CHALLONGE_PROXY_URL: 'https://proxy.example/default' } });
+    assert.equal(res.status, 200);
+    assert.equal(calledUrl, 'https://proxy.example/default/challonge/tournaments.json?state=all&per_page=50');
+  } finally {
+    global.fetch = origFetch;
+  }
+});
+
+test('onRequest: matches with customKey hits Challonge directly and preserves {match} shape', async () => {
+  const { onRequest } = await importChallongeApi();
+  const origFetch = global.fetch;
+  let calledUrl = '';
+  global.fetch = async (u) => { calledUrl = String(u); return new Response('[{"match":{"id":1,"state":"open"}}]', { status: 200 }); };
+  try {
+    const request = new Request('https://example.com/api/challonge?action=matches&tournament_id=beyblade33123&customKey=MYKEY&season=2');
+    const res = await onRequest({ request, env: { CHALLONGE_PROXY_URL: 'https://proxy.example/default' } });
+    assert.equal(res.status, 200);
+    assert.match(calledUrl, /api\.challonge\.com\/v1\/tournaments\/beyblade33123\/matches\.json/);
+    assert.match(calledUrl, /api_key=MYKEY/);
+    const body = await res.json();
+    assert.equal(body[0].match.id, 1);
+  } finally {
+    global.fetch = origFetch;
+  }
+});
+
 const fs = require('node:fs');
 const vm = require('node:vm');
 

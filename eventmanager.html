@@ -1613,6 +1613,7 @@
         <button class="tab-btn active" onclick="switchTab('roster',this)">👥 Roster</button>
         <button class="tab-btn" onclick="switchTab('builds',this)">🔩 Bey Builds</button>
         <button class="tab-btn" onclick="switchTab('results',this)">📊 Match Results</button>
+        <button class="tab-btn" id="challonge-tab-btn" onclick="switchTab('challonge',this)">⚡ Challonge</button>
       </div>
 
       <!-- ROSTER TAB -->
@@ -1713,27 +1714,6 @@
           <span style="font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace;margin-left:4px">· no finishes = not deployed</span>
         </div>
 
-        <!-- Challonge Sync panel -->
-        <div id="challonge-sync-panel" style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:16px">
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <strong style="color:var(--gold)">⚡ Challonge Sync</strong>
-            <span id="challonge-conn-status" class="challonge-status" style="margin-left:auto">● Not connected</span>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:end">
-            <label style="font-size:12px;color:var(--muted)">Account
-              <select id="challonge-account-select" style="display:block"></select>
-            </label>
-            <label style="font-size:12px;color:var(--muted)">Custom key (optional, stored on event)
-              <input id="challonge-custom-key" type="password" placeholder="paste API key ⚠ stored as plaintext" style="display:block">
-            </label>
-            <button class="btn" onclick="challongeConnect()">Connect</button>
-            <label style="font-size:12px;color:var(--muted)">Tournament
-              <select id="challonge-tournament-select" style="display:block"></select>
-            </label>
-            <button class="btn gold" onclick="challongeLinkTournament()">Link</button>
-          </div>
-        </div>
-
         <!-- Player/team name search -->
         <input id="match-search" type="text" placeholder="🔍 Search player / team…" oninput="renderResults()"
                style="width:100%;padding:8px;margin-bottom:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)">
@@ -1746,6 +1726,55 @@
           <div class="empty-state"><div class="icon">⚔️</div>No matches yet. Click <strong style="color:var(--gold)">New Match</strong> to add one.</div>
         </div>
       </div>
+
+      <!-- CHALLONGE TAB -->
+      <div class="tab-pane" id="tab-challonge">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:15px;font-weight:700;color:var(--text)">Challonge Sync</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">Connect your Challonge account, pick a tournament, and sync pairings into Match Results.</div>
+          </div>
+          <span id="challonge-conn-status" class="challonge-status">● Not connected</span>
+        </div>
+
+        <!-- Linked status line -->
+        <div id="challonge-linked-status" style="display:none;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);border-radius:8px;padding:8px 14px;margin-bottom:14px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--gold)"></div>
+
+        <!-- Connection form -->
+        <div style="border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px">
+          <div style="font-size:12px;font-weight:700;color:var(--muted);font-family:'Share Tech Mono',monospace;letter-spacing:1px;margin-bottom:12px">CONNECTION</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end">
+            <label style="font-size:12px;color:var(--muted)">Named account
+              <select id="challonge-account-select" style="display:block;margin-top:4px"></select>
+            </label>
+            <label style="font-size:12px;color:var(--muted)">API key <span style="color:var(--muted2)">(stored plaintext on event)</span>
+              <input id="challonge-custom-key" type="password" placeholder="paste your Challonge API key" style="display:block;margin-top:4px;min-width:220px">
+            </label>
+            <button class="btn" onclick="challongeConnect()">Connect</button>
+          </div>
+        </div>
+
+        <!-- Tournament picker -->
+        <div style="border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px">
+          <div style="font-size:12px;font-weight:700;color:var(--muted);font-family:'Share Tech Mono',monospace;letter-spacing:1px;margin-bottom:12px">TOURNAMENT</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end">
+            <label style="font-size:12px;color:var(--muted)">Select tournament
+              <select id="challonge-tournament-select" style="display:block;margin-top:4px;min-width:240px"></select>
+            </label>
+            <button class="btn gold" onclick="challongeLinkTournament()">Link to this event</button>
+          </div>
+        </div>
+
+        <!-- Sync action -->
+        <div style="border:1px solid var(--border);border-radius:10px;padding:16px">
+          <div style="font-size:12px;font-weight:700;color:var(--muted);font-family:'Share Tech Mono',monospace;letter-spacing:1px;margin-bottom:12px">SYNC</div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <button class="btn gold" onclick="challongeManualSync()" id="challonge-tab-sync-btn">🔄 Sync from Challonge</button>
+            <span style="font-size:12px;color:var(--muted)">Pulls open pairings into Match Results. Safe to run multiple times — duplicates are skipped.</span>
+          </div>
+        </div>
+      </div>
+
     </div>
 
   </div>
@@ -2364,6 +2393,10 @@ function loadEvent(id) {
   currentEvent.challongeParticipantMap = currentEvent.challongeParticipantMap || {};
   currentEvent.challongeGroupMap       = currentEvent.challongeGroupMap       || {};
   renderChallongeAccountOptions();
+  // Re-populate the saved API key so reads keep using the caller's own account
+  // after a reload (otherwise the field is blank and sync silently falls back).
+  const _ckInput = document.getElementById('challonge-custom-key');
+  if (_ckInput) _ckInput.value = currentEvent.challongeCustomKey || '';
   // Refresh known build names to include this event's builds
   const buildSet = new Set(_knownBuildNames);
   Object.values(buildsState).forEach(arr => (arr||[]).forEach(b => { if(b&&b.trim()) buildSet.add(b.trim()); }));
@@ -2421,9 +2454,12 @@ function loadEvent(id) {
   // Set initial sync hash so first poll doesn't trigger a false "updated"
   _lastSyncHash = JSON.stringify(currentEvent.beyResults || []);
   startLiveSync();
-  if (currentEvent && currentEvent.challongeTournamentId) startChallongePoll();
-  const syncBtn = document.getElementById('challonge-sync-btn');
-  if (syncBtn) syncBtn.style.display = currentEvent && currentEvent.challongeTournamentId ? '' : 'none';
+  if (currentEvent && currentEvent.challongeTournamentId) {
+    startChallongePoll();
+    // Repopulate the tournament dropdown + connection status from the saved key.
+    challongeConnect();
+  }
+  renderChallongeLinkedStatus();
 }
 
 // ─────────────────────────────────────────────
@@ -3462,6 +3498,21 @@ async function challongeConnect() {
   }
 }
 
+function renderChallongeLinkedStatus() {
+  const el = document.getElementById('challonge-linked-status');
+  const syncBtn = document.getElementById('challonge-sync-btn');
+  if (!el) return;
+  const tid = currentEvent && currentEvent.challongeTournamentId;
+  if (tid) {
+    const acct = currentEvent.challongeAccount || 'custom key';
+    el.style.display = '';
+    el.textContent = `⚡ Linked: ${tid}  ·  account: ${acct}`;
+  } else {
+    el.style.display = 'none';
+  }
+  if (syncBtn) syncBtn.style.display = tid ? '' : 'none';
+}
+
 function challongeLinkTournament() {
   if (!currentEvent) { showToast('No event loaded.', 'error'); return; }
   const tid = document.getElementById('challonge-tournament-select').value;
@@ -3472,10 +3523,9 @@ function challongeLinkTournament() {
   currentEvent.challongeAccount = account;
   currentEvent.challongeCustomKey = customKey;
   rosterSaveJoiners('⚡ Linked to Challonge tournament.');
-  challongeBuildParticipantMap(); // Task 7 — will be defined later
+  challongeBuildParticipantMap();
   startChallongePoll();
-  const syncBtn = document.getElementById('challonge-sync-btn');
-  if (syncBtn) syncBtn.style.display = currentEvent && currentEvent.challongeTournamentId ? '' : 'none';
+  renderChallongeLinkedStatus();
 }
 
 async function challongeBuildParticipantMap() {
