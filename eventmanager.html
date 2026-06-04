@@ -1719,6 +1719,10 @@
           </div>
         </div>
 
+        <!-- Player/team name search -->
+        <input id="match-search" type="text" placeholder="🔍 Search player / team…" oninput="renderResults()"
+               style="width:100%;padding:8px;margin-bottom:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)">
+
         <!-- Round filter pills -->
         <div id="round-filter-row" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px"></div>
 
@@ -2352,6 +2356,7 @@ function loadEvent(id) {
   matchesState = [];
   _matchIdCounter = 1;
   activeRoundFilter = 'ALL';
+  activeDivisionFilter = 'ALL';
   loadMatchesFromResults();
   dirty = false;
   setSaveStatus('—');
@@ -3045,6 +3050,7 @@ function calcPoints(builds) {
 // ─────────────────────────────────────────────
 let matchesState = [];
 let activeRoundFilter = 'ALL';
+let activeDivisionFilter = 'ALL';
 let _matchIdCounter = 1;
 
 // ─────────────────────────────────────────────
@@ -3975,6 +3981,11 @@ function setRoundFilter(round) {
   renderResults();
 }
 
+function setDivisionFilter(d) {
+  activeDivisionFilter = d;
+  renderResults();
+}
+
 function renderRoundFilter() {
   const order = ['R1','R2','R3','R4','R5','R6','R7','TC','QF','SF','F'];
   const rounds = ['ALL', ...[...new Set(matchesState.map(m => m.round))].sort((a, b) =>
@@ -3989,6 +4000,28 @@ function renderRoundFilter() {
     btn.textContent = r === 'ALL' ? 'All Rounds' : r;
     btn.addEventListener('click', () => setRoundFilter(r));
     container.appendChild(btn);
+  }
+
+  // Division pills (3v3 group stage only)
+  if (currentEvent && currentEvent.type === '3v3') {
+    const divs = [...new Set(matchesState.map(m => m.division).filter(Boolean))];
+    if (divs.length) {
+      const divRow = document.createElement('div');
+      divRow.style = 'display:flex;gap:6px;flex-wrap:wrap;margin-top:6px';
+      const allBtn = document.createElement('button');
+      allBtn.className = 'round-pill' + (activeDivisionFilter === 'ALL' ? ' active' : '');
+      allBtn.textContent = 'All Divisions';
+      allBtn.addEventListener('click', () => setDivisionFilter('ALL'));
+      divRow.appendChild(allBtn);
+      for (const d of divs.sort()) {
+        const btn = document.createElement('button');
+        btn.className = 'round-pill' + (activeDivisionFilter === d ? ' active' : '');
+        btn.textContent = d;
+        btn.addEventListener('click', () => setDivisionFilter(d));
+        divRow.appendChild(btn);
+      }
+      container.appendChild(divRow);
+    }
   }
 }
 
@@ -4186,9 +4219,24 @@ function renderResults() {
     ? matchesState
     : matchesState.filter(m => m.round === activeRoundFilter);
 
-  if (!filtered.length) {
+  const q = (document.getElementById('match-search')?.value || '').trim().toLowerCase();
+  let filtered2 = filtered;
+  if (q) {
+    filtered2 = filtered2.filter(m => {
+      const names = [
+        m.p1?.displayLabel, m.p1?.player, m.p2?.displayLabel, m.p2?.player,
+        m.team1?.teamName, m.team2?.teamName,
+      ].filter(Boolean).join(' ').toLowerCase();
+      return names.includes(q);
+    });
+  }
+  if (activeDivisionFilter && activeDivisionFilter !== 'ALL') {
+    filtered2 = filtered2.filter(m => (m.division || null) === activeDivisionFilter);
+  }
+
+  if (!filtered2.length) {
     el.innerHTML = matchesState.length
-      ? '<div class="empty-state"><div class="icon">🔍</div>No matches in this round yet.</div>'
+      ? '<div class="empty-state"><div class="icon">🔍</div>No matches found.</div>'
       : '<div class="empty-state"><div class="icon">⚔️</div>No matches yet. Click <strong style="color:var(--gold)">New Match</strong> to add one.</div>';
     return;
   }
@@ -4197,11 +4245,11 @@ function renderResults() {
   if (isMobileLayout) {
     // Single column on mobile — new match always appears at the bottom
     el.innerHTML = `<div class="match-cards-grid">
-      <div class="match-cards-col" style="flex:none;width:100%">${filtered.map(m => renderMatchCard(m)).join('')}</div>
+      <div class="match-cards-col" style="flex:none;width:100%">${filtered2.map(m => renderMatchCard(m)).join('')}</div>
     </div>`;
   } else {
-    const col1 = filtered.filter((_,i) => i % 2 === 0).map(m => renderMatchCard(m)).join('');
-    const col2 = filtered.filter((_,i) => i % 2 === 1).map(m => renderMatchCard(m)).join('');
+    const col1 = filtered2.filter((_,i) => i % 2 === 0).map(m => renderMatchCard(m)).join('');
+    const col2 = filtered2.filter((_,i) => i % 2 === 1).map(m => renderMatchCard(m)).join('');
     el.innerHTML = `<div class="match-cards-grid">
       <div class="match-cards-col">${col1}</div>
       <div class="match-cards-col">${col2}</div>
