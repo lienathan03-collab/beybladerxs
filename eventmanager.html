@@ -3385,7 +3385,7 @@ function eventPointsToScoresCsv(p1pts, p2pts, winnerId, p1Id, p2Id) {
     const maxPts = Math.max(p1pts, p2pts);
     const minPts = Math.min(p1pts, p2pts);
     scores_csv = `${maxPts}-${minPts}`;
-    winner_id = winnerId;
+    winner_id = winnerId != null ? winnerId : 'tie';
   }
 
   return { scores_csv, winner_id };
@@ -3683,7 +3683,7 @@ async function challongeReportMatch(match) {
 
   const { scores_csv, winner_id } = eventPointsToScoresCsv(p1pts, p2pts, winnerId, p1Id, p2Id);
 
-  if (match._challongePushState === 'pending') return;
+  if (match._challongePushState === 'pending' || match._challongePushState === 'ok') return;
   match._challongePushState = 'pending';
   if (typeof renderResults === 'function') renderResults();
 
@@ -3711,7 +3711,7 @@ async function challongeReportMatch(match) {
 function challongeRetryFailedPushes() {
   if (!currentEvent || !currentEvent.challongeTournamentId) return;
   (matchesState || []).forEach(m => {
-    if (m._challongeMatchId && m._challongePushState === 'error' && !m.submitted) {
+    if (m._challongeMatchId && m._challongePushState === 'error') {
       challongeReportMatch(m);
     }
   });

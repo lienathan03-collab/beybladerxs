@@ -175,7 +175,7 @@ test('eventPointsToScoresCsv: null winnerId fallback (pts decides order)', () =>
   const { eventPointsToScoresCsv } = loadChallongeHelpers();
   const result = eventPointsToScoresCsv(6, 2, null, 10, 11);
   assert.equal(result.scores_csv, '6-2');
-  assert.equal(result.winner_id, null);
+  assert.equal(result.winner_id, 'tie');
 });
 
 test('eventPointsToScoresCsv: zero-zero tie', () => {
