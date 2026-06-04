@@ -1683,7 +1683,7 @@
               Auto-submit
             </label>
             <button class="btn gold" onclick="openNewMatchModal()">⚔️ New Match</button>
-            <button class="btn" onclick="challongeManualSync()" title="Pull new pairings from Challonge">🔄 Sync from Challonge</button>
+            <button id="challonge-sync-btn" class="btn" onclick="challongeManualSync()" title="Pull new pairings from Challonge">🔄 Sync from Challonge</button>
           </div>
         </div>
 
@@ -2329,7 +2329,8 @@ function loadEvent(id) {
     currentEvent = null;
     document.getElementById('event-info').style.display = 'none';
     stopLiveSync();
-    stopChallongePoll();
+    const syncBtn = document.getElementById('challonge-sync-btn');
+    if (syncBtn) syncBtn.style.display = 'none';
     return;
   }
   currentEvent = allEvents.find(e => e.id === id);
@@ -2397,6 +2398,8 @@ function loadEvent(id) {
   _lastSyncHash = JSON.stringify(currentEvent.beyResults || []);
   startLiveSync();
   if (currentEvent && currentEvent.challongeTournamentId) startChallongePoll();
+  const syncBtn = document.getElementById('challonge-sync-btn');
+  if (syncBtn) syncBtn.style.display = currentEvent && currentEvent.challongeTournamentId ? '' : 'none';
 }
 
 // ─────────────────────────────────────────────
@@ -3405,6 +3408,9 @@ function challongeLinkTournament() {
   currentEvent.challongeCustomKey = customKey;
   rosterSaveJoiners('⚡ Linked to Challonge tournament.');
   challongeBuildParticipantMap(); // Task 7 — will be defined later
+  startChallongePoll();
+  const syncBtn = document.getElementById('challonge-sync-btn');
+  if (syncBtn) syncBtn.style.display = currentEvent && currentEvent.challongeTournamentId ? '' : 'none';
 }
 
 async function challongeBuildParticipantMap() {
@@ -3570,6 +3576,7 @@ async function challongeImportOpenMatches() {
 }
 
 let _challongePollTimer = null;
+let _challongePollRunning = false;
 
 async function challongeManualSync() {
   try {
@@ -3584,7 +3591,9 @@ function startChallongePoll() {
   if (_challongePollTimer) clearInterval(_challongePollTimer);
   _challongePollTimer = setInterval(() => {
     if (currentEvent && currentEvent.challongeTournamentId && navigator.onLine !== false) {
-      challongeImportOpenMatches().catch(() => {});
+      if (_challongePollRunning) return;
+      _challongePollRunning = true;
+      challongeImportOpenMatches().catch(() => {}).finally(() => { _challongePollRunning = false; });
     }
   }, 25000);
 }
