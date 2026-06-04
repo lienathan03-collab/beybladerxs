@@ -123,3 +123,29 @@ test('alreadyImported detects existing challonge match id', () => {
   assert.equal(alreadyImported(state, 555), true);
   assert.equal(alreadyImported(state, 999), false);
 });
+
+test('buildImportPlan: imports open matches, skips non-open and duplicates', () => {
+  const { buildImportPlan } = loadChallongeHelpers();
+  const pidMap = {
+    10: { name: 'Ken', entryId: 'eK', entryType: 'main' },
+    11: { name: 'Mia', entryId: 'eM', entryType: 'main' },
+    12: { name: 'Lienathan', entryId: 'eL1', entryType: 'main' },
+    13: { name: 'Lienathan', entryId: 'eL2', entryType: 'double' },
+  };
+  const matches = [
+    { match: { id: 100, state: 'open', round: 1, player1_id: 10, player2_id: 11, group_id: null } },
+    { match: { id: 101, state: 'pending', round: 1, player1_id: null, player2_id: null } },
+    { match: { id: 102, state: 'open', round: 1, player1_id: 12, player2_id: 13 } }, // same owner
+    { match: { id: 103, state: 'open', round: 1, player1_id: 10, player2_id: 11 } }, // dup of existing
+  ];
+  const matchesState = [{ id: 9, _challongeMatchId: 103 }];
+  const plan = buildImportPlan({ matches, pidMap, matchesState, isTeam: false });
+  const create = plan.filter(p => !p.skip);
+  assert.equal(create.length, 1);
+  assert.equal(create[0].challongeMatchId, 100);
+  assert.equal(create[0].round, 'R1');
+  assert.equal(create[0].side1Ref.entryId, 'eK');
+  // 101 skipped (not open), 102 skipped (same owner), 103 skipped (dup)
+  assert.equal(plan.find(p => p.challongeMatchId === 102).reason, 'same-owner');
+  assert.equal(plan.find(p => p.challongeMatchId === 103).reason, 'duplicate');
+});

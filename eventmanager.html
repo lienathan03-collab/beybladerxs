@@ -3291,6 +3291,23 @@ function isSameOwnerSolo(p1Entry, p2Entry) {
 function alreadyImported(matchesState, challongeMatchId) {
   return (matchesState || []).some(m => m._challongeMatchId === challongeMatchId);
 }
+
+function buildImportPlan({ matches, pidMap, matchesState, isTeam }) {
+  const plan = [];
+  for (const entry of (matches || [])) {
+    const m = entry.match || entry;
+    const cmId = m.id;
+    if (m.state !== 'open') { plan.push({ challongeMatchId: cmId, skip: true, reason: 'not-open' }); continue; }
+    if (alreadyImported(matchesState, cmId)) { plan.push({ challongeMatchId: cmId, skip: true, reason: 'duplicate' }); continue; }
+    const side1Ref = pidMap[m.player1_id] || null;
+    const side2Ref = pidMap[m.player2_id] || null;
+    const base = { challongeMatchId: cmId, round: challongeRoundLabel(m.round), groupId: m.group_id || null, side1Ref, side2Ref };
+    if (!side1Ref || !side2Ref) { plan.push({ ...base, skip: false, reason: 'unmapped' }); continue; }
+    if (!isTeam && isSameOwnerSolo(side1Ref, side2Ref)) { plan.push({ ...base, skip: true, reason: 'same-owner' }); continue; }
+    plan.push({ ...base, skip: false, reason: 'create' });
+  }
+  return plan;
+}
 // === CHALLONGE-HELPERS END ===
 
 // ─────────────────────────────────────────────
