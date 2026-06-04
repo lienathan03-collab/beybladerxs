@@ -3625,7 +3625,10 @@ function startChallongePoll() {
     if (currentEvent && currentEvent.challongeTournamentId && navigator.onLine !== false) {
       if (_challongePollRunning) return;
       _challongePollRunning = true;
-      challongeImportOpenMatches().catch(() => {}).finally(() => { _challongePollRunning = false; });
+      challongeImportOpenMatches().catch(() => {}).finally(() => {
+        challongeRetryFailedPushes();
+        _challongePollRunning = false;
+      });
     }
   }, 25000);
 }
@@ -3635,6 +3638,70 @@ function stopChallongePoll() {
     clearInterval(_challongePollTimer);
     _challongePollTimer = null;
   }
+}
+
+async function challongeReportMatch(match) {
+  if (!match || !match._challongeMatchId) return;
+  if (!currentEvent || !currentEvent.challongeTournamentId) return;
+  const pmap = currentEvent.challongeParticipantMap || {};
+
+  function findPid(key, isTeam) {
+    return Object.keys(pmap).find(pid =>
+      isTeam ? pmap[pid].teamName === key : pmap[pid].entryId === key
+    ) || null;
+  }
+
+  let p1pts, p2pts, p1Id, p2Id, winnerId;
+  if (match.isTeamMatch) {
+    p1pts = (match.team1?.members || []).reduce((s, m) => s + calcPoints(m.builds), 0);
+    p2pts = (match.team2?.members || []).reduce((s, m) => s + calcPoints(m.builds), 0);
+    p1Id = findPid(match.team1?.teamName, true);
+    p2Id = findPid(match.team2?.teamName, true);
+    const t1wins = (match.team1?.members || []).filter(m => m.win).length;
+    const t2wins = (match.team2?.members || []).filter(m => m.win).length;
+    winnerId = t1wins > t2wins ? p1Id : (t2wins > t1wins ? p2Id : null);
+  } else {
+    p1pts = calcPoints((match.p1?.builds) || []);
+    p2pts = calcPoints((match.p2?.builds) || []);
+    p1Id = match.p1 ? findPid(match.p1.entryId, false) : null;
+    p2Id = match.p2 ? findPid(match.p2.entryId, false) : null;
+    winnerId = match.p1?.win ? p1Id : (match.p2?.win ? p2Id : null);
+  }
+  if (!p1Id && !p2Id) return;
+
+  const { scores_csv, winner_id } = eventPointsToScoresCsv(p1pts, p2pts, winnerId, p1Id, p2Id);
+
+  match._challongePushState = 'pending';
+  if (typeof renderResults === 'function') renderResults();
+
+  try {
+    const params = challongeAccountParams();
+    const qs = `action=report&tournament_id=${encodeURIComponent(currentEvent.challongeTournamentId)}&match_id=${encodeURIComponent(match._challongeMatchId)}&${params}`;
+    const res = await fetch('/api/challonge?' + qs, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scores_csv, winner_id })
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`HTTP ${res.status}: ${text.slice(0, 80)}`);
+    }
+    match._challongePushState = 'ok';
+  } catch (e) {
+    match._challongePushState = 'error';
+    console.error('challongeReportMatch error:', e);
+  }
+  if (typeof markDirty === 'function') markDirty();
+  if (typeof renderResults === 'function') renderResults();
+}
+
+function challongeRetryFailedPushes() {
+  if (!currentEvent || !currentEvent.challongeTournamentId) return;
+  (matchesState || []).forEach(m => {
+    if (m._challongeMatchId && m._challongePushState === 'error') {
+      challongeReportMatch(m);
+    }
+  });
 }
 
 // ─────────────────────────────────────────────
@@ -6137,6 +6204,8 @@ function lmCommitAndClose() {
   // Arm auto-submit on the REAL match (solo proxy writes back to _soloRef).
   const _tid = (match._isSolo && match._soloRef) ? match._soloRef.id : match.id;
   evaluateAutoSubmit(_tid);
+  const _reportTarget = (match._isSolo && match._soloRef) ? match._soloRef : match;
+  challongeReportMatch(_reportTarget);
   closeLiveMode();
   showToast('⚡ Live scoring committed!', 'success');
 }
@@ -7180,6 +7249,7 @@ async function submitMatch(mid) {
     _lastSyncHash = JSON.stringify(resultsState);
     markDirty(); // still dirty until Finalize runs archive+stats
     renderResults();
+    challongeReportMatch(toSubmit);
     showToast(`✅ Match submitted! All devices will update within 5 seconds.`, 'success');
   } catch (e) {
     showToast('❌ Submit failed: ' + e.message, 'error');
