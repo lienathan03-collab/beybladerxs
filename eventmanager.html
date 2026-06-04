@@ -3726,6 +3726,7 @@ function stopChallongePoll() {
 async function challongeReportMatch(match) {
   if (!match || !match._challongeMatchId) return;
   if (!currentEvent || !currentEvent.challongeTournamentId) return;
+  if (!matchHasDecisiveWinner(match)) return;
   const pmap = currentEvent.challongeParticipantMap || {};
 
   function findPid(key, isTeam) {
@@ -6316,8 +6317,6 @@ function lmCommitAndClose() {
   // Arm auto-submit on the REAL match (solo proxy writes back to _soloRef).
   const _tid = (match._isSolo && match._soloRef) ? match._soloRef.id : match.id;
   evaluateAutoSubmit(_tid);
-  const _reportTarget = (match._isSolo && match._soloRef) ? match._soloRef : match;
-  challongeReportMatch(_reportTarget);
   closeLiveMode();
   showToast('⚡ Live scoring committed!', 'success');
 }
