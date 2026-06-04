@@ -1708,7 +1708,7 @@
               <select id="challonge-account-select" style="display:block"></select>
             </label>
             <label style="font-size:12px;color:var(--muted)">Custom key (optional, stored on event)
-              <input id="challonge-custom-key" type="text" placeholder="paste API key" style="display:block">
+              <input id="challonge-custom-key" type="password" placeholder="paste API key ⚠ stored as plaintext" style="display:block">
             </label>
             <button class="btn" onclick="challongeConnect()">Connect</button>
             <label style="font-size:12px;color:var(--muted)">Tournament
@@ -3372,12 +3372,16 @@ async function challongeConnect() {
     const res = await fetch('/api/challonge?action=list&' + challongeAccountParams());
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || res.status);
-    const tours = Array.isArray(data) ? data : (data.tournaments || data);
+    const tours = Array.isArray(data) ? data
+                : Array.isArray(data.tournaments) ? data.tournaments
+                : [];
     const tsel = document.getElementById('challonge-tournament-select');
     tsel.innerHTML = '<option value="">— pick tournament —</option>' +
       (tours || []).map(t => {
         const tt = t.tournament || t;
-        return `<option value="${tt.url || tt.id}">${tt.name} (${tt.url || tt.id})</option>`;
+        const safeName = escHtml(String(tt.name || ''));
+        const safeId   = escHtml(String(tt.url || tt.id || ''));
+        return `<option value="${safeId}">${safeName} (${safeId})</option>`;
       }).join('');
     if (currentEvent && currentEvent.challongeTournamentId) tsel.value = currentEvent.challongeTournamentId;
     status.textContent = '● Connected'; status.className = 'challonge-status connected';
@@ -3387,6 +3391,7 @@ async function challongeConnect() {
 }
 
 function challongeLinkTournament() {
+  if (!currentEvent) { showToast('No event loaded.', 'error'); return; }
   const tid = document.getElementById('challonge-tournament-select').value;
   const account = document.getElementById('challonge-account-select').value || null;
   const customKey = document.getElementById('challonge-custom-key').value.trim() || null;
@@ -3397,6 +3402,9 @@ function challongeLinkTournament() {
   rosterSaveJoiners('⚡ Linked to Challonge tournament.');
   challongeBuildParticipantMap(); // Task 7 — will be defined later
 }
+
+// Stub — real implementation in Task 7
+function challongeBuildParticipantMap() {}
 
 // ─────────────────────────────────────────────
 // NEW MATCH MODAL
