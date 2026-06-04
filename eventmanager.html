@@ -2448,7 +2448,7 @@ function getPlayers() {
       const sk = j.entryId || name; // dedup by entryId so main+DE both appear
       if (seen.has(sk)) continue;
       seen.add(sk);
-      const displayLabel = j.displayLabel || (j.entryType === 'double' ? name + ' (DE)' : name);
+      const displayLabel = soloSlotLabel(j, currentEvent.joiners);
       players.push({ name, displayLabel, entryId: j.entryId || null, entryType: j.entryType || 'main', team: null });
     }
   }
@@ -2601,9 +2601,6 @@ function renderRoster() {
         p.entryId ? j.entryId === p.entryId : (j.name || j.displayName || j.username) === p.name && j.entryType !== 'double'
       );
       const isDe = p.entryType === 'double';
-      const deBadge = isDe
-        ? `<span style="font-size:9px;background:var(--gold);color:#000;border-radius:3px;padding:1px 4px;margin-left:4px;font-family:'Share Tech Mono',monospace">DE</span>`
-        : '';
       const deBtn = !isDe && currentEvent.type !== '3v3' && joinerIdx !== -1
         ? `<button class="btn" style="font-size:9px;padding:2px 7px;margin-top:4px" data-idx="${joinerIdx}" data-eid="${escHtml(p.entryId||'')}" onclick="adminAddDEFromRoster(+this.dataset.idx,this.dataset.eid)">+DE</button>`
         : '';
@@ -2611,7 +2608,7 @@ function renderRoster() {
       <div class="roster-card">
         <div class="roster-avatar">${escHtml((p.displayLabel||p.name)[0].toUpperCase())}</div>
         <div>
-          <div class="roster-name">${escHtml(p.displayLabel||p.name)}${deBadge}</div>
+          <div class="roster-name">${escHtml(p.displayLabel||p.name)}</div>
           <div class="roster-sub">Solo</div>
           ${deBtn}
         </div>
@@ -3311,6 +3308,19 @@ function autoCheckWin(m) {
 }
 
 // === CHALLONGE-HELPERS START ===
+function soloSlotLabel(joiner, allJoiners) {
+  const name = String(joiner.name || joiner.displayName || joiner.username || '').trim();
+  if (!name) return '';
+  const lc = name.toLowerCase();
+  const group = (allJoiners || []).filter(j =>
+    j.type !== 'team' &&
+    String(j.name || j.displayName || j.username || '').trim().toLowerCase() === lc
+  );
+  const hasDE = group.some(j => j.entryType === 'double');
+  if (!hasDE) return name;
+  return name + (joiner.entryType === 'double' ? ' 2' : ' 1');
+}
+
 function challongeBaseName(raw) {
   // Strip a trailing " <n>" used for Double Entry, e.g. "Lienathan 2" -> "Lienathan"
   const m = String(raw || '').trim().match(/^(.*?)\s+(\d+)$/);

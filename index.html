@@ -7250,6 +7250,20 @@ function renderDetailJoinArea(ev) {
   }
 }
 
+// Mirror of soloSlotLabel in eventmanager.html CHALLONGE-HELPERS block — keep in sync.
+function soloSlotLabel(joiner, allJoiners) {
+  const name = String(joiner.name || joiner.displayName || joiner.username || '').trim();
+  if (!name) return '';
+  const lc = name.toLowerCase();
+  const group = (allJoiners || []).filter(j =>
+    j.type !== 'team' &&
+    String(j.name || j.displayName || j.username || '').trim().toLowerCase() === lc
+  );
+  const hasDE = group.some(j => j.entryType === 'double');
+  if (!hasDE) return name;
+  return name + (joiner.entryType === 'double' ? ' 2' : ' 1');
+}
+
 function buildSoloJoinerRow(j, i, evId) {
   const row = document.createElement('div');
   row.className = 'ev-joiner-row';
@@ -7259,14 +7273,8 @@ function buildSoloJoinerRow(j, i, evId) {
   row.appendChild(num);
   const label = document.createElement('span');
   label.className = 'ev-joiner-name';
-  label.textContent = j.displayLabel != null ? j.displayLabel : j.name;
+  label.textContent = soloSlotLabel(j, currentEventDetail ? currentEventDetail.joiners : []);
   row.appendChild(label);
-  if (j.entryType === 'double') {
-    const badge = document.createElement('span');
-    badge.style.cssText = 'font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--gold);background:rgba(212,160,23,.12);border:0.5px solid var(--gold);border-radius:4px;padding:1px 5px;margin-left:4px;vertical-align:middle';
-    badge.textContent = 'DE';
-    row.appendChild(badge);
-  }
   if (isAdmin) {
     if ((j.entryType === 'main' || !j.entryType) && j.type !== 'team') {
       const deBtn = document.createElement('button');
@@ -7341,7 +7349,7 @@ function copyJoinerList() {
   if (is3v3) {
     lines = joiners.map(j => j.type === 'team' ? j.teamName : (j.name || ''));
   } else {
-    lines = joiners.map(j => j.name || '');
+    lines = joiners.map(j => soloSlotLabel(j, joiners));
   }
   const text = lines.filter(Boolean).join('\n');
   navigator.clipboard.writeText(text).then(() => {
@@ -7688,7 +7696,7 @@ async function adminRemoveJoiner(joinerIdx, force) {
   if (!isAdmin || !currentEventDetail) return;
   const joiner = (currentEventDetail.joiners || [])[joinerIdx];
   if (!joiner) return;
-  const label = joiner.displayLabel != null ? joiner.displayLabel : joiner.name;
+  const label = soloSlotLabel(joiner, currentEventDetail.joiners);
   if (!force && !confirm('Remove "' + label + '" from Sure Bladers?')) return;
   try {
     const res = await fetch(EVENTS_API + '?action=admin_remove', {
@@ -7725,7 +7733,7 @@ async function adminAddDE(eventId, joinerIdx, sourceEntryId) {
   if (!isAdmin || !currentEventDetail) return;
   const joiner = (currentEventDetail.joiners || [])[joinerIdx];
   if (!joiner) return;
-  const label = joiner.displayLabel != null ? joiner.displayLabel : (joiner.name || joiner.displayName || '');
+  const label = soloSlotLabel(joiner, currentEventDetail.joiners);
   if (!confirm('Add a Double Entry for "' + label + '"?')) return;
   try {
     const reqBody = { adminUsername: _acAdminUsername, adminPassword: _acAdminPassword, eventId, joinerIdx };
@@ -7742,14 +7750,14 @@ async function adminAddDE(eventId, joinerIdx, sourceEntryId) {
     currentEventDetail = data.event;
     renderDetailJoinersList(data.event);
     renderEventsList();
-    showToast('"' + label + ' (DE)" added!', 'success');
+    showToast('"' + label + ' 2" added!', 'success');
   } catch(e) { showToast('⚠ ' + e.message, 'error'); }
 }
 
 async function handleDeAdd(eventId) {
   if (!playerSession) { openPlayerLoginModal(); return; }
   const name = playerSession.account?.displayName || playerSession.username;
-  if (!confirm('Add a Double Entry? You will appear as "' + name + '" and "' + name + ' (DE)".')) return;
+  if (!confirm('Add a Double Entry? You will appear as "' + name + ' 1" and "' + name + ' 2".')) return;
   try {
     const res = await fetch(EVENTS_API + '?action=de_add', {
       method: 'PUT',

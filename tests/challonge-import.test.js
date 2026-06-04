@@ -184,3 +184,56 @@ test('eventPointsToScoresCsv: zero-zero tie', () => {
   assert.equal(result.scores_csv, '0-0');
   assert.equal(result.winner_id, 11);
 });
+
+// soloSlotLabel tests
+test('soloSlotLabel: lone player (no DE) keeps plain name', () => {
+  const { soloSlotLabel } = loadChallongeHelpers();
+  const joiners = [
+    { name: 'Ken', entryType: 'main', entryId: 'e-ken' },
+  ];
+  assert.equal(soloSlotLabel(joiners[0], joiners), 'Ken');
+});
+
+test('soloSlotLabel: DE pair — main gets 1, double gets 2', () => {
+  const { soloSlotLabel } = loadChallongeHelpers();
+  const joiners = [
+    { name: 'Lienathan', entryType: 'main',   entryId: 'e-lien-1' },
+    { name: 'Lienathan', entryType: 'double',  entryId: 'e-lien-2' },
+  ];
+  assert.equal(soloSlotLabel(joiners[0], joiners), 'Lienathan 1');
+  assert.equal(soloSlotLabel(joiners[1], joiners), 'Lienathan 2');
+});
+
+test('soloSlotLabel: legacy main (no entryType) in DE pair gets 1', () => {
+  const { soloSlotLabel } = loadChallongeHelpers();
+  const joiners = [
+    { name: 'OldPlayer', entryId: 'e-old' },                                    // legacy, no entryType
+    { name: 'OldPlayer', entryType: 'double', entryId: 'e-old-de' },
+  ];
+  assert.equal(soloSlotLabel(joiners[0], joiners), 'OldPlayer 1');
+  assert.equal(soloSlotLabel(joiners[1], joiners), 'OldPlayer 2');
+});
+
+test('soloSlotLabel: mixed roster — numbered pair, plain lone player', () => {
+  const { soloSlotLabel } = loadChallongeHelpers();
+  const joiners = [
+    { name: 'Ken',       entryType: 'main',   entryId: 'e-ken' },
+    { name: 'Lienathan', entryType: 'main',   entryId: 'e-lien-1' },
+    { name: 'Lienathan', entryType: 'double',  entryId: 'e-lien-2' },
+  ];
+  assert.equal(soloSlotLabel(joiners[0], joiners), 'Ken');
+  assert.equal(soloSlotLabel(joiners[1], joiners), 'Lienathan 1');
+  assert.equal(soloSlotLabel(joiners[2], joiners), 'Lienathan 2');
+});
+
+test('soloSlotLabel round-trip: labels resolve back to correct entryId via matchSoloParticipant', () => {
+  const { soloSlotLabel, matchSoloParticipant } = loadChallongeHelpers();
+  const joiners = [
+    { name: 'Lienathan', entryType: 'main',   entryId: 'e-lien-1' },
+    { name: 'Lienathan', entryType: 'double',  entryId: 'e-lien-2' },
+  ];
+  // Simulate what getPlayers() will return after adding displayLabel via soloSlotLabel
+  const players = joiners.map(j => ({ ...j, displayLabel: soloSlotLabel(j, joiners) }));
+  assert.equal(matchSoloParticipant('Lienathan 1', players).entryId, 'e-lien-1');
+  assert.equal(matchSoloParticipant('Lienathan 2', players).entryId, 'e-lien-2');
+});
