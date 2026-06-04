@@ -3270,6 +3270,27 @@ function matchSoloParticipant(rawName, players) {
   }
   return null;
 }
+function matchTeamParticipant(rawName, teams) {
+  const name = String(rawName || '').trim();
+  if (!name) return null;
+  let hit = teams.find(t => t.teamName === name);
+  if (hit) return hit;
+  const lc = name.toLowerCase();
+  return teams.find(t => (t.teamName || '').toLowerCase() === lc) || null;
+}
+
+function challongeRoundLabel(n) {
+  return 'R' + Number(n);
+}
+
+function isSameOwnerSolo(p1Entry, p2Entry) {
+  if (!p1Entry || !p2Entry) return false;
+  return String(p1Entry.name || '').toLowerCase() === String(p2Entry.name || '').toLowerCase();
+}
+
+function alreadyImported(matchesState, challongeMatchId) {
+  return (matchesState || []).some(m => m._challongeMatchId === challongeMatchId);
+}
 // === CHALLONGE-HELPERS END ===
 
 // ─────────────────────────────────────────────

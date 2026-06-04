@@ -94,3 +94,32 @@ test('matchSoloParticipant: returns null when no match', () => {
   const { matchSoloParticipant } = loadChallongeHelpers();
   assert.equal(matchSoloParticipant('Nobody', [{ name: 'Ken', displayLabel: 'Ken', entryId: 'e', entryType: 'main' }]), null);
 });
+
+test('matchTeamParticipant: exact then case-insensitive', () => {
+  const { matchTeamParticipant } = loadChallongeHelpers();
+  const teams = [{ teamName: 'Dragon Squad' }, { teamName: 'Phoenix' }];
+  assert.equal(matchTeamParticipant('Dragon Squad', teams).teamName, 'Dragon Squad');
+  assert.equal(matchTeamParticipant('phoenix', teams).teamName, 'Phoenix');
+  assert.equal(matchTeamParticipant('Nope', teams), null);
+});
+
+test('challongeRoundLabel maps positive round to R{n}', () => {
+  const { challongeRoundLabel } = loadChallongeHelpers();
+  assert.equal(challongeRoundLabel(1), 'R1');
+  assert.equal(challongeRoundLabel(3), 'R3');
+});
+
+test('isSameOwnerSolo true for same base name different entries', () => {
+  const { isSameOwnerSolo } = loadChallongeHelpers();
+  const a = { name: 'Lienathan', entryId: 'e1', entryType: 'main' };
+  const b = { name: 'Lienathan', entryId: 'e2', entryType: 'double' };
+  assert.equal(isSameOwnerSolo(a, b), true);
+  assert.equal(isSameOwnerSolo(a, { name: 'Ken', entryId: 'e3', entryType: 'main' }), false);
+});
+
+test('alreadyImported detects existing challonge match id', () => {
+  const { alreadyImported } = loadChallongeHelpers();
+  const state = [{ id: 1, _challongeMatchId: 555 }, { id: 2 }];
+  assert.equal(alreadyImported(state, 555), true);
+  assert.equal(alreadyImported(state, 999), false);
+});
