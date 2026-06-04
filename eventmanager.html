@@ -3240,6 +3240,38 @@ function autoCheckWin(m) {
   }
 }
 
+// === CHALLONGE-HELPERS START ===
+function challongeBaseName(raw) {
+  // Strip a trailing " <n>" used for Double Entry, e.g. "Lienathan 2" -> "Lienathan"
+  const m = String(raw || '').trim().match(/^(.*?)\s+(\d+)$/);
+  return m ? { base: m[1].trim(), num: parseInt(m[2], 10) } : { base: String(raw || '').trim(), num: null };
+}
+
+function matchSoloParticipant(rawName, players) {
+  const name = String(rawName || '').trim();
+  if (!name) return null;
+  // exact on displayLabel or name
+  let hit = players.find(p => p.displayLabel === name || p.name === name);
+  if (hit) return hit;
+  // case-insensitive
+  const lc = name.toLowerCase();
+  hit = players.find(p => (p.displayLabel || '').toLowerCase() === lc || (p.name || '').toLowerCase() === lc);
+  if (hit) return hit;
+  // DE trailing-number rule
+  const { base, num } = challongeBaseName(name);
+  if (num != null) {
+    const baseLc = base.toLowerCase();
+    const sameName = players.filter(p => (p.name || '').toLowerCase() === baseLc);
+    if (sameName.length) {
+      const wantDouble = num >= 2;
+      hit = sameName.find(p => (p.entryType === 'double') === wantDouble);
+      return hit || sameName[0];
+    }
+  }
+  return null;
+}
+// === CHALLONGE-HELPERS END ===
+
 // ─────────────────────────────────────────────
 // NEW MATCH MODAL
 // ─────────────────────────────────────────────
