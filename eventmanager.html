@@ -1653,6 +1653,9 @@
           </div>
           <button class="btn gold" id="submit-builds-btn" onclick="submitBuilds()">⬆ Submit Builds</button>
         </div>
+        <input id="builds-search" type="search" class="form-input" placeholder="🔍 Search player…"
+          oninput="renderBuilds()"
+          style="width:100%;margin-bottom:14px;font-size:13px;padding:7px 12px;box-sizing:border-box">
         <div id="builds-submitted-banner" style="display:none;background:rgba(76,175,80,0.08);border:1px solid rgba(76,175,80,0.3);border-radius:8px;padding:8px 14px;margin-bottom:12px;font-family:'Share Tech Mono',monospace;font-size:11px;color:#66bb6a">
           ✓ Builds submitted — all match build names are up to date.
         </div>
@@ -2686,9 +2689,16 @@ let _submittedBuilds = {};
 
 function renderBuilds() {
   const el = document.getElementById('builds-grid');
-  const players = getPlayers();
-  if (!players.length) {
+  const searchQ = (document.getElementById('builds-search')?.value || '').toLowerCase().trim();
+  const players = getPlayers().filter(p =>
+    !searchQ || (p.displayLabel || p.name).toLowerCase().includes(searchQ)
+  );
+  if (!getPlayers().length) {
     el.innerHTML = '<div class="empty-state"><div class="icon">🔩</div>No players registered yet.</div>';
+    return;
+  }
+  if (!players.length) {
+    el.innerHTML = '<div class="empty-state"><div class="icon">🔍</div>No players match your search.</div>';
     return;
   }
 
@@ -3423,11 +3433,16 @@ function nmFilterPlayers(slot, query) {
     }
   }
 
-  const filtered = players.filter(p => {
-    const label = p.displayLabel || p.name;
-    if (label.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) || !q) return true;
-    return false;
-  });
+  const filtered = players
+    .filter(p => {
+      const label = p.displayLabel || p.name;
+      return label.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) || !q;
+    })
+    .sort((a, b) => {
+      const aDisabled = playedInRound.has(a.entryId || a.name);
+      const bDisabled = playedInRound.has(b.entryId || b.name);
+      return aDisabled - bDisabled;
+    });
 
   if (!filtered.length) {
     ddEl.innerHTML = '<div style="padding:10px;color:var(--muted2);font-size:12px">No players found</div>';
