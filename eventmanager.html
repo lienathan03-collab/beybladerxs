@@ -3412,6 +3412,17 @@ function nmFilterPlayers(slot, query) {
   ddEl.style.display = '';
 
   const otherSelected = slot === 1 ? _nmP2 : _nmP1;
+
+  // Build set of players who already have a match in the selected round
+  const selectedRound = document.getElementById('nm-round-select').value;
+  const playedInRound = new Set();
+  for (const m of matchesState) {
+    if (m.round !== selectedRound || m.isTeamMatch) continue;
+    for (const side of [m.p1, m.p2]) {
+      if (side) playedInRound.add(side.entryId || side.player);
+    }
+  }
+
   const filtered = players.filter(p => {
     const label = p.displayLabel || p.name;
     if (label.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) || !q) return true;
@@ -3430,10 +3441,12 @@ function nmFilterPlayers(slot, query) {
         ? otherSelected.entryId === p.entryId
         : otherSelected.player === p.name && !p.entryId && !otherSelected.entryId
     );
+    const hasPlayed = playedInRound.has(p.entryId || p.name);
+    const isDisabled = isOther || hasPlayed;
     const builds = (buildsState[slotKey(p)] || []).filter(Boolean);
 
     const div = document.createElement('div');
-    div.className = 'nm-player-option' + (isOther ? ' disabled' : '');
+    div.className = 'nm-player-option' + (isDisabled ? ' disabled' : '');
 
     const nameDiv = document.createElement('div');
     nameDiv.textContent = p.displayLabel || p.name;
@@ -3441,10 +3454,12 @@ function nmFilterPlayers(slot, query) {
 
     const subDiv = document.createElement('div');
     subDiv.className = 'nm-player-sub';
-    subDiv.textContent = builds.length ? builds.join(' · ') : 'No builds registered';
+    subDiv.textContent = hasPlayed
+      ? `Already played in ${selectedRound}`
+      : (builds.length ? builds.join(' · ') : 'No builds registered');
     div.appendChild(subDiv);
 
-    if (!isOther) {
+    if (!isDisabled) {
       div.addEventListener('mousedown', e => {
         e.preventDefault();
         nmSelectPlayer(slot, p);
