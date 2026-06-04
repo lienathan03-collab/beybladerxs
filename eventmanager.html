@@ -400,6 +400,17 @@
     color: var(--gold);
     flex-shrink: 0;
   }
+  .cps-chip {
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-family: 'Share Tech Mono', monospace;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .cps-ok    { background: rgba(52,211,153,0.15); color: var(--green); }
+  .cps-error { background: rgba(239,68,68,0.15);  color: var(--red); }
+  .cps-pending { background: rgba(156,163,175,0.1); color: var(--muted); }
   .match-vs-label {
     font-family: 'Barlow Condensed', sans-serif;
     font-size: 13px;
@@ -4222,6 +4233,23 @@ function setAutoSubmitEnabled(on) {
   if (typeof renderResults === 'function') renderResults();
 }
 
+// Challonge push state chip for match cards.
+function challongePushChipHtml(match) {
+  if (!match._challongeMatchId) return '';
+  const state = match._challongePushState;
+  if (state === undefined || state === null) return '';
+  if (state === 'ok') {
+    return `<span class="cps-chip cps-ok">✓ pushed to Challonge</span>`;
+  }
+  if (state === 'error') {
+    return `<span class="cps-chip cps-error">⚠ push failed — retry</span>`;
+  }
+  if (state === 'pending') {
+    return `<span class="cps-chip cps-pending">⟳ pushing…</span>`;
+  }
+  return '';
+}
+
 // Single source of truth for a card's submit / countdown / unsubmit button.
 function submitAreaHtml(match) {
   const mid = match.id;
@@ -4382,6 +4410,7 @@ function renderMatchCard(match) {
             <span style="color:var(--gold2)">${escHtml(p2Label)}</span>
           </span>
           <span class="match-result-summary">${summary}</span>
+          ${challongePushChipHtml(match)}
           ${submitAreaHtml(match)}
           <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕ Remove</button>
           <span style="color:var(--muted2);font-size:12px;margin-left:4px">${match.collapsed ? '▼' : '▲'}</span>
@@ -4455,6 +4484,7 @@ function renderTeamMatchCard(match) {
             <span style="color:var(--gold2)">${escHtml(t2.teamName)}</span>
           </span>
           <span class="match-result-summary">${summary}</span>
+          ${challongePushChipHtml(match)}
           ${submitAreaHtml(match)}
           <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕ Remove</button>
           <span style="color:var(--muted2);font-size:12px;margin-left:4px">▼</span>
@@ -4491,6 +4521,7 @@ function renderTeamMatchCard(match) {
           <span style="color:var(--gold2)">${escHtml(t2.teamName)}</span>
         </span>
         <span class="match-result-summary">${summary}</span>
+        ${challongePushChipHtml(match)}
         ${submitAreaHtml(match)}
         <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕ Remove</button>
         <span style="color:var(--muted2);font-size:12px;margin-left:4px">▲</span>
