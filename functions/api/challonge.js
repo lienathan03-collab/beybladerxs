@@ -65,6 +65,13 @@ export async function onRequest(context) {
     try { body = await request.json(); } catch (e) { body = {}; }
     const { scores_csv, winner_id } = body;
 
+    if (!scores_csv) {
+      return new Response(
+        JSON.stringify({ error: 'scores_csv is required.' }),
+        { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const challongeUrl =
       `https://api.challonge.com/v1/tournaments/${encodeURIComponent(tournament_id)}/matches/${encodeURIComponent(match_id)}.json` +
       `?api_key=${encodeURIComponent(target.key)}`;
