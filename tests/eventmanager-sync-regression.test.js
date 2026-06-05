@@ -1266,17 +1266,6 @@ test('loadMatchesFromResults: _challongeMatchId rehydrated from solo rows', () =
 test('mergeIncomingMatches: full-replace preserves _challongeMatchId and DE dePoints from rows', () => {
   const context = createContext([]);
   loadMergeHelper(context);
-  // Inject isDeSelfMatch into context so mergeIncomingMatches can call it
-  vm.runInContext(`
-    function isDeSelfMatch(p1, p2) {
-      if (!p1 || !p2) return false;
-      const id1 = p1.entryId; const id2 = p2.entryId;
-      if (!id1 || !id2 || id1 === id2) return false;
-      const n1 = String(p1.player || '').toLowerCase();
-      const n2 = String(p2.player || '').toLowerCase();
-      return n1 !== '' && n1 === n2;
-    }
-  `, context);
   context.dirty = false;
   context.mergeIncomingMatches(
     {},

@@ -3453,13 +3453,45 @@ function alreadyImported(matchesState, challongeMatchId) {
   return (matchesState || []).some(m => m._challongeMatchId === challongeMatchId);
 }
 
+function challongeImportSignature(round, ref1, ref2, isTeam) {
+  const a = isTeam ? (ref1 && ref1.teamName) : (ref1 && ref1.entryId);
+  const b = isTeam ? (ref2 && ref2.teamName) : (ref2 && ref2.entryId);
+  const lo = String(a) < String(b) ? a : b;
+  const hi = String(a) < String(b) ? b : a;
+  return `${round}|${lo}|${hi}`;
+}
+
+function existingMatchSignature(m) {
+  if (m.isTeamMatch) return challongeImportSignature(m.round, m.team1, m.team2, true);
+  return challongeImportSignature(m.round, m.p1, m.p2, false);
+}
+
 function buildImportPlan({ matches, pidMap, matchesState, isTeam }) {
   const plan = [];
+  // Build a count-consuming signature map for legacy matches without _challongeMatchId
+  const sigCount = {};
+  for (const m of (matchesState || [])) {
+    if (m._challongeMatchId) continue; // already handled by id check
+    const sig = existingMatchSignature(m);
+    sigCount[sig] = (sigCount[sig] || 0) + 1;
+  }
   for (const entry of (matches || [])) {
     const m = entry.match || entry;
     const cmId = m.id;
     if (m.state !== 'open') { plan.push({ challongeMatchId: cmId, skip: true, reason: 'not-open' }); continue; }
     if (alreadyImported(matchesState, cmId)) { plan.push({ challongeMatchId: cmId, skip: true, reason: 'duplicate' }); continue; }
+    // Signature fallback: legacy match (no _challongeMatchId) may still match by content
+    const sig = challongeImportSignature(
+      challongeRoundLabel(m.round),
+      pidMap[m.player1_id] || null,
+      pidMap[m.player2_id] || null,
+      isTeam
+    );
+    if (sigCount[sig] > 0) {
+      sigCount[sig]--;
+      plan.push({ challongeMatchId: cmId, skip: true, reason: 'duplicate-sig' });
+      continue;
+    }
     const side1Ref = pidMap[m.player1_id] || null;
     const side2Ref = pidMap[m.player2_id] || null;
     const base = { challongeMatchId: cmId, round: challongeRoundLabel(m.round), groupId: m.group_id ?? null, side1Ref, side2Ref };
@@ -7367,6 +7399,7 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
             local._challongePushState = sm._challongePushState;
           }
           if (sm.division && !local.division) local.division = sm.division;
+          if (sm._challongeGroupId && !local._challongeGroupId) local._challongeGroupId = sm._challongeGroupId;
         }
         continue;
       }

@@ -373,3 +373,64 @@ test('buildImportPlan: true same-entryId pair is still blocked as same-owner', (
   assert.equal(plan[0].skip, true);
   assert.equal(plan[0].reason, 'same-owner');
 });
+
+test('challongeImportSignature: order-independent (A,B) === (B,A)', () => {
+  const { challongeImportSignature } = loadChallongeHelpers();
+  const s1 = challongeImportSignature('R1', { entryId: 'eA' }, { entryId: 'eB' }, false);
+  const s2 = challongeImportSignature('R1', { entryId: 'eB' }, { entryId: 'eA' }, false);
+  assert.equal(s1, s2, 'signature must be order-independent');
+});
+
+test('buildImportPlan: legacy match (no _challongeMatchId) blocks duplicate import by signature', () => {
+  const { buildImportPlan } = loadChallongeHelpers();
+
+  // 21 real existing matches — one per pair, no _challongeMatchId (legacy data)
+  const matchesState = [
+    { round: 'R1', p1: { entryId: 'eA' }, p2: { entryId: 'eB' } },  // no _challongeMatchId
+  ];
+  const pidMap = { 1: { entryId: 'eA' }, 2: { entryId: 'eB' } };
+  const matches = [{ match: { id: 42, state: 'open', round: 1, player1_id: 1, player2_id: 2 } }];
+
+  const plan = buildImportPlan({ matches, pidMap, matchesState, isTeam: false });
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0].skip, true, 'legacy match must block duplicate import by signature');
+  assert.equal(plan[0].reason, 'duplicate-sig');
+});
+
+test('buildImportPlan: signature suppresses only one slot; second identical Challonge match still imports', () => {
+  const { buildImportPlan } = loadChallongeHelpers();
+
+  // One local legacy match, two Challonge matches with same pair (rematch scenario)
+  const matchesState = [
+    { round: 'R1', p1: { entryId: 'eA' }, p2: { entryId: 'eB' } },  // one existing slot
+  ];
+  const pidMap = { 1: { name: 'Alice', entryId: 'eA' }, 2: { name: 'Bob', entryId: 'eB' } };
+  const matches = [
+    { match: { id: 42, state: 'open', round: 1, player1_id: 1, player2_id: 2 } },
+    { match: { id: 43, state: 'open', round: 1, player1_id: 1, player2_id: 2 } },
+  ];
+
+  const plan = buildImportPlan({ matches, pidMap, matchesState, isTeam: false });
+  assert.equal(plan.length, 2);
+  const skipped = plan.filter(p => p.skip);
+  const created = plan.filter(p => !p.skip);
+  assert.equal(skipped.length, 1, 'only one slot consumed — one suppressed');
+  assert.equal(created.length, 1, 'second match still imports');
+});
+
+test('buildImportPlan: DE pair with no local match still imports as de-self', () => {
+  const { buildImportPlan } = loadChallongeHelpers();
+
+  // No existing local matches at all
+  const matchesState = [];
+  const pidMap = {
+    1: { entryId: 'eL1', name: 'Lienathan' },
+    2: { entryId: 'eL2', name: 'Lienathan' },
+  };
+  const matches = [{ match: { id: 99, state: 'open', round: 1, player1_id: 1, player2_id: 2 } }];
+
+  const plan = buildImportPlan({ matches, pidMap, matchesState, isTeam: false });
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0].skip, false, 'DE pair must not be skipped');
+  assert.equal(plan[0].reason, 'de-self');
+});
