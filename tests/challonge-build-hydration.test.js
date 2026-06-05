@@ -296,3 +296,87 @@ test('challongeJoinerTeamToMatchTeam: string members and missing builds are hand
   assert.equal(team.members[0].player, 'Solo');
   assert.deepEqual(team.members[0].builds, []);
 });
+
+function loadFlattenAndLoad() {
+  const ctx = {
+    JSON, Array, Object, Set, console,
+    resultsState: [],
+    matchesState: [],
+    _matchIdCounter: 1,
+    calcPoints: () => 0,
+    autoCheckWin() {}, autoCheckDeWin() {}, autoCheckTeamWin() {},
+  };
+  vm.createContext(ctx);
+  vm.runInContext(
+    sliceBetween('function flattenMatchesToResults()', '// LIVE-PUSH PATCH HELPERS (start)'),
+    ctx
+  );
+  vm.runInContext(
+    sliceBetween('function loadMatchesFromResults()', 'function flattenMatchesToResults()'),
+    ctx
+  );
+  return ctx;
+}
+
+test('round-trip: flatten then load preserves solo build names, finishes and deployed', () => {
+  const ctx = loadFlattenAndLoad();
+  ctx.matchesState = [{
+    id: 1, _sid: 'R1|e-ken|e-mia|0', round: 'R1',
+    p1: { player: 'Ken', entryId: 'e-ken', builds: [
+      { build: 'Dragoon', finishes: ['S'], deployed: true },
+      { build: 'Dranzer', finishes: [], deployed: false },
+    ] },
+    p2: { player: 'Mia', entryId: 'e-mia', builds: [
+      { build: 'Driger', finishes: ['O'], deployed: false },
+    ] },
+  }];
+  vm.runInContext('flattenMatchesToResults()', ctx);
+  // server row builds carry the scoring objects intact
+  assert.deepEqual(ctx.resultsState[0].builds[0], { build: 'Dragoon', finishes: ['S'], deployed: true });
+  // reload from the flattened rows
+  vm.runInContext('loadMatchesFromResults()', ctx);
+  const m = ctx.matchesState[0];
+  assert.deepEqual(m.p1.builds.map(b => b.build), ['Dragoon', 'Dranzer']);
+  assert.deepEqual(m.p1.builds[0].finishes, ['S']);
+  assert.equal(m.p1.builds[0].deployed, true);
+  assert.deepEqual(m.p2.builds.map(b => b.build), ['Driger']);
+});
+
+test('round-trip: non-dirty full-replace merge keeps server-hydrated builds', () => {
+  // mergeIncomingMatches (non-dirty path) builds slots from server rows that
+  // already carry hydrated build objects -> they must survive the replace.
+  const ctx = {
+    JSON, Array, Object, Set, console,
+    dirty: false,
+    matchesState: [],
+    resultsState: [],
+    buildsState: {},
+    _matchIdCounter: 5,
+    _activeLiveMatchSid: null,
+    flattenMatchesToResults() {},
+    playerKey: (n) => n,
+    slotKey: (p) => p.entryId || p.player,
+    isDeSelfMatch: () => false,
+    _soloSid: (r, p1, p2, i) => `${r}|${p1.entryId || p1.player}|${p2.entryId || p2.player}|${i}`,
+    _teamSid: (r, a, b, i) => `${r}|T|${a}|${b}|${i}`,
+  };
+  const serverResults = [
+    { player: 'Ken', entryId: 'e-ken', round: 'R1', _matchSid: 'R1|e-ken|e-mia|0',
+      builds: [{ build: 'Dragoon', finishes: ['S'], deployed: true }] },
+    { player: 'Mia', entryId: 'e-mia', round: 'R1', _matchSid: 'R1|e-ken|e-mia|0',
+      builds: [{ build: 'Driger', finishes: [], deployed: false }] },
+  ];
+  ctx.serverResults = serverResults;
+  vm.createContext(ctx);
+  vm.runInContext(
+    sliceBetween('function mergeIncomingMatches', '// SUBMIT MATCH'),
+    ctx
+  );
+  vm.runInContext(`mergeIncomingMatches({}, serverResults)`, ctx);
+  assert.equal(ctx.matchesState.length, 1);
+  const p1Builds = ctx.matchesState[0].p1.builds;
+  assert.equal(p1Builds.length, 1);
+  assert.equal(p1Builds[0].build, 'Dragoon');
+  assert.deepEqual(p1Builds[0].finishes, ['S']);
+  assert.equal(p1Builds[0].deployed, true);
+});
