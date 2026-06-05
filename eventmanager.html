@@ -1745,6 +1745,9 @@
         <!-- Round filter pills -->
         <div id="round-filter-row" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px"></div>
 
+        <!-- Round publish + progress bar -->
+        <div id="round-publish-bar" style="margin-bottom:14px"></div>
+
         <!-- Match cards -->
         <div id="results-content">
           <div class="empty-state"><div class="icon">⚔️</div>No matches yet. Click <strong style="color:var(--gold)">New Match</strong> to add one.</div>
@@ -4966,8 +4969,60 @@ async function flushOutbox() {
 }
 // LIVE PUSH ENGINE (end)
 
+// === ROUND-PUBLISH-BAR START ===
+// Per-round publish/progress strip. Shows "RN: ready/total ready" and a
+// context-appropriate button: Publish (enabled only when the round is complete
+// and has unpublished matches), Retry failures, or a disabled/in-progress note.
+// Hidden entirely when the event isn't linked or the tournament is missing.
+function renderRoundPublishBar() {
+  const el = document.getElementById('round-publish-bar');
+  if (!el) return;
+  const linked = currentEvent && currentEvent.challongeTournamentId && !currentEvent.challongeMissing;
+  if (!linked) { el.innerHTML = ''; return; }
+
+  const order = ['R1','R2','R3','R4','R5','R6','R7','TC','QF','SF','F'];
+  const allRounds = [...new Set((matchesState || []).map(m => m.round))]
+    .sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99));
+  const rounds = (activeRoundFilter && activeRoundFilter !== 'ALL')
+    ? allRounds.filter(r => r === activeRoundFilter)
+    : allRounds;
+
+  const rows = [];
+  for (const r of rounds) {
+    const s = roundPublishStats(r);
+    if (!s || s.publishableTotal === 0) continue;
+    const busy = _publishingRound === r;
+
+    let btn = '', note = '';
+    if (s.published === s.publishableTotal && s.failed === 0) {
+      btn = `<span class="mc2-status ok" style="font-size:11px">✓ ${escHtml(r)} published</span>`;
+    } else if (s.failed > 0 && s.ready === 0 && s.pending === 0) {
+      btn = `<button class="btn" ${busy ? 'disabled' : ''} onclick="retryRoundFailures('${escHtml(r)}')">⟳ Retry ${escHtml(r)} failures (${s.failed})</button>`;
+    } else if (s.pending > 0 && !busy) {
+      btn = `<button class="btn" disabled>⏳ Publishing ${escHtml(r)}…</button>`;
+      note = 'Publishing in progress on another device…';
+    } else {
+      const enabled = s.canPublish && !busy;
+      btn = `<button class="btn gold" ${enabled ? '' : 'disabled'} onclick="publishRoundToChallonge('${escHtml(r)}')">${busy ? '⏳ Publishing…' : '⬆ Publish ' + escHtml(r) + ' to Challonge'}</button>`;
+      if (!s.complete) note = `${s.publishableTotal - s.decisive} match(es) still need a result`;
+    }
+
+    rows.push(`
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
+        <strong style="color:var(--gold);font-family:'Share Tech Mono',monospace">${escHtml(r)}</strong>
+        <span style="font-size:12px;color:var(--muted)">${s.decisive}/${s.publishableTotal} ready${s.published ? ' · ' + s.published + ' published' : ''}${s.failed ? ' · ' + s.failed + ' failed' : ''}</span>
+        <span style="flex:1"></span>
+        ${btn}
+        ${note ? `<span style="font-size:11px;color:var(--muted2);width:100%">${escHtml(note)}</span>` : ''}
+      </div>`);
+  }
+  el.innerHTML = rows.join('');
+}
+// === ROUND-PUBLISH-BAR END ===
+
 function renderResults() {
   renderRoundFilter();
+  renderRoundPublishBar();
   const el = document.getElementById('results-content');
 
   const filtered = activeRoundFilter === 'ALL'
