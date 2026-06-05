@@ -4597,6 +4597,34 @@ function matchHasDecisiveWinner(match) {
   const p2w = !!(match.p2 && match.p2.win);
   return p1w !== p2w; // exactly one winner
 }
+// === ROUND-PUBLISH-STATS START ===
+// Aggregate Challonge publish readiness for one round. Only matches that carry
+// a _challongeMatchId count toward publishing (locally-created/manual matches
+// are never pushed). "Ready" is derived: submitted + decisive + not already ok.
+//   complete  : every publishable match in the round has a decisive result
+//   canPublish: complete AND at least one match still needs publishing (ready)
+function roundPublishStats(round) {
+  const inRound = (matchesState || []).filter(
+    m => m.round === round && m._challongeMatchId
+  );
+  let decisive = 0, ready = 0, published = 0, failed = 0, pending = 0;
+  for (const m of inRound) {
+    const dec = matchHasDecisiveWinner(m);
+    if (dec) decisive++;
+    if (m._challongePushState === 'ok') published++;
+    else if (m._challongePushState === 'error') failed++;
+    else if (m._challongePushState === 'pending') pending++;
+    else if (m.submitted && dec) ready++;
+  }
+  const publishableTotal = inRound.length;
+  const complete = publishableTotal > 0 && decisive === publishableTotal;
+  return {
+    round, publishableTotal, decisive, ready, published, failed, pending,
+    complete,
+    canPublish: complete && ready > 0 && pending === 0,
+  };
+}
+// === ROUND-PUBLISH-STATS END ===
 
 function _clearAutoSubmitTimer(mid) {
   const t = _autoSubmit.timers[mid];
@@ -4687,6 +4715,11 @@ function matchStatusChipHtml(match) {
     return `<span class="mc2-status err" aria-label="Challonge push failed; retry" title="Challonge push failed; retry"><span class="mc2-status-full">⚠ retry</span><span class="mc2-status-short" aria-hidden="true">⚠</span></span>`;
   if (match.submitted) {
     const pushed = match._challongePushState === 'ok';
+    // Ready = finalized + decisive + linked to Challonge but not yet published.
+    const ready = !pushed && match._challongeMatchId && matchHasDecisiveWinner(match);
+    if (ready) {
+      return `<span class="mc2-status ok" aria-label="Ready to publish to Challonge" title="Ready to publish to Challonge"><span class="mc2-status-full">✓ ready</span><span class="mc2-status-short" aria-hidden="true">✓</span></span>`;
+    }
     const label = pushed ? 'Submitted and pushed' : 'Submitted';
     return `<span class="mc2-status ok" aria-label="${label}" title="${label}"><span class="mc2-status-full">✓ submitted${pushed ? ' · pushed' : ''}</span><span class="mc2-status-short" aria-hidden="true">✓</span></span>`;
   }
