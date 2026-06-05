@@ -229,3 +229,11 @@ test('compactMatchHeaderHtml escapes hostile names', () => {
   assert.doesNotMatch(out, /<img src=x/);
   assert.match(out, /&lt;img/);
 });
+
+test('compact card CSS defines touch-target minimums and two-line name clamp', () => {
+  // ⚡ and ⋯ are at least 40px; names clamp to 2 lines (no horizontal scroll).
+  assert.match(html, /\.mc2-live\s*,?\s*\.mc2-more[^}]*min-height:\s*4[0-9]px/);
+  assert.match(html, /\.mc2-name[^}]*-webkit-line-clamp:\s*2/);
+  assert.match(html, /\.mc2-names[^}]*min-width:\s*0/);
+  assert.match(html, /\.mc2-menu-item\.danger/);
+});

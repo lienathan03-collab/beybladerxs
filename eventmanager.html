@@ -488,6 +488,64 @@
   }
   .match-pts-val.has-pts { color: var(--gold2); }
 
+  /* ── COMPACT MATCH CARDS (mc2) ── */
+  .mc2-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; background: var(--surface2);
+    cursor: pointer; user-select: none;
+  }
+  .mc2-caret { color: var(--muted2); font-size: 11px; flex-shrink: 0; }
+  .mc2-round {
+    font-family: 'Share Tech Mono', monospace; font-size: 9px;
+    padding: 2px 6px; border-radius: 3px; flex-shrink: 0;
+    background: rgba(212,175,55,0.12); color: var(--gold);
+  }
+  .mc2-names {
+    flex: 1; min-width: 0;
+    display: flex; flex-direction: column; line-height: 1.15;
+  }
+  .mc2-name {
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+    font-size: 14px; letter-spacing: .5px;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .mc2-name.n1 { color: var(--blue); }
+  .mc2-name.n2 { color: var(--gold2); }
+  .mc2-vs { font-size: 9px; color: var(--muted2); letter-spacing: 1px; margin: 1px 0; }
+  .mc2-status {
+    font-family: 'Share Tech Mono', monospace; font-size: 9px;
+    color: var(--muted); white-space: nowrap; flex-shrink: 0;
+  }
+  .mc2-status.ok   { color: var(--green); }
+  .mc2-status.err  { color: var(--red); }
+  .mc2-status.pend { color: var(--muted); }
+  .mc2-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+  .mc2-live, .mc2-more {
+    min-height: 40px; min-width: 40px;
+    display: flex; align-items: center; justify-content: center;
+    border: none; border-radius: 6px; cursor: pointer; font-size: 16px;
+    background: rgba(74,158,255,0.15); color: var(--blue);
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  }
+  .mc2-more { background: transparent; color: var(--muted2); font-size: 18px; }
+  .mc2-menu {
+    display: flex; flex-direction: column;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden; margin: 0 10px 8px;
+  }
+  .mc2-menu-item {
+    text-align: left; background: transparent; border: none;
+    color: var(--accent); font-size: 13px; padding: 11px 12px; min-height: 44px;
+    cursor: pointer; border-bottom: 1px solid var(--border);
+  }
+  .mc2-menu-item:last-child { border-bottom: none; }
+  .mc2-menu-item.danger { color: var(--red); }
+  @media (hover: hover) {
+    .mc2-row:hover { background: var(--surface3); }
+    .mc2-menu-item:hover { background: var(--surface2); }
+  }
+
   /* ── LIVE BUTTON — always-visible on match card, separate from collapse ── */
   .live-btn {
     background: rgba(74,158,255,0.15);
@@ -1471,13 +1529,11 @@
     /* TOAST */
     #toast { bottom: 12px; right: 12px; left: 12px; text-align: center; font-size: 12px; }
 
-    /* MATCH CARD HEADER — wrap action buttons on their own line */
-    .match-card-header { flex-wrap: wrap; row-gap: 4px; }
-    .match-vs-label { width: 100%; order: 1; }
-    .match-round-badge { order: 0; }
-    .match-result-summary { order: 2; flex: 1; font-size: 9px; }
-    .match-card-header .btn { font-size: 9px !important; padding: 2px 5px !important; margin-left: 2px !important; }
-    .match-card-header span[style*="font-size:12px"] { font-size: 11px !important; }
+    /* COMPACT MATCH CARD — names get two lines, actions stay on the row */
+    .mc2-row { gap: 6px; padding: 8px; }
+    .mc2-name { font-size: 13px; }
+    .mc2-round { font-size: 8px; }
+    .mc2-live, .mc2-more { min-height: 44px; min-width: 44px; }
 
     /* MATCH CARD BODY — stack players vertically on phones so neither gets cut off */
     .match-card-body { grid-template-columns: 1fr; }
