@@ -1285,3 +1285,59 @@ test('mergeIncomingMatches: full-replace preserves _challongeMatchId and DE dePo
   assert.equal(context.matchesState[0].p1.dePoints, 4, 'p1 dePoints must survive merge');
   assert.equal(context.matchesState[0].p2.dePoints, 1, 'p2 dePoints must survive merge');
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task 4 — autoCheckDeWin: higher dePoints wins, tie = no winner
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('autoCheckDeWin: higher dePoints wins (2 vs 4 → p2 wins)', () => {
+  const ctx = deMatchContext();
+  loadFlattenHelpers(ctx);
+  ctx._m = {
+    round: 'R1', _deSelfMatch: true,
+    p1: { player: 'L', entryId: 'eL1', builds: [], dePoints: 2 },
+    p2: { player: 'L', entryId: 'eL2', builds: [], dePoints: 4 },
+  };
+  vm.runInContext('autoCheckDeWin(_m)', ctx);
+  assert.equal(ctx._m.p1.win, false, 'p1 (2pts) must lose');
+  assert.equal(ctx._m.p2.win, true,  'p2 (4pts) must win');
+});
+
+test('autoCheckDeWin: equal dePoints → no winner (tie)', () => {
+  const ctx = deMatchContext();
+  loadFlattenHelpers(ctx);
+  ctx._m = {
+    round: 'R1', _deSelfMatch: true,
+    p1: { player: 'L', entryId: 'eL1', builds: [], dePoints: 3 },
+    p2: { player: 'L', entryId: 'eL2', builds: [], dePoints: 3 },
+  };
+  vm.runInContext('autoCheckDeWin(_m)', ctx);
+  assert.equal(ctx._m.p1.win, false, 'tie → no winner');
+  assert.equal(ctx._m.p2.win, false);
+});
+
+test('autoCheckDeWin: 4 vs 2 → p1 wins (backward compat)', () => {
+  const ctx = deMatchContext();
+  loadFlattenHelpers(ctx);
+  ctx._m = {
+    round: 'R1', _deSelfMatch: true,
+    p1: { player: 'L', entryId: 'eL1', builds: [], dePoints: 4 },
+    p2: { player: 'L', entryId: 'eL2', builds: [], dePoints: 2 },
+  };
+  vm.runInContext('autoCheckDeWin(_m)', ctx);
+  assert.equal(ctx._m.p1.win, true);
+  assert.equal(ctx._m.p2.win, false);
+});
+
+test('autoCheckDeWin: 0 vs 0 → no winner', () => {
+  const ctx = deMatchContext();
+  loadFlattenHelpers(ctx);
+  ctx._m = {
+    round: 'R1', _deSelfMatch: true,
+    p1: { player: 'L', entryId: 'eL1', builds: [] },
+    p2: { player: 'L', entryId: 'eL2', builds: [] },
+  };
+  vm.runInContext('autoCheckDeWin(_m)', ctx);
+  assert.equal(ctx._m.p1.win, false);
+  assert.equal(ctx._m.p2.win, false);
+});

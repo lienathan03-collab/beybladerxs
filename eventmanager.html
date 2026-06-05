@@ -3361,16 +3361,15 @@ function autoCheckWin(m) {
   }
 }
 
-// DE self-match: winner is determined by coin-toss dePoints reaching soloThreshold.
-// No Beyblade finishes exist, so autoCheckWin is skipped for these matches.
+// DE self-match: winner is the entry with the higher coin-toss dePoints.
+// Equal dePoints → no winner (tie). No threshold check needed.
 function autoCheckDeWin(m) {
   if (!m.p1 || !m.p2) return;
-  const threshold = soloThreshold(m.round);
   const p1pts = m.p1.dePoints || 0;
   const p2pts = m.p2.dePoints || 0;
-  if (p1pts >= threshold && p2pts < threshold)      { m.p1.win = true;  m.p2.win = false; }
-  else if (p2pts >= threshold && p1pts < threshold) { m.p2.win = true;  m.p1.win = false; }
-  else                                               { m.p1.win = false; m.p2.win = false; }
+  if (p1pts > p2pts)      { m.p1.win = true;  m.p2.win = false; }
+  else if (p2pts > p1pts) { m.p2.win = true;  m.p1.win = false; }
+  else                    { m.p1.win = false;  m.p2.win = false; }
 }
 
 // === CHALLONGE-HELPERS START ===
