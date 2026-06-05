@@ -380,26 +380,6 @@
     .match-cards-grid { flex-direction: column; }
     .match-cards-col { flex: none; width: 100%; }
   }
-  .match-card-header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 10px;
-    background: var(--surface2);
-    border-bottom: 1px solid var(--border);
-    cursor: pointer;
-    user-select: none;
-  }
-  .match-round-badge {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 9px;
-    padding: 2px 6px;
-    border-radius: 3px;
-    background: rgba(212,175,55,0.12);
-    border: 1px solid rgba(212,175,55,0.3);
-    color: var(--gold);
-    flex-shrink: 0;
-  }
   .cps-chip {
     font-size: 9px;
     padding: 2px 6px;
@@ -411,18 +391,6 @@
   .cps-ok    { background: rgba(76,175,80,0.15); color: var(--green); }
   .cps-error { background: rgba(239,68,68,0.15);  color: var(--red); }
   .cps-pending { background: rgba(156,163,175,0.1); color: var(--muted); }
-  .match-vs-label {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    flex: 1;
-  }
-  .match-result-summary {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 9px;
-    color: var(--muted);
-  }
   .match-card-body {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1406,11 +1374,6 @@
     /* MATCH CARDS — single column */
     .match-cards-grid { flex-direction: column; }
     .match-cards-col  { flex: none; width: 100%; }
-
-    /* MATCH CARD HEADER */
-    .match-card-header { gap: 4px; flex-wrap: wrap; padding: 6px 8px; }
-    .match-vs-label    { font-size: 12px; }
-    .match-round-badge { font-size: 8px; }
 
     /* BUILDS GRID */
     .builds-grid { grid-template-columns: 1fr; }
@@ -4669,23 +4632,6 @@ function setAutoSubmitEnabled(on) {
   if (typeof renderResults === 'function') renderResults();
 }
 
-// Challonge push state chip for match cards.
-function challongePushChipHtml(match) {
-  if (!match._challongeMatchId) return '';
-  const state = match._challongePushState;
-  if (state === undefined || state === null) return '';
-  if (state === 'ok') {
-    return `<span class="cps-chip cps-ok">✓ pushed to Challonge</span>`;
-  }
-  if (state === 'error') {
-    return `<span class="cps-chip cps-error">⚠ push failed — retry</span>`;
-  }
-  if (state === 'pending') {
-    return `<span class="cps-chip cps-pending">⟳ pushing…</span>`;
-  }
-  return '';
-}
-
 // Single source of truth for a card's submit / countdown / unsubmit button.
 function submitAreaHtml(match) {
   const mid = match.id;
@@ -4894,11 +4840,6 @@ function renderMatchCard(match) {
 
     const p1Label = match.p1.displayLabel || match.p1.player;
     const p2Label = match.p2 ? (match.p2.displayLabel || match.p2.player) : '?';
-    const summary = match.p1.win
-      ? `<span style="color:var(--green)">${escHtml(p1Label)} WIN</span>`
-      : match.p2 && match.p2.win
-        ? `<span style="color:var(--green)">${escHtml(p2Label)} WIN</span>`
-        : `<span style="color:var(--muted)">pending</span>`;
 
     return `
     <div class="match-card" id="match-${mid}">
@@ -4928,11 +4869,6 @@ function renderDeSelfMatchCard(match) {
   const p2pts  = match.p2 ? (match.p2.dePoints ?? '') : '';
   const p1wins = !!(match.p1 && match.p1.win);
   const p2wins = !!(match.p2 && match.p2.win);
-
-  let summary;
-  if (p1wins) summary = `<span style="color:var(--green)">${escHtml(p1Label)} ADV <span style="color:var(--muted2);font-size:11px">${p1pts !== '' ? p1pts : '?'}-${p2pts !== '' ? p2pts : '?'}</span></span>`;
-  else if (p2wins) summary = `<span style="color:var(--green)">${escHtml(p2Label)} ADV <span style="color:var(--muted2);font-size:11px">${p2pts !== '' ? p2pts : '?'}-${p1pts !== '' ? p1pts : '?'}</span></span>`;
-  else summary = `<span style="color:var(--muted)">select advancing side</span>`;
 
   // Read-only winner line for the expanded body
   let winnerLine = '';
@@ -5088,20 +5024,6 @@ function renderTeamMatchCard(match) {
   const majority = Math.ceil(memberCount / 2);
 
   const isTopcutRound = ['TC','QF','SF','F'].includes(match.round);
-  // Regular rounds: always show score (all 3 play out); Topcut: show WIN when threshold reached
-  let summary = `<span style="color:var(--muted)">${t1wins}-${t2wins}</span>`;
-  if (isTopcutRound) {
-    const topcutThreshold = 2; // first to 2 individual wins (best of 3 players)
-    if (t1wins >= topcutThreshold) summary = `<span style="color:var(--green)">${escHtml(t1.teamName)} WIN</span>`;
-    else if (t2wins >= topcutThreshold) summary = `<span style="color:var(--green)">${escHtml(t2.teamName)} WIN</span>`;
-    else summary = `<span style="color:var(--muted)">${t1wins}-${t2wins}</span>`;
-  } else {
-    // Regular round: final score shown, WIN label only when all members have played
-    const allPlayed = [...t1.members, ...t2.members].every(mem => mem.win || calcPoints(mem.builds) > 0);
-    if (allPlayed && (t1wins > t2wins)) summary = `<span style="color:var(--green)">${escHtml(t1.teamName)} WIN</span> <span style="color:var(--muted)">${t1wins}-${t2wins}</span>`;
-    else if (allPlayed && (t2wins > t1wins)) summary = `<span style="color:var(--green)">${escHtml(t2.teamName)} WIN</span> <span style="color:var(--muted)">${t1wins}-${t2wins}</span>`;
-    else summary = `<span style="color:var(--muted)">${t1wins}-${t2wins}</span>`;
-  }
 
   if (match.collapsed) {
     return `
