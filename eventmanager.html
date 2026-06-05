@@ -3709,6 +3709,42 @@ async function challongeSaveMapping(isTeam) {
   showToast('✅ Mapping saved.', 'success');
 }
 
+// === BUILD-RECONCILE START ===
+// Single source of truth for populating a match slot's per-build scoring objects
+// from a player's submitted build NAMES.
+//   slot                : { builds: [{ build, finishes, deployed, ... }] }  (mutated in place)
+//   submittedBuildNames : flat array of name strings from buildsState[key]
+//                         (may contain '' / whitespace padding — ignored)
+// Reconciles by slot index against the NON-BLANK name list:
+//   - existing slot i -> rename: slot.builds[i].build = names[i]  (finishes/deployed/win preserved)
+//   - missing  slot i -> create: push { build: names[i], finishes: [], deployed: false }
+//   - extra trailing builds beyond names -> drop from the end ONLY while unscored;
+//     stop at the first extra carrying recorded results (finishes.length or deployed).
+// Never writes any scoring field. Returns the slot for chaining.
+function reconcileMatchSlotBuilds(slot, submittedBuildNames) {
+  if (!slot) return slot;
+  if (!Array.isArray(slot.builds)) slot.builds = [];
+  const names = (submittedBuildNames || []).filter(
+    n => typeof n === 'string' && n.trim() !== ''
+  );
+  for (let i = 0; i < names.length; i++) {
+    if (slot.builds[i]) {
+      slot.builds[i].build = names[i];
+    } else {
+      slot.builds[i] = { build: names[i], finishes: [], deployed: false };
+    }
+  }
+  // Preserve recorded results: trim trailing extras only while they are unscored.
+  for (let i = slot.builds.length - 1; i >= names.length; i--) {
+    const extra = slot.builds[i];
+    const hasResults = !!(extra && (((extra.finishes || []).length) || extra.deployed));
+    if (hasResults) break;
+    slot.builds.pop();
+  }
+  return slot;
+}
+// === BUILD-RECONCILE END ===
+
 function challongeEntryToMatchSlot(ref) {
   if (!ref) return null;
   const players = getPlayers();
