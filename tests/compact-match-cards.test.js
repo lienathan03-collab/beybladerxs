@@ -203,3 +203,29 @@ test('matchStatusChipHtml reflects submitted / pending / push states', () => {
     matchStatusChipHtml({ id: 3, _challongeMatchId: 'c', _challongePushState: 'error' }),
     /retry|failed|⚠/i);
 });
+
+test('compactMatchHeaderHtml renders round, both names, ⚡ and ⋯, with tap isolation', () => {
+  const { compactMatchHeaderHtml } = loadHeaderHelpers();
+  const out = compactMatchHeaderHtml(
+    { id: 8, round: 'R1', submitted: false },
+    { name1: 'Kenji Watanabe', name2: 'Maximilian Brandt', liveOnClick: "openLiveModeSolo(8,'p1')" }
+  );
+  assert.match(out, />R1</);
+  assert.match(out, /Kenji Watanabe/);
+  assert.match(out, /Maximilian Brandt/);
+  assert.match(out, /openLiveModeSolo\(8,'p1'\)/);          // ⚡ wired
+  assert.match(out, /toggleMatchMenu\(8/);                   // ⋯ wired
+  assert.match(out, /toggleMatchCollapse\(8\)/);             // row toggles collapse
+  // action group must stop propagation so ⚡/⋯ never toggle collapse
+  assert.match(out, /class="mc2-actions"[^>]*onclick="event\.stopPropagation\(\)"/);
+  assert.match(out, /aria-label/);                           // a11y labels present
+});
+
+test('compactMatchHeaderHtml escapes hostile names', () => {
+  const { compactMatchHeaderHtml } = loadHeaderHelpers();
+  const out = compactMatchHeaderHtml(
+    { id: 1, round: 'R1' },
+    { name1: '<img src=x onerror=alert(1)>', name2: 'B', liveOnClick: "x()" });
+  assert.doesNotMatch(out, /<img src=x/);
+  assert.match(out, /&lt;img/);
+});

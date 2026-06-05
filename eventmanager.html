@@ -4673,6 +4673,33 @@ function matchOverflowMenuHtml(match) {
   items.push(`<button class="mc2-menu-item danger" role="menuitem" onclick="event.stopPropagation();toggleMatchMenu(${mid});removeMatch(${mid})">✕ Remove match</button>`);
   return `<div class="mc2-menu" id="mc2-menu-${mid}" role="menu" hidden>${items.join('')}</div>`;
 }
+// Shared collapsed/expanded header row for solo, DE, and team cards. The middle
+// names column is min-width:0 so long names clamp to two lines instead of
+// pushing ⚡/⋯ off-screen. vsGlyph defaults to "VS" (DE cards pass "↔").
+function compactMatchHeaderHtml(match, opts) {
+  const mid = match.id;
+  const vs = opts.vsGlyph || 'VS';
+  const caret = match.collapsed ? '▸' : '▾';
+  const live = `<button class="mc2-live" aria-label="Open live scoring" title="Open live scoring" onclick="${opts.liveOnClick}">⚡</button>`;
+  const more = `<button class="mc2-more" aria-label="More actions" aria-haspopup="menu" aria-expanded="false" title="More actions" onclick="event.stopPropagation();toggleMatchMenu(${mid})">⋯</button>`;
+  const inline = (typeof submitAreaHtml === 'function' && typeof _autoSubmit !== 'undefined' && _autoSubmit && _autoSubmit.timers && _autoSubmit.timers[mid])
+    ? submitAreaHtml(match) : '';
+  return `
+    <div class="mc2-row" onclick="toggleMatchCollapse(${mid})">
+      <span class="mc2-caret" aria-hidden="true">${caret}</span>
+      <span class="mc2-round">${escHtml(match.round || '')}</span>
+      <div class="mc2-names">
+        <span class="mc2-name n1">${escHtml(opts.name1)}</span>
+        <span class="mc2-vs">${vs}</span>
+        <span class="mc2-name n2">${escHtml(opts.name2)}</span>
+      </div>
+      ${matchStatusChipHtml(match)}
+      <div class="mc2-actions" onclick="event.stopPropagation()">
+        ${inline}${live}${more}
+      </div>
+    </div>
+    ${matchOverflowMenuHtml(match)}`;
+}
 // === MATCH-HEADER-HTML END ===
 
 // ─── AUTO-SUBMIT ENGINE (end) ────────────────────────────────────────────────
@@ -5283,6 +5310,33 @@ function renderPlayerSide(match, side, mid) {
 function toggleMatchCollapse(mid) {
   const m = matchesState.find(x => x.id === mid);
   if (m) { m.collapsed = !m.collapsed; renderResults(); }
+}
+
+// Open/close one match's overflow menu; closes any other open menu first.
+function toggleMatchMenu(mid, ev) {
+  if (ev && ev.stopPropagation) ev.stopPropagation();
+  if (typeof document === 'undefined') return;
+  document.querySelectorAll('.mc2-menu:not([hidden])').forEach(el => {
+    if (el.id !== `mc2-menu-${mid}`) el.hidden = true;
+  });
+  const menu = document.getElementById(`mc2-menu-${mid}`);
+  if (menu) {
+    menu.hidden = !menu.hidden;
+    const trigger = document.querySelector(`#match-${mid} .mc2-more`);
+    if (trigger) trigger.setAttribute('aria-expanded', String(!menu.hidden));
+  }
+}
+
+// Dismiss menus on outside tap / Escape (registered once).
+if (typeof document !== 'undefined' && !window.__mc2MenuDismissBound) {
+  window.__mc2MenuDismissBound = true;
+  document.addEventListener('click', (e) => {
+    if (e.target.closest && e.target.closest('.mc2-menu, .mc2-more')) return;
+    document.querySelectorAll('.mc2-menu:not([hidden])').forEach(el => { el.hidden = true; });
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') document.querySelectorAll('.mc2-menu:not([hidden])').forEach(el => { el.hidden = true; });
+  });
 }
 
 async function removeMatch(mid, options = {}) {
