@@ -3001,43 +3001,42 @@ function buildACKeydown(e, key, idx) {
 // SUBMIT BUILDS — renames build names in all matches by slot index,
 // keeping all finishes/deployed/win data intact
 // ─────────────────────────────────────────────
+
+// === SUBMIT-APPLY START ===
+// Copy submitted build NAMES into every match slot, creating missing build
+// objects and renaming existing ones while preserving scoring state. Operates
+// on the matchesState / buildsState globals. Solo slots key by entryId
+// (falling back to name); team members key by name.
+function applySubmittedBuildsToMatches() {
+  for (const m of matchesState) {
+    if (m.isTeamMatch) {
+      for (const teamKey of ['team1', 'team2']) {
+        if (!m[teamKey]) continue;
+        for (const member of m[teamKey].members) {
+          reconcileMatchSlotBuilds(member, buildsState[playerKey(member.player)] || []);
+        }
+      }
+    } else {
+      for (const side of ['p1', 'p2']) {
+        if (!m[side]) continue;
+        const key = m[side].entryId || playerKey(m[side].player);
+        reconcileMatchSlotBuilds(m[side], buildsState[key] || []);
+      }
+    }
+  }
+}
+// === SUBMIT-APPLY END ===
+
 async function submitBuilds() {
   if (!currentEvent) return;
   const btn = document.getElementById('submit-builds-btn');
   if (btn) { btn.textContent = '⏳ Submitting…'; btn.disabled = true; }
 
   try {
-    // ── Propagate renamed build names into all existing matches by slot index ──
-    // buildsState[key][0] = new name for slot 0 (1st bey), [1] = slot 1, [2] = slot 2
-    // For each match, find this player's builds array and rename build[i].build = newName[i]
-    // The finishes, deployed, win flags are untouched — only the .build string changes.
-    for (const m of matchesState) {
-      if (m.isTeamMatch) {
-        for (const teamKey of ['team1', 'team2']) {
-          if (!m[teamKey]) continue;
-          for (const member of m[teamKey].members) {
-            const key = playerKey(member.player);
-            const newNames = buildsState[key] || [];
-            member.builds.forEach((b, slotIdx) => {
-              if (newNames[slotIdx] !== undefined && newNames[slotIdx] !== '') {
-                b.build = newNames[slotIdx];
-              }
-            });
-          }
-        }
-      } else {
-        for (const side of ['p1', 'p2']) {
-          if (!m[side]) continue;
-          const key = m[side].entryId || playerKey(m[side].player);
-          const newNames = buildsState[key] || [];
-          m[side].builds.forEach((b, slotIdx) => {
-            if (newNames[slotIdx] !== undefined && newNames[slotIdx] !== '') {
-              b.build = newNames[slotIdx];
-            }
-          });
-        }
-      }
-    }
+    // Propagate submitted build names into all existing matches by slot index.
+    // Creates missing build objects (e.g. Challonge-imported empty slots) and
+    // renames existing ones; finishes/deployed/win are preserved.
+    applySubmittedBuildsToMatches();
 
     flattenMatchesToResults();
 
@@ -3046,30 +3045,8 @@ async function submitBuilds() {
     if (latestRes.ok) {
       const latestData = await latestRes.json();
       mergeIncomingMatches(latestData.builds || {}, latestData.beyResults || []);
-      // Re-apply renames after merge (merge may have overwritten them)
-      for (const m of matchesState) {
-        if (m.isTeamMatch) {
-          for (const teamKey of ['team1', 'team2']) {
-            if (!m[teamKey]) continue;
-            for (const member of m[teamKey].members) {
-              const key = playerKey(member.player);
-              const newNames = buildsState[key] || [];
-              member.builds.forEach((b, slotIdx) => {
-                if (newNames[slotIdx]) b.build = newNames[slotIdx];
-              });
-            }
-          }
-        } else {
-          for (const side of ['p1','p2']) {
-            if (!m[side]) continue;
-            const key = m[side].entryId || playerKey(m[side].player);
-            const newNames = buildsState[key] || [];
-            m[side].builds.forEach((b, slotIdx) => {
-              if (newNames[slotIdx]) b.build = newNames[slotIdx];
-            });
-          }
-        }
-      }
+      // Re-apply after merge (merge may have overwritten local slot data).
+      applySubmittedBuildsToMatches();
       flattenMatchesToResults();
     }
 

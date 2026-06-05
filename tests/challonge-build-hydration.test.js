@@ -163,3 +163,95 @@ test('challongeEntryToMatchSlot: no submitted builds yields an empty (not undefi
   const slot = vm.runInContext(`challongeEntryToMatchSlot({ entryId: 'e-mia', name: 'Mia' })`, ctx);
   assert.deepEqual(slot.builds, []);
 });
+
+function loadSubmitApply(ctxExtras) {
+  const ctx = Object.assign({ JSON, Array, Object }, ctxExtras);
+  vm.createContext(ctx);
+  vm.runInContext(
+    sliceBetween('// === BUILD-RECONCILE START ===', '// === BUILD-RECONCILE END ==='),
+    ctx
+  );
+  vm.runInContext(
+    sliceBetween('// === SUBMIT-APPLY START ===', '// === SUBMIT-APPLY END ==='),
+    ctx
+  );
+  return ctx;
+}
+
+test('applySubmittedBuildsToMatches: populates a previously EMPTY solo slot (sync-before-submit)', () => {
+  const ctx = loadSubmitApply({
+    playerKey: (name) => name,
+    buildsState: { 'e-ken': ['Dragoon', 'Dranzer'], 'e-mia': ['Driger'] },
+    matchesState: [{
+      round: 'R1',
+      p1: { player: 'Ken', entryId: 'e-ken', builds: [] },
+      p2: { player: 'Mia', entryId: 'e-mia', builds: [] },
+    }],
+  });
+  vm.runInContext('applySubmittedBuildsToMatches()', ctx);
+  assert.deepEqual(ctx.matchesState[0].p1.builds.map(b => b.build), ['Dragoon', 'Dranzer']);
+  assert.deepEqual(ctx.matchesState[0].p2.builds.map(b => b.build), ['Driger']);
+});
+
+test('applySubmittedBuildsToMatches: renames existing builds, preserving finishes/deployed', () => {
+  const ctx = loadSubmitApply({
+    playerKey: (name) => name,
+    buildsState: { 'e-ken': ['NewA', 'NewB'] },
+    matchesState: [{
+      round: 'R1',
+      p1: { player: 'Ken', entryId: 'e-ken', builds: [
+        { build: 'OldA', finishes: ['S'], deployed: true },
+        { build: 'OldB', finishes: [], deployed: false },
+      ] },
+      p2: { player: 'Mia', entryId: 'e-mia', builds: [] },
+    }],
+  });
+  vm.runInContext('applySubmittedBuildsToMatches()', ctx);
+  assert.deepEqual(ctx.matchesState[0].p1.builds[0], { build: 'NewA', finishes: ['S'], deployed: true });
+  assert.equal(ctx.matchesState[0].p1.builds[1].build, 'NewB');
+});
+
+test('applySubmittedBuildsToMatches: solo slot keyed by entryId, not name', () => {
+  const ctx = loadSubmitApply({
+    playerKey: (name) => name,
+    buildsState: { 'e-lien-1': ['MainA'], 'e-lien-2': ['DeA'] },
+    matchesState: [{
+      round: 'R1',
+      p1: { player: 'Lienathan', entryId: 'e-lien-1', builds: [] },
+      p2: { player: 'Lienathan', entryId: 'e-lien-2', builds: [] },
+    }],
+  });
+  vm.runInContext('applySubmittedBuildsToMatches()', ctx);
+  assert.deepEqual(ctx.matchesState[0].p1.builds.map(b => b.build), ['MainA']);
+  assert.deepEqual(ctx.matchesState[0].p2.builds.map(b => b.build), ['DeA']);
+});
+
+test('applySubmittedBuildsToMatches: team members receive their submitted builds (keyed by name)', () => {
+  const ctx = loadSubmitApply({
+    playerKey: (name) => name,
+    buildsState: { 'Alice': ['A1', 'A2'], 'Bob': ['B1'] },
+    matchesState: [{
+      round: 'R1', isTeamMatch: true,
+      team1: { teamName: 'T1', members: [{ player: 'Alice', builds: [] }] },
+      team2: { teamName: 'T2', members: [{ player: 'Bob', builds: [] }] },
+    }],
+  });
+  vm.runInContext('applySubmittedBuildsToMatches()', ctx);
+  assert.deepEqual(ctx.matchesState[0].team1.members[0].builds.map(b => b.build), ['A1', 'A2']);
+  assert.deepEqual(ctx.matchesState[0].team2.members[0].builds.map(b => b.build), ['B1']);
+});
+
+test('applySubmittedBuildsToMatches: idempotent across repeated submit passes', () => {
+  const ctx = loadSubmitApply({
+    playerKey: (name) => name,
+    buildsState: { 'e-ken': ['Dragoon', 'Dranzer'] },
+    matchesState: [{
+      round: 'R1',
+      p1: { player: 'Ken', entryId: 'e-ken', builds: [] },
+      p2: { player: 'Mia', entryId: 'e-mia', builds: [] },
+    }],
+  });
+  vm.runInContext('applySubmittedBuildsToMatches()', ctx);
+  vm.runInContext('applySubmittedBuildsToMatches()', ctx);
+  assert.equal(ctx.matchesState[0].p1.builds.length, 2);
+});
