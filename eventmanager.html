@@ -4680,6 +4680,7 @@ function compactMatchHeaderHtml(match, opts) {
   const mid = match.id;
   const vs = opts.vsGlyph || 'VS';
   const caret = match.collapsed ? '▸' : '▾';
+  // opts.liveOnClick must be a trusted literal (e.g. "openLiveModeSolo(8,'p1')") — never pass user-controlled data here.
   const live = `<button class="mc2-live" aria-label="Open live scoring" title="Open live scoring" onclick="${opts.liveOnClick}">⚡</button>`;
   const more = `<button class="mc2-more" aria-label="More actions" aria-haspopup="menu" aria-expanded="false" title="More actions" onclick="event.stopPropagation();toggleMatchMenu(${mid})">⋯</button>`;
   const inline = (typeof submitAreaHtml === 'function' && typeof _autoSubmit !== 'undefined' && _autoSubmit && _autoSubmit.timers && _autoSubmit.timers[mid])
@@ -5328,7 +5329,7 @@ function toggleMatchMenu(mid, ev) {
 }
 
 // Dismiss menus on outside tap / Escape (registered once).
-if (typeof document !== 'undefined' && !window.__mc2MenuDismissBound) {
+if (typeof document !== 'undefined' && typeof window !== 'undefined' && !window.__mc2MenuDismissBound) {
   window.__mc2MenuDismissBound = true;
   document.addEventListener('click', (e) => {
     if (e.target.closest && e.target.closest('.mc2-menu, .mc2-more')) return;
