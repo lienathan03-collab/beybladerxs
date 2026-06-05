@@ -16,7 +16,7 @@ function sliceBetween(startNeedle, endNeedle) {
 }
 
 function loadReconcile() {
-  const ctx = { JSON, Array };
+  const ctx = { Array };
   vm.createContext(ctx);
   vm.runInContext(
     sliceBetween('// === BUILD-RECONCILE START ===', '// === BUILD-RECONCILE END ==='),
