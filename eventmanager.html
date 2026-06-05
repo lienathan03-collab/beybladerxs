@@ -3952,12 +3952,14 @@ async function dedupeChallongeImports() {
   const msg = `Remove ${toRemove.length} unscored duplicate match(es)?\n\n${lines.join('\n')}\n\nScored/submitted matches are kept. This cannot be undone.`;
   if (!confirm(msg)) return;
 
-  // Remove via existing removeMatch (creates tombstones, pushes deletion to server)
+  // The confirmation above covers the batch; removeMatch still handles
+  // tombstones and server deletion for each match.
   for (const m of toRemove) {
-    await removeMatch(m.id);
+    await removeMatch(m.id, { skipConfirm: true, silent: true });
   }
 
   // Backfill _challongeMatchId onto surviving matches that lack it
+  let backfillSaved = false;
   try {
     const res = await fetch(
       '/api/challonge?action=matches&tournament_id=' +
@@ -3978,17 +3980,24 @@ async function dedupeChallongeImports() {
         if (local) {
           local._challongeMatchId = cm.id;
           if (cm.group_id != null) local._challongeGroupId = cm.group_id;
+          local.division = currentEvent.challongeGroupMap?.[cm.group_id] ?? local.division;
         }
       }
       flattenMatchesToResults();
       markDirty();
       await queueCreatedMatchSave();
+      backfillSaved = true;
     }
   } catch (e) {
     console.warn('dedupeChallongeImports: backfill failed:', e);
   }
 
-  showToast(`✅ Removed ${toRemove.length} duplicate(s). IDs backfilled.`, 'success');
+  showToast(
+    backfillSaved
+      ? `✅ Removed ${toRemove.length} duplicate(s). IDs backfilled.`
+      : `✅ Removed ${toRemove.length} duplicate(s). Challonge ID backfill did not complete.`,
+    backfillSaved ? 'success' : ''
+  );
 }
 // DEDUP-HELPERS END
 
@@ -4722,22 +4731,19 @@ function renderMatchCard(match) {
 }
 
 // ─── DE SELF-MATCH CARD ───────────────────────────────────────────────────────
-// No Beyblade battle. Winner determined by coin toss (1 pt per toss, first to
-// threshold wins). Admin picks the advancing side and enters the loser's points.
+// No Beyblade battle. Winner is the entry with the higher coin-toss score.
 function renderDeSelfMatchCard(match) {
   const mid = match.id;
   const p1Label = match.p1.displayLabel || match.p1.player;
   const p2Label = match.p2 ? (match.p2.displayLabel || match.p2.player) : '?';
-  const threshold = soloThreshold(match.round);
-
   const p1pts  = match.p1.dePoints ?? '';
   const p2pts  = match.p2 ? (match.p2.dePoints ?? '') : '';
   const p1wins = !!(match.p1 && match.p1.win);
   const p2wins = !!(match.p2 && match.p2.win);
 
   let summary;
-  if (p1wins) summary = `<span style="color:var(--green)">${escHtml(p1Label)} ADV <span style="color:var(--muted2);font-size:11px">${threshold}-${p2pts !== '' ? p2pts : '?'}</span></span>`;
-  else if (p2wins) summary = `<span style="color:var(--green)">${escHtml(p2Label)} ADV <span style="color:var(--muted2);font-size:11px">${threshold}-${p1pts !== '' ? p1pts : '?'}</span></span>`;
+  if (p1wins) summary = `<span style="color:var(--green)">${escHtml(p1Label)} ADV <span style="color:var(--muted2);font-size:11px">${p1pts !== '' ? p1pts : '?'}-${p2pts !== '' ? p2pts : '?'}</span></span>`;
+  else if (p2wins) summary = `<span style="color:var(--green)">${escHtml(p2Label)} ADV <span style="color:var(--muted2);font-size:11px">${p2pts !== '' ? p2pts : '?'}-${p1pts !== '' ? p1pts : '?'}</span></span>`;
   else summary = `<span style="color:var(--muted)">select advancing side</span>`;
 
   // Read-only winner line for the expanded body
@@ -4838,7 +4844,7 @@ function renderDeScoreModal(match) {
   document.getElementById('de-score-p2-btns').innerHTML = makeButtons('p2');
   document.getElementById('de-score-error').textContent = '';
   document.getElementById('de-score-threshold-note').textContent =
-    `First to ${threshold} pts · round ${match.round}`;
+    `Higher score advances · maximum ${threshold} pts · round ${match.round}`;
 }
 
 function deScorePick(side, value) {
@@ -4865,6 +4871,7 @@ async function deScoreDone() {
   // Set win based on higher score
   if (_deScore.p1 > _deScore.p2) { match.p1.win = true; if (match.p2) match.p2.win = false; }
   else { if (match.p2) match.p2.win = true; match.p1.win = false; }
+  invalidateChallongePushState(match);
   // Close modal first
   document.getElementById('de-self-score-modal').style.display = 'none';
   _deScore = { mid: null, p1: null, p2: null };
@@ -5162,14 +5169,16 @@ function toggleMatchCollapse(mid) {
   if (m) { m.collapsed = !m.collapsed; renderResults(); }
 }
 
-async function removeMatch(mid) {
+async function removeMatch(mid, options = {}) {
   const match = matchesState.find(m => m.id === mid);
-  if (!match) return;
+  if (!match) return false;
+  const skipConfirm = !!options.skipConfirm;
+  const silent = !!options.silent;
   _clearAutoSubmitTimer(mid);
   const msg = match.submitted
     ? 'This match is already submitted. Remove it completely? This will be deleted from the server immediately.'
     : 'Remove this match? It will be deleted from the server immediately.';
-  if (!confirm(msg)) return;
+  if (!skipConfirm && !confirm(msg)) return false;
 
   // Tombstone the deletion BEFORE removing it locally so concurrent writers
   // who still hold this match in their state can't merge it back in on the
@@ -5181,7 +5190,7 @@ async function removeMatch(mid) {
   renderResults();
 
   // Always push deletion to server immediately so live sync doesn't bring it back
-  if (!currentEvent) return;
+  if (!currentEvent) return true;
   _syncPaused = true;
   try {
     const savedSids = getMatchSidSnapshot();
@@ -5203,7 +5212,7 @@ async function removeMatch(mid) {
       localClearDraft(currentEvent.id);
       document.getElementById('draft-banner').style.display = 'none';
       _lastSyncHash = JSON.stringify(resultsState);
-      showToast('🗑️ Match removed.', 'success');
+      if (!silent) showToast('🗑️ Match removed.', 'success');
     } else {
       // Push failed — mark dirty so user knows to save manually
       markDirty();
@@ -5215,6 +5224,7 @@ async function removeMatch(mid) {
   } finally {
     _syncPaused = false;
   }
+  return true;
 }
 
 function mToggleWin(mid, side) {
@@ -7479,8 +7489,11 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
         const t1name = teamNames[i];
         const t2name = teamNames[i+1];
         if (!t1name || !t2name) continue; // skip orphan team
-        const t1members = teamEntries.filter(e => e.team === t1name).map(e => ({ player: e.player, builds: e.builds || [], win: e.win }));
-        const t2members = teamEntries.filter(e => e.team === t2name).map(e => ({ player: e.player, builds: e.builds || [], win: e.win }));
+        const t1entries = teamEntries.filter(e => e.team === t1name);
+        const t2entries = teamEntries.filter(e => e.team === t2name);
+        const t1anchor = t1entries[0] || {};
+        const t1members = t1entries.map(e => ({ player: e.player, builds: e.builds || [], win: e.win }));
+        const t2members = t2entries.map(e => ({ player: e.player, builds: e.builds || [], win: e.win }));
         // Restore _playOrder from first team1 entry that has it
         const playOrderEntry = teamEntries.find(e => e.team === t1name && e._playOrder);
         const submittedEntry = teamEntries.find(e => e.team === t1name && e._submitted);
@@ -7488,13 +7501,17 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
         const idx = (teamPairCount[pairKey] || 0);
         teamPairCount[pairKey] = idx + 1;
         // Prefer the persisted _matchSid from the server entry (SID drift fix).
-        const t1sid = (teamEntries.find(e => e.team === t1name) || {})._matchSid;
+        const t1sid = t1anchor._matchSid;
         serverMatches.push({ _sid: t1sid || _teamSid(round, t1name, t2name, idx), round, isTeamMatch: true,
           team1: { teamName: t1name, members: t1members },
           team2: { teamName: t2name, members: t2members },
           p1: t1members[0] || null, p2: t2members[0] || null,
           _playOrder: playOrderEntry ? playOrderEntry._playOrder : undefined,
-          submitted: submittedEntry ? true : false
+          submitted: submittedEntry ? true : false,
+          _challongeMatchId: t1anchor._challongeMatchId || undefined,
+          _challongePushState: t1anchor._challongePushState || undefined,
+          division: t1anchor.division || undefined,
+          _challongeGroupId: t1anchor._challongeGroupId || undefined,
         });
       }
     }
@@ -7783,12 +7800,14 @@ async function unsubmitMatch(mid) {
     for (const side of ['p1', 'p2']) {
       if (!match[side]) continue;
       match[side].win = false;
+      if (match._deSelfMatch) delete match[side].dePoints;
       for (const b of (match[side].builds || [])) {
         b.finishes = [];
         b.deployed = false;
       }
     }
   }
+  invalidateChallongePushState(match);
   match.submitted = false;
 
   // Find and update the button immediately for feedback
@@ -7821,9 +7840,11 @@ async function unsubmitMatch(mid) {
         for (const side of ['p1','p2']) {
           if (!freshMatch[side]) continue;
           freshMatch[side].win = false;
+          if (freshMatch._deSelfMatch) delete freshMatch[side].dePoints;
           for (const b of (freshMatch[side].builds||[])) { b.finishes=[]; b.deployed=false; }
         }
       }
+      invalidateChallongePushState(freshMatch);
     }
 
     flattenMatchesToResults();

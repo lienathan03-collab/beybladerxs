@@ -1286,6 +1286,32 @@ test('mergeIncomingMatches: full-replace preserves _challongeMatchId and DE dePo
   assert.equal(context.matchesState[0].p2.dePoints, 1, 'p2 dePoints must survive merge');
 });
 
+test('mergeIncomingMatches: team full-replace preserves Challonge metadata from anchor row', () => {
+  const context = createContext([]);
+  loadMergeHelper(context);
+  context.dirty = false;
+  context.mergeIncomingMatches(
+    {},
+    [
+      { player: 'A1', team: 'Alpha', round: 'R1', builds: [], win: true,
+        _matchSid: 'R1|T|Alpha|Beta|0', _challongeMatchId: 888,
+        _challongePushState: 'ok', division: 'Group A', _challongeGroupId: 12 },
+      { player: 'A2', team: 'Alpha', round: 'R1', builds: [], win: false,
+        _matchSid: 'R1|T|Alpha|Beta|0' },
+      { player: 'B1', team: 'Beta', round: 'R1', builds: [], win: false,
+        _matchSid: 'R1|T|Alpha|Beta|0' },
+      { player: 'B2', team: 'Beta', round: 'R1', builds: [], win: true,
+        _matchSid: 'R1|T|Alpha|Beta|0' },
+    ]
+  );
+
+  assert.equal(context.matchesState.length, 1);
+  assert.equal(context.matchesState[0]._challongeMatchId, 888);
+  assert.equal(context.matchesState[0]._challongePushState, 'ok');
+  assert.equal(context.matchesState[0].division, 'Group A');
+  assert.equal(context.matchesState[0]._challongeGroupId, 12);
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Task 4 — autoCheckDeWin: higher dePoints wins, tie = no winner
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1437,6 +1463,7 @@ test('deScoreDone valid: writes dePoints and win to match, calls submitMatch onc
   let submitCalls = 0;
   ctx.flattenMatchesToResults = () => {};
   ctx.submitMatch = async (id) => { submitCalls++; return; };
+  ctx.invalidateChallongePushState = () => {};
   ctx.document = {
     getElementById: () => ({
       textContent: '', set textContent(v) {}, style: { display: '' }
@@ -1459,6 +1486,111 @@ test('deScoreDone valid: writes dePoints and win to match, calls submitMatch onc
     assert.equal(ctx.matchesState[0].p2.win, true,  'p2 must win (higher score)');
     assert.equal(submitCalls, 1, 'submitMatch must be called exactly once');
   }) : Promise.resolve();
+});
+
+test('deScoreDone valid: invalidates a previous successful Challonge push before resubmitting', async () => {
+  const ctx = deMatchContext();
+  loadFlattenHelpers(ctx);
+  const htmlSrc = require('fs').readFileSync(require('path').join(__dirname, '..', 'eventmanager.html'), 'utf8');
+  const start = htmlSrc.indexOf('let _deScore =');
+  const end = htmlSrc.indexOf('// ── Helper: get play order', start);
+  vm.runInContext(htmlSrc.slice(start, end), ctx);
+
+  let invalidated = 0;
+  ctx.invalidateChallongePushState = (match) => {
+    invalidated++;
+    delete match._challongePushState;
+  };
+  ctx.flattenMatchesToResults = () => {};
+  ctx.submitMatch = async () => {};
+  ctx.document = {
+    getElementById: () => ({
+      textContent: '', set textContent(v) {}, style: { display: '' }
+    })
+  };
+  ctx.matchesState = [{
+    id: 101, round: 'R1', _deSelfMatch: true, _challongeMatchId: 500, _challongePushState: 'ok',
+    p1: { player: 'L', entryId: 'eL1', builds: [], dePoints: 4, win: true },
+    p2: { player: 'L', entryId: 'eL2', builds: [], dePoints: 1, win: false },
+    submitted: false
+  }];
+  vm.runInContext('_deScore = { mid: 101, p1: 2, p2: 4 }', ctx);
+
+  await vm.runInContext('deScoreDone()', ctx);
+
+  assert.equal(invalidated, 1);
+  assert.equal(ctx.matchesState[0]._challongePushState, undefined);
+});
+
+test('renderDeSelfMatchCard: summary shows the selected score instead of the round maximum', () => {
+  const ctx = {
+    soloThreshold: () => 4,
+    escHtml: value => String(value),
+    challongePushChipHtml: () => '',
+    submitAreaHtml: () => '',
+  };
+  vm.createContext(ctx);
+  const start = html.indexOf('function renderDeSelfMatchCard(');
+  const end = html.indexOf('function mSelectDeWinner(', start);
+  vm.runInContext(html.slice(start, end), ctx);
+
+  const rendered = ctx.renderDeSelfMatchCard({
+    id: 1, round: 'R1', collapsed: true,
+    p1: { player: 'Alpha', dePoints: 3, win: true },
+    p2: { player: 'Beta', dePoints: 2, win: false },
+  });
+  const summaryStart = rendered.indexOf('match-result-summary');
+  const summaryEnd = rendered.indexOf('<button', summaryStart);
+  const summary = rendered.slice(summaryStart, summaryEnd);
+
+  assert.match(summary, /3-2/);
+  assert.doesNotMatch(summary, /4-2/);
+});
+
+test('unsubmitMatch: DE results clear dePoints and invalidate the Challonge push state', async () => {
+  const ctx = {
+    currentEvent: { id: 'evt-de' },
+    matchesState: [{
+      id: 77, _sid: 'R1|e1|e2|0', round: 'R1', _deSelfMatch: true,
+      _challongeMatchId: 900, _challongePushState: 'ok', submitted: true,
+      p1: { player: 'L', entryId: 'e1', builds: [], dePoints: 4, win: true },
+      p2: { player: 'L', entryId: 'e2', builds: [], dePoints: 1, win: false },
+    }],
+    buildsState: {},
+    resultsState: [],
+    _syncPaused: false,
+    _lastSyncHash: '',
+    confirm: () => true,
+    _clearAutoSubmitTimer() {},
+    document: { getElementById: () => null },
+    fetch: async (url) => url.includes('_t=')
+      ? { ok: true, json: async () => ({ builds: {}, beyResults: [] }) }
+      : { ok: true, json: async () => ({ beyResults: [] }) },
+    mergeIncomingMatches() {},
+    flattenMatchesToResults() {},
+    getMatchSidSnapshot: () => new Set(),
+    buildMergePutBody: () => ({ body: {}, deletedSnapshot: [] }),
+    clearAckedDeletedSids() {},
+    sidsFromServerPayload: () => new Set(),
+    confirmPendingMatchesSaved() {},
+    markDirty() {},
+    renderResults() {},
+    showToast() {},
+    invalidateChallongePushState(match) { delete match._challongePushState; },
+    JSON,
+    Promise,
+    Set,
+  };
+  vm.createContext(ctx);
+  const start = html.indexOf('async function unsubmitMatch(');
+  const end = html.indexOf('function exportMatches(', start);
+  vm.runInContext(html.slice(start, end), ctx);
+
+  await vm.runInContext('unsubmitMatch(77)', ctx);
+
+  assert.equal(ctx.matchesState[0].p1.dePoints, undefined);
+  assert.equal(ctx.matchesState[0].p2.dePoints, undefined);
+  assert.equal(ctx.matchesState[0]._challongePushState, undefined);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1505,4 +1637,45 @@ test('isMatchScored: unscored match is not scored', () => {
     p1: { builds: [{ build: 'X', finishes: [] }] },
     p2: { builds: [] } };
   assert.equal(vm.runInContext('isMatchScored(_m)', ctx), false);
+});
+
+test('dedupeChallongeImports: one approval removes duplicates without per-match confirmations', async () => {
+  let confirmCalls = 0;
+  const ctx = {
+    currentEvent: {
+      challongeTournamentId: 'tour-1',
+      challongeParticipantMap: {},
+      type: '1v1',
+    },
+    matchesState: [
+      { id: 1, round: 'R1', _sid: 'one', p1: { player: 'A', entryId: 'a', builds: [] }, p2: { player: 'B', entryId: 'b', builds: [] } },
+      { id: 2, round: 'R1', _sid: 'two', p1: { player: 'A', entryId: 'a', builds: [] }, p2: { player: 'B', entryId: 'b', builds: [] } },
+    ],
+    existingMatchSignature: m => `${m.round}|${m.p1.entryId}|${m.p2.entryId}`,
+    fetch: async () => ({ ok: true, json: async () => [] }),
+    challongeAccountParams: () => '',
+    challongeImportSignature: () => '',
+    challongeRoundLabel: round => `R${round}`,
+    flattenMatchesToResults() {},
+    markDirty() {},
+    queueCreatedMatchSave: async () => {},
+    showToast() {},
+    console,
+    Map,
+    Object,
+    Promise,
+  };
+  ctx.confirm = () => { confirmCalls++; return true; };
+  ctx.removeMatch = async (id, options) => {
+    if (!options || !options.skipConfirm) ctx.confirm();
+    ctx.matchesState = ctx.matchesState.filter(m => m.id !== id);
+    return true;
+  };
+  vm.createContext(ctx);
+  loadDedupHelpers(ctx);
+
+  await vm.runInContext('dedupeChallongeImports()', ctx);
+
+  assert.equal(confirmCalls, 1);
+  assert.equal(ctx.matchesState.length, 1);
 });

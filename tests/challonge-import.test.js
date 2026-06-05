@@ -434,3 +434,19 @@ test('buildImportPlan: DE pair with no local match still imports as de-self', ()
   assert.equal(plan[0].skip, false, 'DE pair must not be skipped');
   assert.equal(plan[0].reason, 'de-self');
 });
+
+test('buildImportPlan: unmapped participants are not suppressed by undefined legacy signatures', () => {
+  const { buildImportPlan } = loadChallongeHelpers();
+  const matchesState = [
+    { round: 'R1', p1: { player: 'Manual A' }, p2: { player: 'Manual B' } },
+  ];
+  const matches = [
+    { match: { id: 100, state: 'open', round: 1, player1_id: 1, player2_id: 2 } },
+  ];
+
+  const plan = buildImportPlan({ matches, pidMap: {}, matchesState, isTeam: false });
+
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0].skip, false);
+  assert.equal(plan[0].reason, 'unmapped');
+});
