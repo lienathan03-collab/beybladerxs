@@ -237,3 +237,10 @@ test('compact card CSS defines touch-target minimums and two-line name clamp', (
   assert.match(html, /\.mc2-names[^}]*min-width:\s*0/);
   assert.match(html, /\.mc2-menu-item\.danger/);
 });
+
+test('renderMatchCard collapsed solo uses the compact header (no legacy live-btn/Remove text)', () => {
+  const body = bodyOf('function renderMatchCard(match)', 'function renderDeSelfMatchCard');
+  assert.match(body, /compactMatchHeaderHtml\(/);
+  assert.doesNotMatch(body, /✕ Remove/);            // remove text moved to menu
+  assert.doesNotMatch(body, /class="btn live-btn"/); // legacy header live button gone
+});

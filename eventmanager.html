@@ -4902,22 +4902,10 @@ function renderMatchCard(match) {
 
     return `
     <div class="match-card" id="match-${mid}">
-      <div style="display:flex;align-items:stretch;border-bottom:1px solid var(--border)">
-        <div class="match-card-header" style="flex:1;border-bottom:none" onclick="toggleMatchCollapse(${mid})">
-          <span class="match-round-badge">${escHtml(match.round||'')}</span>
-          <span class="match-vs-label">
-            <span style="color:var(--blue)">${escHtml(p1Label)}</span>
-            <span style="color:var(--muted2);margin:0 8px;font-size:12px">VS</span>
-            <span style="color:var(--gold2)">${escHtml(p2Label)}</span>
-          </span>
-          <span class="match-result-summary">${summary}</span>
-          ${challongePushChipHtml(match)}
-          ${submitAreaHtml(match)}
-          <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕ Remove</button>
-          <span style="color:var(--muted2);font-size:12px;margin-left:4px">${match.collapsed ? '▼' : '▲'}</span>
-        </div>
-        <button class="btn live-btn" onclick="openLiveModeSolo(${mid},'p1')">⚡</button>
-      </div>
+      ${compactMatchHeaderHtml(match, {
+        name1: p1Label, name2: p2Label, vsGlyph: 'VS',
+        liveOnClick: `openLiveModeSolo(${mid},'p1')`
+      })}
       ${match.collapsed ? '' : `
       <div class="match-card-body">
         ${renderPlayerSide(match, 'p1', mid)}
