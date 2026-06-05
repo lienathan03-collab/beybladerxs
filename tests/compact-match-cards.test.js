@@ -22,3 +22,17 @@ test('challongeImportOpenMatches pushes collapsed matches (solo + team)', () => 
   assert.ok(flags.every(f => f === 'true'),
     `imported matches must be collapsed; found: ${flags.join(', ')}`);
 });
+
+test('loadMatchesFromResults builds matches collapsed', () => {
+  const body = bodyOf('function loadMatchesFromResults()', 'function flattenMatchesToResults()');
+  const flags = [...body.matchAll(/collapsed:\s*(true|false)/g)].map(m => m[1]);
+  assert.ok(flags.length >= 1, 'expected collapse flags in loader');
+  assert.ok(flags.every(f => f === 'true'), `loaded matches must be collapsed; got ${flags}`);
+});
+
+test('mergeIncomingMatches adds server matches collapsed', () => {
+  const body = bodyOf('function mergeIncomingMatches(', '// SUBMIT MATCH');
+  // New-from-server and full-replace-fallback must default collapsed true.
+  assert.match(body, /sm\.collapsed\s*=\s*true/);
+  assert.match(body, /sm\.collapsed\s*=\s*existing\s*\?\s*existing\.collapsed\s*:\s*true/);
+});
