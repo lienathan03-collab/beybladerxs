@@ -488,6 +488,7 @@
   .mc2-status.ok   { color: var(--green); }
   .mc2-status.err  { color: var(--red); }
   .mc2-status.pend { color: var(--muted); }
+  .mc2-status-short { display: none; }
   .mc2-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
   .mc2-live, .mc2-more {
     min-height: 40px; min-width: 40px;
@@ -502,6 +503,7 @@
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 8px; overflow: hidden; margin: 0 10px 8px;
   }
+  .mc2-menu[hidden] { display: none; }
   .mc2-menu-item {
     text-align: left; background: transparent; border: none;
     color: var(--accent); font-size: 13px; padding: 11px 12px; min-height: 44px;
@@ -1496,6 +1498,9 @@
     .mc2-row { gap: 6px; padding: 8px; }
     .mc2-name { font-size: 13px; }
     .mc2-round { font-size: 8px; }
+    .mc2-status { min-width: 16px; text-align: center; }
+    .mc2-status-full { display: none; }
+    .mc2-status-short { display: inline; font-size: 12px; }
     .mc2-live, .mc2-more { min-height: 44px; min-width: 44px; }
 
     /* MATCH CARD BODY — stack players vertically on phones so neither gets cut off */
@@ -3026,22 +3031,28 @@ function buildACKeydown(e, key, idx) {
 // objects and renaming existing ones while preserving scoring state. Operates
 // on the matchesState / buildsState globals. Solo slots key by entryId
 // (falling back to name); team members key by name.
-function applySubmittedBuildsToMatches() {
+function applySubmittedBuildsToMatches(buildSource = buildsState) {
   for (const m of matchesState) {
     if (m.isTeamMatch) {
       for (const teamKey of ['team1', 'team2']) {
         if (!m[teamKey]) continue;
         for (const member of m[teamKey].members) {
-          reconcileMatchSlotBuilds(member, buildsState[playerKey(member.player)] || []);
+          reconcileMatchSlotBuilds(member, buildSource[playerKey(member.player)] || []);
         }
       }
     } else {
       for (const side of ['p1', 'p2']) {
         if (!m[side]) continue;
         const key = m[side].entryId || playerKey(m[side].player);
-        reconcileMatchSlotBuilds(m[side], buildsState[key] || []);
+        reconcileMatchSlotBuilds(m[side], buildSource[key] || []);
       }
     }
+  }
+}
+
+function restoreSubmittedBuildsSnapshot(snapshot) {
+  for (const [key, names] of Object.entries(snapshot || {})) {
+    buildsState[key] = Array.isArray(names) ? names.slice() : names;
   }
 }
 // === SUBMIT-APPLY END ===
@@ -3052,10 +3063,12 @@ async function submitBuilds() {
   if (btn) { btn.textContent = '⏳ Submitting…'; btn.disabled = true; }
 
   try {
+    const submittedBuildsSnapshot = JSON.parse(JSON.stringify(buildsState));
+
     // Propagate submitted build names into all existing matches by slot index.
     // Creates missing build objects (e.g. Challonge-imported empty slots) and
     // renames existing ones; finishes/deployed/win are preserved.
-    applySubmittedBuildsToMatches();
+    applySubmittedBuildsToMatches(submittedBuildsSnapshot);
 
     flattenMatchesToResults();
 
@@ -3064,8 +3077,9 @@ async function submitBuilds() {
     if (latestRes.ok) {
       const latestData = await latestRes.json();
       mergeIncomingMatches(latestData.builds || {}, latestData.beyResults || []);
-      // Re-apply after merge (merge may have overwritten local slot data).
-      applySubmittedBuildsToMatches();
+      // A fetched snapshot may be older than the names currently in the form.
+      restoreSubmittedBuildsSnapshot(submittedBuildsSnapshot);
+      applySubmittedBuildsToMatches(submittedBuildsSnapshot);
       flattenMatchesToResults();
     }
 
@@ -3711,11 +3725,10 @@ async function challongeSaveMapping(isTeam) {
 //   slot                : { builds: [{ build, finishes, deployed, ... }] }  (mutated in place)
 //   submittedBuildNames : flat array of name strings from buildsState[key]
 //                         (may contain '' / whitespace padding — ignored)
-// Reconciles by slot index against the NON-BLANK name list:
-//   - existing slot i -> rename: slot.builds[i].build = names[i]  (finishes/deployed/win preserved)
-//   - missing  slot i -> create: push { build: names[i], finishes: [], deployed: false }
-//   - extra trailing builds beyond names -> drop from the end ONLY while unscored;
-//     stop at the first extra carrying recorded results (finishes.length or deployed).
+// Reconciles exact build names first, then falls back to slot index for renames.
+// This prevents an interior blank from shifting scoring data onto another build.
+// Removed scored/deployed builds are retained after the submitted builds; removed
+// unscored builds are discarded.
 // Never writes any scoring field. Returns the slot for chaining.
 function reconcileMatchSlotBuilds(slot, submittedBuildNames) {
   if (!slot) return slot;
@@ -3723,20 +3736,48 @@ function reconcileMatchSlotBuilds(slot, submittedBuildNames) {
   const names = (submittedBuildNames || []).filter(
     n => typeof n === 'string' && n.trim() !== ''
   );
+  const existing = slot.builds.slice();
+  const exactIndexes = new Array(names.length).fill(-1);
+  const reserved = new Set();
+
   for (let i = 0; i < names.length; i++) {
-    if (slot.builds[i]) {
-      slot.builds[i].build = names[i];
-    } else {
-      slot.builds[i] = { build: names[i], finishes: [], deployed: false };
+    const wanted = names[i].trim();
+    const found = existing.findIndex((build, index) =>
+      !reserved.has(index) &&
+      typeof build?.build === 'string' &&
+      build.build.trim() === wanted
+    );
+    if (found !== -1) {
+      exactIndexes[i] = found;
+      reserved.add(found);
     }
   }
-  // Preserve recorded results: trim trailing extras only while they are unscored.
-  for (let i = slot.builds.length - 1; i >= names.length; i--) {
-    const extra = slot.builds[i];
-    const hasResults = !!(extra && (((extra.finishes || []).length) || extra.deployed));
-    if (hasResults) break;
-    slot.builds.pop();
+
+  const nextBuilds = [];
+  const used = new Set();
+  for (let i = 0; i < names.length; i++) {
+    let index = exactIndexes[i];
+    if (index === -1 && existing[i] && !reserved.has(i) && !used.has(i)) {
+      index = i;
+    }
+    const build = index === -1
+      ? { build: names[i], finishes: [], deployed: false }
+      : existing[index];
+    build.build = names[i];
+    nextBuilds.push(build);
+    if (index !== -1) used.add(index);
   }
+
+  for (let i = 0; i < existing.length; i++) {
+    if (used.has(i)) continue;
+    const extra = existing[i];
+    const hasResults = !!(extra && (
+      (extra.finishes || []).length || extra.deployed || extra.win
+    ));
+    if (hasResults) nextBuilds.push(extra);
+  }
+  slot.builds.length = 0;
+  slot.builds.push(...nextBuilds);
   return slot;
 }
 // === BUILD-RECONCILE END ===
@@ -4650,12 +4691,15 @@ function submitAreaHtml(match) {
 // so state is never conveyed by color alone (WCAG 1.4.1).
 function matchStatusChipHtml(match) {
   if (match._challongeMatchId && match._challongePushState === 'pending')
-    return `<span class="mc2-status pend">⟳ pushing…</span>`;
+    return `<span class="mc2-status pend" aria-label="Pushing to Challonge" title="Pushing to Challonge"><span class="mc2-status-full">⟳ pushing…</span><span class="mc2-status-short" aria-hidden="true">⟳</span></span>`;
   if (match._challongeMatchId && match._challongePushState === 'error')
-    return `<span class="mc2-status err">⚠ retry</span>`;
-  if (match.submitted)
-    return `<span class="mc2-status ok">✓ submitted${match._challongePushState === 'ok' ? ' · pushed' : ''}</span>`;
-  return `<span class="mc2-status">pending</span>`;
+    return `<span class="mc2-status err" aria-label="Challonge push failed; retry" title="Challonge push failed; retry"><span class="mc2-status-full">⚠ retry</span><span class="mc2-status-short" aria-hidden="true">⚠</span></span>`;
+  if (match.submitted) {
+    const pushed = match._challongePushState === 'ok';
+    const label = pushed ? 'Submitted and pushed' : 'Submitted';
+    return `<span class="mc2-status ok" aria-label="${label}" title="${label}"><span class="mc2-status-full">✓ submitted${pushed ? ' · pushed' : ''}</span><span class="mc2-status-short" aria-hidden="true">✓</span></span>`;
+  }
+  return `<span class="mc2-status" aria-label="Pending" title="Pending"><span class="mc2-status-full">pending</span><span class="mc2-status-short" aria-hidden="true">•</span></span>`;
 }
 
 // Overflow-menu body. Submit XOR Unsubmit (Auto-submit countdown stays inline on
@@ -4675,6 +4719,14 @@ function matchOverflowMenuHtml(match) {
   items.push(`<button class="mc2-menu-item danger" role="menuitem" onclick="event.stopPropagation();toggleMatchMenu(${mid});removeMatch(${mid})">✕ Remove match</button>`);
   return `<div class="mc2-menu" id="mc2-menu-${mid}" role="menu" hidden>${items.join('')}</div>`;
 }
+
+function handleMatchHeaderKeydown(event, mid) {
+  if (event.target !== event.currentTarget) return;
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  event.preventDefault();
+  toggleMatchCollapse(mid);
+}
+
 // Shared collapsed/expanded header row for solo, DE, and team cards. The middle
 // names column is min-width:0 so long names clamp to two lines instead of
 // pushing ⚡/⋯ off-screen. vsGlyph defaults to "VS" (DE cards pass "↔").
@@ -4688,7 +4740,9 @@ function compactMatchHeaderHtml(match, opts) {
   const inline = (typeof submitAreaHtml === 'function' && typeof _autoSubmit !== 'undefined' && _autoSubmit && _autoSubmit.timers && _autoSubmit.timers[mid])
     ? submitAreaHtml(match) : '';
   return `
-    <div class="mc2-row" onclick="toggleMatchCollapse(${mid})">
+    <div class="mc2-row" role="button" tabindex="0"
+      onclick="toggleMatchCollapse(${mid})"
+      onkeydown="handleMatchHeaderKeydown(event,${mid})">
       <span class="mc2-caret" aria-hidden="true">${caret}</span>
       <span class="mc2-round">${escHtml(match.round || '')}</span>
       <div class="mc2-names">
@@ -5242,19 +5296,28 @@ function toggleMatchCollapse(mid) {
   if (m) { m.collapsed = !m.collapsed; renderResults(); }
 }
 
+function setMatchMenuOpen(menu, open) {
+  if (!menu) return;
+  menu.hidden = !open;
+  const mid = menu.id.replace('mc2-menu-', '');
+  const trigger = document.querySelector(`#match-${mid} .mc2-more`);
+  if (trigger) trigger.setAttribute('aria-expanded', String(open));
+}
+
+function closeMatchMenus(exceptMid) {
+  if (typeof document === 'undefined') return;
+  document.querySelectorAll('.mc2-menu:not([hidden])').forEach(menu => {
+    if (String(menu.id) !== `mc2-menu-${exceptMid}`) setMatchMenuOpen(menu, false);
+  });
+}
+
 // Open/close one match's overflow menu; closes any other open menu first.
 function toggleMatchMenu(mid, ev) {
   if (ev && ev.stopPropagation) ev.stopPropagation();
   if (typeof document === 'undefined') return;
-  document.querySelectorAll('.mc2-menu:not([hidden])').forEach(el => {
-    if (el.id !== `mc2-menu-${mid}`) el.hidden = true;
-  });
+  closeMatchMenus(mid);
   const menu = document.getElementById(`mc2-menu-${mid}`);
-  if (menu) {
-    menu.hidden = !menu.hidden;
-    const trigger = document.querySelector(`#match-${mid} .mc2-more`);
-    if (trigger) trigger.setAttribute('aria-expanded', String(!menu.hidden));
-  }
+  if (menu) setMatchMenuOpen(menu, menu.hidden);
 }
 
 // Dismiss menus on outside tap / Escape (registered once).
@@ -5262,10 +5325,10 @@ if (typeof document !== 'undefined' && typeof window !== 'undefined' && !window.
   window.__mc2MenuDismissBound = true;
   document.addEventListener('click', (e) => {
     if (e.target.closest && e.target.closest('.mc2-menu, .mc2-more')) return;
-    document.querySelectorAll('.mc2-menu:not([hidden])').forEach(el => { el.hidden = true; });
+    closeMatchMenus();
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') document.querySelectorAll('.mc2-menu:not([hidden])').forEach(el => { el.hidden = true; });
+    if (e.key === 'Escape') closeMatchMenus();
   });
 }
 

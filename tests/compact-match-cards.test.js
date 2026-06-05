@@ -156,9 +156,12 @@ function loadHeaderHelpers() {
   const end = html.indexOf('// === MATCH-HEADER-HTML END ===');
   assert.notEqual(start, -1, 'Missing MATCH-HEADER-HTML START marker');
   assert.notEqual(end, -1, 'Missing MATCH-HEADER-HTML END marker');
+  const toggleCalls = [];
   const ctx = {
     escHtml: s => String(s == null ? '' : s).replace(/[&<>"]/g, c =>
       ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),
+    toggleMatchCollapse: mid => toggleCalls.push(mid),
+    toggleCalls,
   };
   vm.createContext(ctx);
   vm.runInContext(html.slice(start, end), ctx);
@@ -197,7 +200,11 @@ test('matchOverflowMenuHtml Remove item carries the danger class and stops propa
 
 test('matchStatusChipHtml reflects submitted / pending / push states', () => {
   const { matchStatusChipHtml } = loadHeaderHelpers();
-  assert.match(matchStatusChipHtml({ id: 1, submitted: true }), /submitted/i);
+  const submitted = matchStatusChipHtml({ id: 1, submitted: true });
+  assert.match(submitted, /submitted/i);
+  assert.match(submitted, /mc2-status-full/);
+  assert.match(submitted, /mc2-status-short/);
+  assert.match(submitted, /aria-label=/);
   assert.match(matchStatusChipHtml({ id: 2, submitted: false }), /pending/i);
   assert.match(
     matchStatusChipHtml({ id: 3, _challongeMatchId: 'c', _challongePushState: 'error' }),
@@ -221,6 +228,33 @@ test('compactMatchHeaderHtml renders round, both names, ⚡ and ⋯, with tap is
   assert.match(out, /aria-label/);                           // a11y labels present
 });
 
+test('compactMatchHeaderHtml row is keyboard-operable without hijacking child controls', () => {
+  const { compactMatchHeaderHtml, handleMatchHeaderKeydown, toggleCalls } = loadHeaderHelpers();
+  const out = compactMatchHeaderHtml(
+    { id: 8, round: 'R1', submitted: false },
+    { name1: 'A', name2: 'B', liveOnClick: "openLiveModeSolo(8,'p1')" }
+  );
+  assert.match(out, /class="mc2-row"[^>]*role="button"[^>]*tabindex="0"/);
+  assert.match(out, /onkeydown="handleMatchHeaderKeydown\(event,8\)"/);
+
+  const row = {};
+  let prevented = 0;
+  handleMatchHeaderKeydown(
+    { key: 'Enter', target: row, currentTarget: row, preventDefault: () => prevented++ },
+    8
+  );
+  handleMatchHeaderKeydown(
+    { key: ' ', target: row, currentTarget: row, preventDefault: () => prevented++ },
+    8
+  );
+  handleMatchHeaderKeydown(
+    { key: 'Enter', target: {}, currentTarget: row, preventDefault: () => prevented++ },
+    8
+  );
+  assert.deepEqual(toggleCalls, [8, 8]);
+  assert.equal(prevented, 2);
+});
+
 test('compactMatchHeaderHtml escapes hostile names', () => {
   const { compactMatchHeaderHtml } = loadHeaderHelpers();
   const out = compactMatchHeaderHtml(
@@ -236,6 +270,9 @@ test('compact card CSS defines touch-target minimums and two-line name clamp', (
   assert.match(html, /\.mc2-name[^}]*-webkit-line-clamp:\s*2/);
   assert.match(html, /\.mc2-names[^}]*min-width:\s*0/);
   assert.match(html, /\.mc2-menu-item\.danger/);
+  assert.match(html, /\.mc2-menu\[hidden\]\s*\{\s*display:\s*none/);
+  assert.match(html, /@media \(max-width:\s*600px\)[\s\S]*?\.mc2-status-full\s*\{\s*display:\s*none/);
+  assert.match(html, /@media \(max-width:\s*600px\)[\s\S]*?\.mc2-status-short\s*\{\s*display:\s*inline/);
 });
 
 test('renderTeamMatchCard uses the compact header and routes ⚡ to openLiveMode team1', () => {
@@ -273,4 +310,38 @@ test('every interactive control inside the compact header stops propagation', ()
   for (const m of menu.matchAll(/<button class="mc2-menu-item[^"]*"[^>]*onclick="([^"]*)"/g)) {
     assert.match(m[1], /^event\.stopPropagation\(\)/, `menu item must stopPropagation first: ${m[1]}`);
   }
+});
+
+test('opening one overflow menu resets aria-expanded on the menu it closes', () => {
+  const menu1 = { id: 'mc2-menu-1', hidden: false };
+  const menu2 = { id: 'mc2-menu-2', hidden: true };
+  const attrs1 = { 'aria-expanded': 'true' };
+  const attrs2 = { 'aria-expanded': 'false' };
+  const triggers = {
+    '#match-1 .mc2-more': { setAttribute: (key, value) => { attrs1[key] = value; } },
+    '#match-2 .mc2-more': { setAttribute: (key, value) => { attrs2[key] = value; } },
+  };
+  const listeners = {};
+  const document = {
+    querySelectorAll: () => [menu1, menu2].filter(menu => !menu.hidden),
+    getElementById: id => ({ 'mc2-menu-1': menu1, 'mc2-menu-2': menu2 }[id] || null),
+    querySelector: selector => triggers[selector] || null,
+    addEventListener: (type, fn) => { listeners[type] = fn; },
+  };
+  const ctx = {
+    document,
+    window: {},
+    matchesState: [],
+    renderResults() {},
+  };
+  vm.createContext(ctx);
+  vm.runInContext(
+    bodyOf('function toggleMatchCollapse(mid)', 'async function removeMatch'),
+    ctx
+  );
+  ctx.toggleMatchMenu(2);
+  assert.equal(menu1.hidden, true);
+  assert.equal(attrs1['aria-expanded'], 'false');
+  assert.equal(menu2.hidden, false);
+  assert.equal(attrs2['aria-expanded'], 'true');
 });

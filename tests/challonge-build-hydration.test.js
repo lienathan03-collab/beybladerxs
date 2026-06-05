@@ -55,6 +55,19 @@ test('reconcile: ignores interior blank / padding names (filtered indexing)', ()
   assert.deepEqual(slot.builds.map(b => b.build), ['Dragoon', 'Dranzer']);
 });
 
+test('reconcile: interior blank keeps scored objects attached to their build identity', () => {
+  const reconcile = loadReconcile();
+  const slot = { builds: [
+    { build: 'A', finishes: ['S'], deployed: true },
+    { build: 'B', finishes: ['O'], deployed: false },
+    { build: 'C', finishes: ['E'], deployed: false },
+  ] };
+  reconcile(slot, ['A', '', 'C']);
+  assert.deepEqual(slot.builds.map(b => b.build), ['A', 'C', 'B']);
+  assert.deepEqual(slot.builds.map(b => b.finishes), [['S'], ['E'], ['O']]);
+  assert.equal(slot.builds.filter(b => b.build === 'C').length, 1);
+});
+
 test('reconcile: trims trailing UNSCORED extras but KEEPS scored extras (preserve results)', () => {
   const reconcile = loadReconcile();
   const slot = { builds: [
@@ -254,6 +267,44 @@ test('applySubmittedBuildsToMatches: idempotent across repeated submit passes', 
   vm.runInContext('applySubmittedBuildsToMatches()', ctx);
   vm.runInContext('applySubmittedBuildsToMatches()', ctx);
   assert.equal(ctx.matchesState[0].p1.builds.length, 2);
+});
+
+test('submit snapshot restoration keeps fresh names after a stale server merge', () => {
+  const ctx = loadSubmitApply({
+    playerKey: (name) => name,
+    buildsState: { 'e-ken': ['OldA'] },
+    matchesState: [{
+      round: 'R1',
+      p1: { player: 'Ken', entryId: 'e-ken', builds: [
+        { build: 'OldA', finishes: ['S'], deployed: true },
+      ] },
+      p2: { player: 'Mia', entryId: 'e-mia', builds: [] },
+    }],
+  });
+  ctx.submittedSnapshot = { 'e-ken': ['NewA'] };
+  vm.runInContext(
+    'restoreSubmittedBuildsSnapshot(submittedSnapshot); applySubmittedBuildsToMatches(submittedSnapshot)',
+    ctx
+  );
+  assert.deepEqual(ctx.buildsState['e-ken'], ['NewA']);
+  assert.equal(ctx.matchesState[0].p1.builds[0].build, 'NewA');
+  assert.deepEqual(ctx.matchesState[0].p1.builds[0].finishes, ['S']);
+});
+
+test('submitBuilds restores and reapplies its pre-fetch snapshot after merging', () => {
+  const start = html.indexOf('async function submitBuilds()');
+  const end = html.indexOf('\nfunction ', start);
+  assert.notEqual(start, -1, 'Missing submitBuilds');
+  assert.notEqual(end, -1, 'Missing function after submitBuilds');
+  const body = html.slice(start, end);
+  const snapshotIdx = body.indexOf('submittedBuildsSnapshot');
+  const mergeIdx = body.indexOf('mergeIncomingMatches(');
+  const restoreIdx = body.indexOf('restoreSubmittedBuildsSnapshot(submittedBuildsSnapshot)');
+  const reapplyIdx = body.indexOf('applySubmittedBuildsToMatches(submittedBuildsSnapshot)', restoreIdx);
+  assert.ok(snapshotIdx !== -1 && snapshotIdx < mergeIdx,
+    'submit must capture edited build names before fetching/merging');
+  assert.ok(mergeIdx < restoreIdx && restoreIdx < reapplyIdx,
+    'submit must restore and reapply the captured names after merge');
 });
 
 // The team-import conversion mirrors nmSelectTeam: each joiner member
