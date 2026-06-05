@@ -3169,7 +3169,11 @@ function loadMatchesFromResults() {
           p1: t1members[0] || null, p2: t2members[0] || null,
           _playOrder: playOrderEntry ? playOrderEntry._playOrder : undefined,
           submitted: submittedEntry ? true : false,
-          collapsed: true
+          collapsed: true,
+          _challongeMatchId: (t1entries[0] && t1entries[0]._challongeMatchId) || undefined,
+          _challongePushState: (t1entries[0] && t1entries[0]._challongePushState) || undefined,
+          division: (t1entries[0] && t1entries[0].division) || undefined,
+          _challongeGroupId: (t1entries[0] && t1entries[0]._challongeGroupId) || undefined,
         });
       }
     }
@@ -3197,6 +3201,10 @@ function loadMatchesFromResults() {
         // computation only for legacy entries without _matchSid.
         _sid: p1._matchSid || _soloSid(round, p1, p2, idx),
         _deSelfMatch: (p1._noStats || p2._noStats) ? true : undefined,
+        _challongeMatchId: p1._challongeMatchId || p2._challongeMatchId || undefined,
+        _challongePushState: p1._challongePushState || p2._challongePushState || undefined,
+        division: p1.division || p2.division || undefined,
+        _challongeGroupId: p1._challongeGroupId || p2._challongeGroupId || undefined,
         round,
         p1: { player: p1.player, entryId: p1.entryId, entryType: p1.entryType, displayLabel: p1.displayLabel, builds: p1.builds || [], pointsTotal: p1.pointsTotal || 0, win: p1.win, dePoints: p1.dePoints },
         p2: { player: p2.player, entryId: p2.entryId, entryType: p2.entryType, displayLabel: p2.displayLabel, builds: p2.builds || [], pointsTotal: p2.pointsTotal || 0, win: p2.win, dePoints: p2.dePoints },
@@ -7295,10 +7303,16 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
       const pairKey = `${p1.entryId||p1.player}||${p2.entryId||p2.player}`;
       const idx = (soloPairCount[pairKey] || 0);
       soloPairCount[pairKey] = idx + 1;
-      serverMatches.push({ _sid: p1._matchSid || _soloSid(round, p1, p2, idx),
+      serverMatches.push({
+        _sid: p1._matchSid || _soloSid(round, p1, p2, idx),
         round,
-        p1: { player: p1.player, entryId: p1.entryId, entryType: p1.entryType, displayLabel: p1.displayLabel, builds: p1.builds || [], win: p1.win },
-        p2: { player: p2.player, entryId: p2.entryId, entryType: p2.entryType, displayLabel: p2.displayLabel, builds: p2.builds || [], win: p2.win },
+        _deSelfMatch: (p1._noStats || p2._noStats || isDeSelfMatch(p1, p2)) ? true : undefined,
+        _challongeMatchId: p1._challongeMatchId || p2._challongeMatchId || undefined,
+        _challongePushState: p1._challongePushState || p2._challongePushState || undefined,
+        division: p1.division || p2.division || undefined,
+        _challongeGroupId: p1._challongeGroupId || p2._challongeGroupId || undefined,
+        p1: { player: p1.player, entryId: p1.entryId, entryType: p1.entryType, displayLabel: p1.displayLabel, builds: p1.builds || [], win: p1.win, dePoints: p1.dePoints },
+        p2: { player: p2.player, entryId: p2.entryId, entryType: p2.entryType, displayLabel: p2.displayLabel, builds: p2.builds || [], win: p2.win, dePoints: p2.dePoints },
         submitted: p1._submitted ? true : false
       });
     }
@@ -7346,6 +7360,13 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
               team1: local.team1, team2: local.team2, _playOrder: local._playOrder });
             if (snap !== snap2) changed = true;
           }
+          if (sm._challongeMatchId && !local._challongeMatchId) {
+            local._challongeMatchId = sm._challongeMatchId;
+          }
+          if (sm._challongePushState && local._challongePushState !== 'ok') {
+            local._challongePushState = sm._challongePushState;
+          }
+          if (sm.division && !local.division) local.division = sm.division;
         }
         continue;
       }

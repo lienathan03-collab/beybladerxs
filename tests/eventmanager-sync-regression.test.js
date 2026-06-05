@@ -85,6 +85,14 @@ function createContext(matchesState) {
   context._soloSid = (round, p1, p2, idx) =>
     `${round}|${p1.entryId || p1.player}|${p2.entryId || p2.player}|${idx}`;
   context._teamSid = (round, t1, t2, idx) => `${round}|T|${t1}|${t2}|${idx}`;
+  context.isDeSelfMatch = function(p1, p2) {
+    if (!p1 || !p2) return false;
+    const id1 = p1.entryId; const id2 = p2.entryId;
+    if (!id1 || !id2 || id1 === id2) return false;
+    const n1 = String(p1.player || '').toLowerCase();
+    const n2 = String(p2.player || '').toLowerCase();
+    return n1 !== '' && n1 === n2;
+  };
   vm.createContext(context);
   return context;
 }
@@ -1234,4 +1242,57 @@ test('flattenMatchesToResults: solo row with no _challongeMatchId does not emit 
   }];
   vm.runInContext('flattenMatchesToResults()', ctx);
   assert.equal(ctx.resultsState[0]._challongeMatchId, undefined, 'absent field must not appear');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task 2 — rehydrate Challonge id + DE dePoints through load and live-sync
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('loadMatchesFromResults: _challongeMatchId rehydrated from solo rows', () => {
+  const ctx = deMatchContext(); loadFlattenHelpers(ctx);
+  ctx.resultsState = [
+    { player: 'Ken', entryId: 'eA', round: 'R1', builds: [], win: true,
+      _matchSid: 'R1|eA|eB|0', _challongeMatchId: 555, _challongePushState: 'ok', division: 'Div A' },
+    { player: 'Mia', entryId: 'eB', round: 'R1', builds: [], win: false,
+      _matchSid: 'R1|eA|eB|0', _challongeMatchId: 555, _challongePushState: 'ok', division: 'Div A' },
+  ];
+  vm.runInContext('loadMatchesFromResults()', ctx);
+  assert.equal(ctx.matchesState.length, 1);
+  assert.equal(ctx.matchesState[0]._challongeMatchId, 555, '_challongeMatchId must rehydrate');
+  assert.equal(ctx.matchesState[0]._challongePushState, 'ok');
+  assert.equal(ctx.matchesState[0].division, 'Div A');
+});
+
+test('mergeIncomingMatches: full-replace preserves _challongeMatchId and DE dePoints from rows', () => {
+  const context = createContext([]);
+  loadMergeHelper(context);
+  // Inject isDeSelfMatch into context so mergeIncomingMatches can call it
+  vm.runInContext(`
+    function isDeSelfMatch(p1, p2) {
+      if (!p1 || !p2) return false;
+      const id1 = p1.entryId; const id2 = p2.entryId;
+      if (!id1 || !id2 || id1 === id2) return false;
+      const n1 = String(p1.player || '').toLowerCase();
+      const n2 = String(p2.player || '').toLowerCase();
+      return n1 !== '' && n1 === n2;
+    }
+  `, context);
+  context.dirty = false;
+  context.mergeIncomingMatches(
+    {},
+    [
+      { player: 'Lienathan', entryId: 'eL1', round: 'R1', builds: [], win: true,
+        _matchSid: 'R1|eL1|eL2|0', _challongeMatchId: 777, _challongePushState: 'ok',
+        _noStats: true, dePoints: 4, _submitted: true },
+      { player: 'Lienathan', entryId: 'eL2', round: 'R1', builds: [], win: false,
+        _matchSid: 'R1|eL1|eL2|0', _challongeMatchId: 777, _challongePushState: 'ok',
+        _noStats: true, dePoints: 1, _submitted: true }
+    ]
+  );
+  assert.equal(context.matchesState.length, 1, 'one match rebuilt');
+  assert.equal(context.matchesState[0]._challongeMatchId, 777, '_challongeMatchId must survive merge');
+  assert.equal(context.matchesState[0]._challongePushState, 'ok');
+  assert.equal(context.matchesState[0]._deSelfMatch, true, '_deSelfMatch must be set from _noStats rows');
+  assert.equal(context.matchesState[0].p1.dePoints, 4, 'p1 dePoints must survive merge');
+  assert.equal(context.matchesState[0].p2.dePoints, 1, 'p2 dePoints must survive merge');
 });
