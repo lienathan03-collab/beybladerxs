@@ -3990,6 +3990,117 @@ function challongeRetryPush(mid) {
   if (m && m._challongeMatchId) challongeReportMatch(m);
 }
 
+// === ROUND-PUBLISH START ===
+let _publishingRound = null; // round id currently publishing on THIS device
+
+// Persist current match states (incl. _challongePushState) to Cloudflare so
+// publish progress survives reload and propagates to other phones. Best-effort:
+// a failure here never erases local data (the matches are already saved).
+async function persistPublishState() {
+  if (!currentEvent) return;
+  try {
+    flattenMatchesToResults();
+    const { body: putBody, deletedSnapshot } =
+      buildMergePutBody(currentEvent.id, buildsState, resultsState);
+    const res = await fetch('/api/beyresults', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(putBody)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'persist failed');
+    clearAckedDeletedSids(currentEvent.id, deletedSnapshot);
+    confirmPendingMatchesSaved(sidsFromServerPayload(data.beyResults));
+    _lastSyncHash = syncFingerprint(buildsState, resultsState);
+  } catch (e) {
+    showToast('⚠ Publish saved to Challonge but Cloudflare sync failed: ' + e.message, '');
+  }
+}
+
+// Publish every Ready match in a round to Challonge, one request per match,
+// sequentially. Idempotent: matches already 'ok' are skipped by
+// challongeReportMatch. Tracks pending/ok/error per match.
+async function publishRoundToChallonge(round) {
+  if (!currentEvent || !currentEvent.challongeTournamentId) {
+    showToast('No Challonge tournament linked.', 'error'); return;
+  }
+  if (currentEvent.challongeMissing) {
+    showToast('Challonge tournament is missing — relink before publishing.', 'error'); return;
+  }
+  if (_publishingRound) { showToast('Already publishing a round — wait for it to finish.', ''); return; }
+
+  const stats = roundPublishStats(round);
+  if (!stats.complete) {
+    showToast(`${round} is not complete — ${stats.decisive}/${stats.publishableTotal} matches have a result.`, 'error');
+    return;
+  }
+  if (stats.pending > 0) {
+    showToast(`${round} is being published on another device.`, ''); return;
+  }
+  if (stats.ready === 0) { showToast(`${round} has nothing new to publish.`, ''); return; }
+
+  // Targets = decisive, linked, not already published.
+  const targets = matchesState.filter(m =>
+    m.round === round && m._challongeMatchId &&
+    m._challongePushState !== 'ok' && matchHasDecisiveWinner(m));
+
+  _publishingRound = round;
+  // CLAIM: mark pending + persist so other phones disable their button within 3s.
+  for (const m of targets) m._challongePushState = 'pending';
+  renderResults(); renderRoundPublishBar();
+  await persistPublishState();
+
+  let ok = 0, failed = 0;
+  try {
+    for (const m of targets) {
+      // challongeReportMatch early-returns on 'ok'; clear our own 'pending'
+      // claim first so it actually attempts the push.
+      if (m._challongePushState === 'pending') delete m._challongePushState;
+      await challongeReportMatch(m);
+      if (currentEvent.challongeMissing) break; // 404 during loop — stop cleanly
+      if (m._challongePushState === 'ok') ok++; else failed++;
+      renderRoundPublishBar();
+    }
+  } finally {
+    _publishingRound = null;
+    await persistPublishState();
+    renderResults(); renderRoundPublishBar();
+  }
+
+  if (currentEvent.challongeMissing) return; // banner already switched
+  if (failed === 0) {
+    showToast(`✅ ${round}: ${ok} published. Now press "Sync from Challonge" to import the next round.`, 'success');
+  } else {
+    showToast(`${round}: ${ok} published, ${failed} failed — use "Retry ${round} failures".`, 'error');
+  }
+}
+
+// Republish ONLY the failed matches in a round (never the already-ok ones).
+async function retryRoundFailures(round) {
+  if (!currentEvent || currentEvent.challongeMissing) return;
+  if (_publishingRound) { showToast('Already publishing — wait.', ''); return; }
+  const targets = matchesState.filter(m =>
+    m.round === round && m._challongeMatchId && m._challongePushState === 'error');
+  if (!targets.length) { showToast('No failed matches to retry.', ''); return; }
+  _publishingRound = round;
+  let ok = 0, failed = 0;
+  try {
+    for (const m of targets) {
+      delete m._challongePushState; // re-arm; challongeReportMatch sets pending→ok/error
+      await challongeReportMatch(m);
+      if (currentEvent.challongeMissing) break;
+      if (m._challongePushState === 'ok') ok++; else failed++;
+      renderRoundPublishBar();
+    }
+  } finally {
+    _publishingRound = null;
+    await persistPublishState();
+    renderResults(); renderRoundPublishBar();
+  }
+  showToast(`${round} retry: ${ok} published, ${failed} still failing.`, failed ? 'error' : 'success');
+}
+// === ROUND-PUBLISH END ===
+
 // DEDUP-HELPERS START
 function isMatchScored(m) {
   if (m.submitted) return true;
