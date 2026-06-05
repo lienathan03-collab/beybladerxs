@@ -1770,6 +1770,7 @@
           <div style="font-size:12px;font-weight:700;color:var(--muted);font-family:'Share Tech Mono',monospace;letter-spacing:1px;margin-bottom:12px">SYNC</div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
             <button class="btn gold" onclick="challongeManualSync()" id="challonge-tab-sync-btn">🔄 Sync from Challonge</button>
+            <button class="btn" style="background:rgba(239,68,68,0.1);border-color:#ef4444;color:#ef4444;font-size:11px;padding:4px 10px" onclick="dedupeChallongeImports()">🧹 Remove Duplicate Imports</button>
             <span style="font-size:12px;color:var(--muted)">Pulls open pairings into Match Results. Safe to run multiple times — duplicates are skipped.</span>
           </div>
         </div>
@@ -3897,6 +3898,99 @@ function challongeRetryFailedPushes() {
     }
   });
 }
+
+// DEDUP-HELPERS START
+function isMatchScored(m) {
+  if (m.submitted) return true;
+  if (m.p1?.win || m.p2?.win) return true;
+  if ((m.p1?.dePoints ?? 0) > 0 || (m.p2?.dePoints ?? 0) > 0) return true;
+  const allBuilds = m.isTeamMatch
+    ? [...(m.team1?.members || []), ...(m.team2?.members || [])].flatMap(mem => mem.builds || [])
+    : [...(m.p1?.builds || []), ...(m.p2?.builds || [])];
+  return allBuilds.some(b => (b.finishes || []).some(f => f !== 'L'));
+}
+
+async function dedupeChallongeImports() {
+  if (!currentEvent || !currentEvent.challongeTournamentId) {
+    showToast('No Challonge tournament linked.', 'error'); return;
+  }
+
+  // Group matches by content signature
+  const groups = new Map();
+  for (const m of matchesState) {
+    const sig = existingMatchSignature(m);
+    if (!groups.has(sig)) groups.set(sig, []);
+    groups.get(sig).push(m);
+  }
+
+  // Find duplicates to remove
+  const toRemove = [];
+  for (const [, group] of groups) {
+    if (group.length <= 1) continue;
+    const scored = group.filter(m => isMatchScored(m));
+    const unscored = group.filter(m => !isMatchScored(m));
+    if (scored.length > 0) {
+      // Remove all unscored copies
+      toRemove.push(...unscored);
+    } else {
+      // All unscored — keep the first (oldest by position), remove the rest
+      toRemove.push(...unscored.slice(1));
+    }
+  }
+
+  if (!toRemove.length) {
+    showToast('No duplicate matches found.', ''); return;
+  }
+
+  // Describe what will be removed for user confirmation
+  const lines = toRemove.map(m => {
+    const r = m.round || '?';
+    const n1 = m.isTeamMatch ? (m.team1?.teamName || '?') : (m.p1?.displayLabel || m.p1?.player || '?');
+    const n2 = m.isTeamMatch ? (m.team2?.teamName || '?') : (m.p2?.displayLabel || m.p2?.player || '?');
+    return `${r}: ${n1} vs ${n2} [sid: ${m._sid || 'none'}]`;
+  });
+  const msg = `Remove ${toRemove.length} unscored duplicate match(es)?\n\n${lines.join('\n')}\n\nScored/submitted matches are kept. This cannot be undone.`;
+  if (!confirm(msg)) return;
+
+  // Remove via existing removeMatch (creates tombstones, pushes deletion to server)
+  for (const m of toRemove) {
+    await removeMatch(m.id);
+  }
+
+  // Backfill _challongeMatchId onto surviving matches that lack it
+  try {
+    const res = await fetch(
+      '/api/challonge?action=matches&tournament_id=' +
+      encodeURIComponent(currentEvent.challongeTournamentId) + '&' + challongeAccountParams()
+    );
+    if (res.ok) {
+      const challMatches = await res.json();
+      const pidMap = {};
+      Object.entries(currentEvent.challongeParticipantMap || {}).forEach(([pid, ref]) => { pidMap[pid] = ref; });
+      const isTeam = currentEvent.type === '3v3';
+      for (const entry of (challMatches || [])) {
+        const cm = entry.match || entry;
+        const ref1 = pidMap[cm.player1_id] || null;
+        const ref2 = pidMap[cm.player2_id] || null;
+        if (!ref1 || !ref2) continue;
+        const sig = challongeImportSignature(challongeRoundLabel(cm.round), ref1, ref2, isTeam);
+        const local = matchesState.find(m => !m._challongeMatchId && existingMatchSignature(m) === sig);
+        if (local) {
+          local._challongeMatchId = cm.id;
+          if (cm.group_id != null) local._challongeGroupId = cm.group_id;
+        }
+      }
+      flattenMatchesToResults();
+      markDirty();
+      await queueCreatedMatchSave();
+    }
+  } catch (e) {
+    console.warn('dedupeChallongeImports: backfill failed:', e);
+  }
+
+  showToast(`✅ Removed ${toRemove.length} duplicate(s). IDs backfilled.`, 'success');
+}
+// DEDUP-HELPERS END
 
 // ─────────────────────────────────────────────
 // NEW MATCH MODAL

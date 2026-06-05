@@ -1460,3 +1460,49 @@ test('deScoreDone valid: writes dePoints and win to match, calls submitMatch onc
     assert.equal(submitCalls, 1, 'submitMatch must be called exactly once');
   }) : Promise.resolve();
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task 6 — isMatchScored: correctly identifies scored/unscored matches
+// ─────────────────────────────────────────────────────────────────────────────
+
+function loadDedupHelpers(context) {
+  const html = require('fs').readFileSync(
+    require('path').join(__dirname, '..', 'eventmanager.html'), 'utf8'
+  );
+  const start = html.indexOf('// DEDUP-HELPERS START');
+  const end   = html.indexOf('// DEDUP-HELPERS END', start);
+  assert.notEqual(start, -1, 'Missing DEDUP-HELPERS START marker');
+  assert.notEqual(end,   -1, 'Missing DEDUP-HELPERS END marker');
+  vm.runInContext(html.slice(start, end), context);
+}
+
+test('isMatchScored: submitted match is scored', () => {
+  const ctx = createContext([]);
+  loadDedupHelpers(ctx);
+  ctx._m = { id: 1, submitted: true, p1: { builds: [] }, p2: { builds: [] } };
+  assert.equal(vm.runInContext('isMatchScored(_m)', ctx), true);
+});
+
+test('isMatchScored: match with p1.win is scored', () => {
+  const ctx = createContext([]);
+  loadDedupHelpers(ctx);
+  ctx._m = { id: 2, submitted: false, p1: { win: true, builds: [] }, p2: { builds: [] } };
+  assert.equal(vm.runInContext('isMatchScored(_m)', ctx), true);
+});
+
+test('isMatchScored: match with dePoints > 0 is scored', () => {
+  const ctx = createContext([]);
+  loadDedupHelpers(ctx);
+  ctx._m = { id: 3, submitted: false, _deSelfMatch: true,
+    p1: { builds: [], dePoints: 2 }, p2: { builds: [], dePoints: 0 } };
+  assert.equal(vm.runInContext('isMatchScored(_m)', ctx), true);
+});
+
+test('isMatchScored: unscored match is not scored', () => {
+  const ctx = createContext([]);
+  loadDedupHelpers(ctx);
+  ctx._m = { id: 4, submitted: false,
+    p1: { builds: [{ build: 'X', finishes: [] }] },
+    p2: { builds: [] } };
+  assert.equal(vm.runInContext('isMatchScored(_m)', ctx), false);
+});
