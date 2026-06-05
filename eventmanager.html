@@ -4129,8 +4129,9 @@ function nmSelectTeam(slot, teamName) {
   const orderedNames = [...memberNames];
 
   const teamData = { teamName, members: orderedNames.map(name => {
-    const builds = (buildsState[playerKey(name)] || []).filter(Boolean);
-    return { player: name, builds: builds.map(b => ({ build: b, finishes: [], deployed: false })) };
+    const slot = { player: name, builds: [] };
+    reconcileMatchSlotBuilds(slot, buildsState[playerKey(name)] || []);
+    return slot;
   })};
 
   if (slot === 1) _nmTeam1 = teamData;
@@ -4285,14 +4286,15 @@ function nmShowDropdown(slot) {
 }
 
 function nmSelectPlayer(slot, p) {
-  const builds = (buildsState[slotKey(p)] || []).filter(Boolean);
   const playerData = {
     player: p.name,
     entryId: p.entryId || null,
     entryType: p.entryType || 'main',
     displayLabel: p.displayLabel || p.name,
-    builds: builds.map(b => ({ build: b, finishes: [], deployed: false }))
+    builds: []
   };
+  reconcileMatchSlotBuilds(playerData, buildsState[slotKey(p)] || []);
+  const builds = playerData.builds.map(b => b.build);
 
   if (slot === 1) _nmP1 = playerData;
   else _nmP2 = playerData;
