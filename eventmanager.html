@@ -7802,8 +7802,18 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
         if (k && serverBuilds[k]) buildsState[k] = serverBuilds[k];
       }
     }
-    if (changed) flattenMatchesToResults();
-    return changed;
+    // Build-only propagation: ADD server build keys we don't have locally.
+    // Never overwrite an existing local key here — the user is mid-edit (dirty).
+    // This lets a build-only update reach a phone with zero matches.
+    let buildsChanged = false;
+    for (const [k, v] of Object.entries(serverBuilds || {})) {
+      if (!(k in buildsState)) {
+        buildsState[k] = v;
+        buildsChanged = true;
+      }
+    }
+    if (changed || buildsChanged) flattenMatchesToResults();
+    return changed || buildsChanged;
   }
 
   // If user has no unsaved changes, do a full replace from server
@@ -7831,19 +7841,24 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
     }
   }
 
-  // Merge server builds too
+  // Merge server builds too — and remember if any actually changed so a
+  // build-only update (zero matches) still reports "changed" to doLiveSync.
+  let buildsChanged = false;
   for (const [k, v] of Object.entries(serverBuilds)) {
     if (!buildsState[k] || JSON.stringify(buildsState[k]) !== JSON.stringify(v)) {
       buildsState[k] = v;
+      buildsChanged = true;
     }
   }
 
-  const changed = JSON.stringify(newState) !== JSON.stringify(matchesState);
-  if (changed) {
+  const matchesChanged = JSON.stringify(newState) !== JSON.stringify(matchesState);
+  if (matchesChanged) {
     matchesState = newState;
+  }
+  if (matchesChanged || buildsChanged) {
     flattenMatchesToResults();
   }
-  return changed;
+  return matchesChanged || buildsChanged;
 }
 
 // ─────────────────────────────────────────────
