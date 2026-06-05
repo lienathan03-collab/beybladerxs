@@ -3228,6 +3228,10 @@ function flattenMatchesToResults() {
         const entry = { player: member.player, round: m.round, builds: member.builds, pointsTotal: calcPoints(member.builds), win: member.win, team: m.team1.teamName, _matchSid: sid };
         if (firstT1) {
           if (m._playOrder) entry._playOrder = m._playOrder;
+          if (m._challongeMatchId) entry._challongeMatchId = m._challongeMatchId;
+          if (m._challongePushState) entry._challongePushState = m._challongePushState;
+          if (m.division) entry.division = m.division;
+          if (m._challongeGroupId) entry._challongeGroupId = m._challongeGroupId;
           firstT1 = false;
         }
         if (m.submitted) entry._submitted = true;
@@ -3239,8 +3243,8 @@ function flattenMatchesToResults() {
         resultsState.push(entry);
       }
     } else {
-      if (m.p1) resultsState.push({ player: m.p1.player, entryId: m.p1.entryId || undefined, entryType: m.p1.entryType || undefined, displayLabel: m.p1.displayLabel || undefined, round: m.round, builds: m.p1.builds, pointsTotal: calcPoints(m.p1.builds), win: m.p1.win, _submitted: m.submitted || undefined, _matchSid: sid, _noStats: m._deSelfMatch || undefined, dePoints: m._deSelfMatch ? (m.p1.dePoints ?? undefined) : undefined });
-      if (m.p2) resultsState.push({ player: m.p2.player, entryId: m.p2.entryId || undefined, entryType: m.p2.entryType || undefined, displayLabel: m.p2.displayLabel || undefined, round: m.round, builds: m.p2.builds, pointsTotal: calcPoints(m.p2.builds), win: m.p2.win, _submitted: m.submitted || undefined, _matchSid: sid, _noStats: m._deSelfMatch || undefined, dePoints: m._deSelfMatch ? (m.p2.dePoints ?? undefined) : undefined });
+      if (m.p1) resultsState.push({ player: m.p1.player, entryId: m.p1.entryId || undefined, entryType: m.p1.entryType || undefined, displayLabel: m.p1.displayLabel || undefined, round: m.round, builds: m.p1.builds, pointsTotal: calcPoints(m.p1.builds), win: m.p1.win, _submitted: m.submitted || undefined, _matchSid: sid, _noStats: m._deSelfMatch || undefined, dePoints: m._deSelfMatch ? (m.p1.dePoints ?? undefined) : undefined, _challongeMatchId: m._challongeMatchId || undefined, _challongePushState: m._challongePushState || undefined, division: m.division || undefined, _challongeGroupId: m._challongeGroupId || undefined });
+      if (m.p2) resultsState.push({ player: m.p2.player, entryId: m.p2.entryId || undefined, entryType: m.p2.entryType || undefined, displayLabel: m.p2.displayLabel || undefined, round: m.round, builds: m.p2.builds, pointsTotal: calcPoints(m.p2.builds), win: m.p2.win, _submitted: m.submitted || undefined, _matchSid: sid, _noStats: m._deSelfMatch || undefined, dePoints: m._deSelfMatch ? (m.p2.dePoints ?? undefined) : undefined, _challongeMatchId: m._challongeMatchId || undefined, _challongePushState: m._challongePushState || undefined, division: m.division || undefined, _challongeGroupId: m._challongeGroupId || undefined });
     }
   }
 }
@@ -3259,7 +3263,7 @@ function flattenSingleMatch(match) {
     let firstT1 = true;
     for (const member of (match.team1 ? match.team1.members : [])) {
       const entry = { player: member.player, round: match.round, builds: member.builds, pointsTotal: calcPoints(member.builds), win: member.win, team: match.team1.teamName, _matchSid: sid };
-      if (firstT1) { if (match._playOrder) entry._playOrder = match._playOrder; firstT1 = false; }
+      if (firstT1) { if (match._playOrder) entry._playOrder = match._playOrder; if (match._challongeMatchId) entry._challongeMatchId = match._challongeMatchId; if (match._challongePushState) entry._challongePushState = match._challongePushState; if (match.division) entry.division = match.division; if (match._challongeGroupId) entry._challongeGroupId = match._challongeGroupId; firstT1 = false; }
       if (match.submitted) entry._submitted = true;
       rows.push(entry);
     }
@@ -3269,8 +3273,8 @@ function flattenSingleMatch(match) {
       rows.push(entry);
     }
   } else {
-    if (match.p1) rows.push({ player: match.p1.player, entryId: match.p1.entryId || undefined, entryType: match.p1.entryType || undefined, displayLabel: match.p1.displayLabel || undefined, round: match.round, builds: match.p1.builds, pointsTotal: calcPoints(match.p1.builds), win: match.p1.win, _submitted: match.submitted || undefined, _matchSid: sid, _noStats: match._deSelfMatch || undefined, dePoints: match._deSelfMatch ? (match.p1.dePoints ?? undefined) : undefined });
-    if (match.p2) rows.push({ player: match.p2.player, entryId: match.p2.entryId || undefined, entryType: match.p2.entryType || undefined, displayLabel: match.p2.displayLabel || undefined, round: match.round, builds: match.p2.builds, pointsTotal: calcPoints(match.p2.builds), win: match.p2.win, _submitted: match.submitted || undefined, _matchSid: sid, _noStats: match._deSelfMatch || undefined, dePoints: match._deSelfMatch ? (match.p2.dePoints ?? undefined) : undefined });
+    if (match.p1) rows.push({ player: match.p1.player, entryId: match.p1.entryId || undefined, entryType: match.p1.entryType || undefined, displayLabel: match.p1.displayLabel || undefined, round: match.round, builds: match.p1.builds, pointsTotal: calcPoints(match.p1.builds), win: match.p1.win, _submitted: match.submitted || undefined, _matchSid: sid, _noStats: match._deSelfMatch || undefined, dePoints: match._deSelfMatch ? (match.p1.dePoints ?? undefined) : undefined, _challongeMatchId: match._challongeMatchId || undefined, _challongePushState: match._challongePushState || undefined, division: match.division || undefined, _challongeGroupId: match._challongeGroupId || undefined });
+    if (match.p2) rows.push({ player: match.p2.player, entryId: match.p2.entryId || undefined, entryType: match.p2.entryType || undefined, displayLabel: match.p2.displayLabel || undefined, round: match.round, builds: match.p2.builds, pointsTotal: calcPoints(match.p2.builds), win: match.p2.win, _submitted: match.submitted || undefined, _matchSid: sid, _noStats: match._deSelfMatch || undefined, dePoints: match._deSelfMatch ? (match.p2.dePoints ?? undefined) : undefined, _challongeMatchId: match._challongeMatchId || undefined, _challongePushState: match._challongePushState || undefined, division: match.division || undefined, _challongeGroupId: match._challongeGroupId || undefined });
   }
   return rows;
 }

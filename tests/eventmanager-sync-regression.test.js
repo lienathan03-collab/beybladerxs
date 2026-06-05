@@ -1190,3 +1190,48 @@ test('importPreview allows DE self-match JSON but still excludes true same-entry
   assert.equal(parsed.newMatches[0].p1.entryId, 'eL1');
   assert.match(elements['import-preview'].innerHTML, /1 invalid same-owner match/);
 });
+
+test('flattenMatchesToResults: _challongeMatchId persisted on both solo rows', () => {
+  const ctx = deMatchContext(); loadFlattenHelpers(ctx);
+  ctx.matchesState = [{
+    id: 1, _sid: 'R1|eA|eB|0', round: 'R1',
+    _challongeMatchId: 555, _challongePushState: 'ok', division: 'Div A', _challongeGroupId: 99,
+    p1: { player: 'Ken', entryId: 'eA', builds: [], win: true },
+    p2: { player: 'Mia', entryId: 'eB', builds: [], win: false },
+    submitted: false
+  }];
+  vm.runInContext('flattenMatchesToResults()', ctx);
+  assert.equal(ctx.resultsState[0]._challongeMatchId, 555, 'p1 row must carry _challongeMatchId');
+  assert.equal(ctx.resultsState[1]._challongeMatchId, 555, 'p2 row must carry _challongeMatchId');
+  assert.equal(ctx.resultsState[0]._challongePushState, 'ok');
+  assert.equal(ctx.resultsState[0].division, 'Div A');
+  assert.equal(ctx.resultsState[0]._challongeGroupId, 99);
+});
+
+test('flattenSingleMatch: _challongeMatchId persisted on both solo rows', () => {
+  const ctx = deMatchContext(); loadFlattenHelpers(ctx);
+  const match = {
+    id: 2, _sid: 'R1|eC|eD|0', round: 'R1',
+    _challongeMatchId: 777, _challongePushState: 'pending',
+    p1: { player: 'Amy', entryId: 'eC', builds: [], win: false },
+    p2: { player: 'Bob', entryId: 'eD', builds: [], win: true },
+    submitted: false
+  };
+  ctx.matchesState = [match];
+  const rows = vm.runInContext('flattenSingleMatch(matchesState[0])', ctx);
+  assert.equal(rows[0]._challongeMatchId, 777, 'p1 row must carry _challongeMatchId');
+  assert.equal(rows[1]._challongeMatchId, 777, 'p2 row must carry _challongeMatchId');
+  assert.equal(rows[0]._challongePushState, 'pending');
+});
+
+test('flattenMatchesToResults: solo row with no _challongeMatchId does not emit the field', () => {
+  const ctx = deMatchContext(); loadFlattenHelpers(ctx);
+  ctx.matchesState = [{
+    id: 3, _sid: 'R1|eE|eF|0', round: 'R1',
+    p1: { player: 'X', entryId: 'eE', builds: [], win: false },
+    p2: { player: 'Y', entryId: 'eF', builds: [], win: false },
+    submitted: false
+  }];
+  vm.runInContext('flattenMatchesToResults()', ctx);
+  assert.equal(ctx.resultsState[0]._challongeMatchId, undefined, 'absent field must not appear');
+});
