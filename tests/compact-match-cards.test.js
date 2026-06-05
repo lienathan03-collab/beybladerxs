@@ -260,3 +260,17 @@ test('renderDeSelfMatchCard uses the compact header and routes ⚡ to openDeSelf
   assert.match(body, /vsGlyph:\s*'↔'/);                  // DE uses the ↔ glyph
   assert.doesNotMatch(body, /class="btn live-btn"/);
 });
+
+test('every interactive control inside the compact header stops propagation', () => {
+  const { compactMatchHeaderHtml, matchOverflowMenuHtml } = loadHeaderHelpers();
+  const header = compactMatchHeaderHtml(
+    { id: 5, round: 'R1', submitted: false },
+    { name1: 'A', name2: 'B', liveOnClick: "openLiveModeSolo(5,'p1')" });
+  const menu = matchOverflowMenuHtml({ id: 5, submitted: false });
+  // Only the row itself may call toggleMatchCollapse; the actions wrapper isolates taps.
+  assert.match(header, /class="mc2-actions"[^>]*event\.stopPropagation\(\)/);
+  // Every menu-item button stops propagation before its action.
+  for (const m of menu.matchAll(/<button class="mc2-menu-item[^"]*"[^>]*onclick="([^"]*)"/g)) {
+    assert.match(m[1], /^event\.stopPropagation\(\)/, `menu item must stopPropagation first: ${m[1]}`);
+  }
+});
