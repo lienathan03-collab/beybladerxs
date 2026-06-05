@@ -2502,9 +2502,9 @@ function loadEvent(id) {
   // Set initial sync hash so first poll doesn't trigger a false "updated"
   _lastSyncHash = syncFingerprint(currentEvent.builds || {}, currentEvent.beyResults || []);
   startLiveSync();
-  if (currentEvent && currentEvent.challongeTournamentId) {
-    startChallongePoll();
+  if (currentEvent && currentEvent.challongeTournamentId && !currentEvent.challongeMissing) {
     // Repopulate the tournament dropdown + connection status from the saved key.
+    // No polling — importing is manual via "Sync from Challonge".
     challongeConnect();
   }
   renderChallongeLinkedStatus();
@@ -3641,7 +3641,6 @@ function challongeLinkTournament() {
   currentEvent.challongeCustomKey = customKey;
   rosterSaveJoiners('⚡ Linked to Challonge tournament.');
   challongeBuildParticipantMap();
-  startChallongePoll();
   renderChallongeLinkedStatus();
 }
 
@@ -3904,19 +3903,11 @@ async function challongeManualSync() {
   }
 }
 
-function startChallongePoll() {
-  if (_challongePollTimer) clearInterval(_challongePollTimer);
-  _challongePollTimer = setInterval(() => {
-    if (currentEvent && currentEvent.challongeTournamentId && navigator.onLine !== false) {
-      if (_challongePollRunning) return;
-      _challongePollRunning = true;
-      challongeImportOpenMatches().catch(() => {}).finally(() => {
-        challongeRetryFailedPushes();
-        _challongePollRunning = false;
-      });
-    }
-  }, 25000);
-}
+// Challonge importing is MANUAL ONLY (organizer presses "Sync from Challonge").
+// The old 25s auto-poll was removed to respect the 500-req/month sandbox cap
+// and to decouple Challonge quota from the 3s Cloudflare live sync. Kept as a
+// no-op so any historical caller is harmless.
+function startChallongePoll() { /* intentionally disabled — manual sync only */ }
 
 function stopChallongePoll() {
   if (_challongePollTimer) {
