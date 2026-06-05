@@ -2500,7 +2500,7 @@ function loadEvent(id) {
   renderResults();
 
   // Set initial sync hash so first poll doesn't trigger a false "updated"
-  _lastSyncHash = JSON.stringify(currentEvent.beyResults || []);
+  _lastSyncHash = syncFingerprint(currentEvent.builds || {}, currentEvent.beyResults || []);
   startLiveSync();
   if (currentEvent && currentEvent.challongeTournamentId) {
     startChallongePoll();
@@ -3097,7 +3097,7 @@ async function submitBuilds() {
     // Server-observed acknowledgement only — pending matches stay protected
     // until the server echoes the sid back (Finding 1).
     confirmPendingMatchesSaved(sidsFromServerPayload(data.beyResults));
-    _lastSyncHash = JSON.stringify(resultsState);
+    _lastSyncHash = syncFingerprint(buildsState, resultsState);
     // Snapshot the submitted build names so "renamed" indicators reset
     _submittedBuilds = {};
     for (const [k, v] of Object.entries(buildsState)) {
@@ -5374,7 +5374,7 @@ async function removeMatch(mid, options = {}) {
       dirty = false;
       localClearDraft(currentEvent.id);
       document.getElementById('draft-banner').style.display = 'none';
-      _lastSyncHash = JSON.stringify(resultsState);
+      _lastSyncHash = syncFingerprint(buildsState, resultsState);
       if (!silent) showToast('🗑️ Match removed.', 'success');
     } else {
       // Push failed — mark dirty so user knows to save manually
@@ -7370,6 +7370,18 @@ function renderConcurrencyBanner() {
   }
 }
 // CONCURRENCY GATE (end)
+// === SYNC-FINGERPRINT START ===
+// Single source of truth for the live-sync change-detection fingerprint.
+// MUST include BOTH builds and beyResults so a build-only server update is
+// never mistaken for "no change" (the zero-matches build-sync bug). Build
+// keys are sorted so server/local key-ordering differences don't cause churn.
+function syncFingerprint(builds, results) {
+  const b = builds && typeof builds === 'object' ? builds : {};
+  const sorted = {};
+  for (const k of Object.keys(b).sort()) sorted[k] = b[k];
+  return JSON.stringify([Array.isArray(results) ? results : [], sorted]);
+}
+// === SYNC-FINGERPRINT END ===
 let _lastSyncHash   = '';    // fingerprint of last known server state
 let _syncErrorCount = 0;
 let _createMatchSaveQueue = Promise.resolve();
@@ -7531,7 +7543,7 @@ async function queueCreatedMatchSave() {
     // _pendingServerSave set and rely on the next live-sync poll to confirm
     // — which is exactly the protection Finding 1 demands.
     confirmPendingMatchesSaved(sidsFromServerPayload(data.beyResults));
-    _lastSyncHash = JSON.stringify(savedResults);
+    _lastSyncHash = syncFingerprint(savedBuilds, savedResults);
   });
 
   _createMatchSaveQueue = queuedSave;
@@ -7920,7 +7932,7 @@ async function submitMatch(mid) {
     // Server-observed acknowledgement only — pending matches stay protected
     // until the server echoes the sid back (Finding 1).
     confirmPendingMatchesSaved(sidsFromServerPayload(data.beyResults));
-    _lastSyncHash = JSON.stringify(resultsState);
+    _lastSyncHash = syncFingerprint(buildsState, resultsState);
     markDirty(); // still dirty until Finalize runs archive+stats
     renderResults();
     challongeReportMatch(toSubmit);
@@ -8026,7 +8038,7 @@ async function unsubmitMatch(mid) {
     // Server-observed acknowledgement only — pending matches stay protected
     // until the server echoes the sid back (Finding 1).
     confirmPendingMatchesSaved(sidsFromServerPayload(data.beyResults));
-    _lastSyncHash = JSON.stringify(resultsState);
+    _lastSyncHash = syncFingerprint(buildsState, resultsState);
     markDirty();
     renderResults();
     showToast('↩ Match unsubmitted — data cleared, ready to re-enter.', 'success');
@@ -8223,7 +8235,7 @@ async function saveAll() {
       applyConcurrencyHeader(latestRes);
       const latestData = await latestRes.json();
       mergeIncomingMatches(latestData.builds || {}, latestData.beyResults || []);
-      _lastSyncHash = JSON.stringify(latestData.beyResults || []);
+      _lastSyncHash = syncFingerprint(latestData.builds || {}, latestData.beyResults || []);
       flattenMatchesToResults();
     }
 
