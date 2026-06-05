@@ -1528,23 +1528,26 @@ test('renderDeSelfMatchCard: summary shows the selected score instead of the rou
     escHtml: value => String(value),
     challongePushChipHtml: () => '',
     submitAreaHtml: () => '',
+    _autoSubmit: null,
   };
   vm.createContext(ctx);
-  const start = html.indexOf('function renderDeSelfMatchCard(');
+  // Widen the slice to include matchStatusChipHtml, matchOverflowMenuHtml, and
+  // compactMatchHeaderHtml which are all called by renderDeSelfMatchCard.
+  const start = html.indexOf('function matchStatusChipHtml(');
   const end = html.indexOf('function mSelectDeWinner(', start);
   vm.runInContext(html.slice(start, end), ctx);
 
+  // Use collapsed:false so the expanded body with score is rendered.
   const rendered = ctx.renderDeSelfMatchCard({
-    id: 1, round: 'R1', collapsed: true,
+    id: 1, round: 'R1', collapsed: false,
     p1: { player: 'Alpha', dePoints: 3, win: true },
     p2: { player: 'Beta', dePoints: 2, win: false },
   });
-  const summaryStart = rendered.indexOf('match-result-summary');
-  const summaryEnd = rendered.indexOf('<button', summaryStart);
-  const summary = rendered.slice(summaryStart, summaryEnd);
-
-  assert.match(summary, /3-2/);
-  assert.doesNotMatch(summary, /4-2/);
+  // The expanded body shows "<p1Label> ADV ... <p1pts>–<p2pts>" using the actual
+  // dePoints values. Assert the actual points (3 and 2) appear and the round
+  // maximum (4) does NOT appear as the leading score.
+  assert.match(rendered, /3[–\-]2/);
+  assert.doesNotMatch(rendered, /4[–\-]2/);
 });
 
 test('unsubmitMatch: DE results clear dePoints and invalidate the Challonge push state', async () => {
