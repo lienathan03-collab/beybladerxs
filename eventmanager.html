@@ -3593,6 +3593,37 @@ function renderChallongeAccountOptions() {
   if (currentEvent && currentEvent.challongeAccount) sel.value = currentEvent.challongeAccount;
 }
 
+// Persist only Challonge connection metadata. Never send a full events snapshot:
+// that could overwrite authoritative builds/results with stale client data.
+async function saveChallongeMetadata(patch, successMsg) {
+  if (!currentEvent) throw new Error('No event loaded.');
+  const res = await fetch('/api/events?action=challonge_update', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      adminUsername: adminUser,
+      adminPassword: adminPass,
+      eventId: currentEvent.id,
+      challongeMetadata: patch,
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Could not save Challonge settings.');
+
+  const applyPatch = (event) => {
+    if (!event) return;
+    for (const [key, value] of Object.entries(patch || {})) {
+      if (value === null) delete event[key];
+      else event[key] = value;
+    }
+  };
+  applyPatch(currentEvent);
+  const cached = allEvents.find(e => e.id === currentEvent.id);
+  if (cached && cached !== currentEvent) applyPatch(cached);
+  if (successMsg) showToast(successMsg, 'success');
+  return data.event || currentEvent;
+}
+
 async function challongeConnect() {
   const status = document.getElementById('challonge-conn-status');
   status.textContent = '● Connecting…'; status.className = 'challonge-status';
@@ -3627,6 +3658,7 @@ async function challongeConnect() {
 function renderChallongeLinkedStatus() {
   const el = document.getElementById('challonge-linked-status');
   const syncBtn = document.getElementById('challonge-sync-btn');
+  const tabSyncBtn = document.getElementById('challonge-tab-sync-btn');
   if (!el) return;
   const tid = currentEvent && currentEvent.challongeTournamentId;
   const missing = currentEvent && currentEvent.challongeMissing;
@@ -3644,20 +3676,36 @@ function renderChallongeLinkedStatus() {
     el.style.display = 'none';
   }
   if (syncBtn) syncBtn.style.display = (tid && !missing) ? '' : 'none';
+  if (tabSyncBtn) tabSyncBtn.style.display = (tid && !missing) ? '' : 'none';
 }
 
-function challongeLinkTournament() {
+async function challongeLinkTournament() {
   if (!currentEvent) { showToast('No event loaded.', 'error'); return; }
   const tid = document.getElementById('challonge-tournament-select').value;
   const account = document.getElementById('challonge-account-select').value || null;
   const customKey = document.getElementById('challonge-custom-key').value.trim() || null;
   if (!tid) { showToast('Pick a tournament first.', 'error'); return; }
-  currentEvent.challongeTournamentId = tid;
-  currentEvent.challongeAccount = account;
-  currentEvent.challongeCustomKey = customKey;
-  rosterSaveJoiners('⚡ Linked to Challonge tournament.');
-  challongeBuildParticipantMap();
-  renderChallongeLinkedStatus();
+  const changedTarget =
+    currentEvent.challongeTournamentId !== tid ||
+    currentEvent.challongeAccount !== account ||
+    currentEvent.challongeCustomKey !== customKey;
+  const patch = {
+    challongeTournamentId: tid,
+    challongeAccount: account,
+    challongeCustomKey: customKey,
+    challongeMissing: false,
+  };
+  if (changedTarget) {
+    patch.challongeParticipantMap = {};
+    patch.challongeGroupMap = {};
+  }
+  try {
+    await saveChallongeMetadata(patch, '⚡ Linked to Challonge tournament.');
+    await challongeBuildParticipantMap();
+    renderChallongeLinkedStatus();
+  } catch (e) {
+    showToast('⚠ Failed to save Challonge link: ' + e.message, 'error');
+  }
 }
 
 async function challongeBuildParticipantMap() {
@@ -3677,7 +3725,7 @@ async function challongeBuildParticipantMap() {
     const participants = (Array.isArray(data) ? data : []).map(p => p.participant || p);
     const players = isTeam ? null : getPlayers();
     const teams = isTeam ? (currentEvent.joiners || []).filter(j => j.type === 'team') : null;
-    const map = currentEvent.challongeParticipantMap || {};
+    const map = { ...(currentEvent.challongeParticipantMap || {}) };
     const unmatched = [];
     for (const p of participants) {
       if (map[p.id]) continue;
@@ -3689,8 +3737,10 @@ async function challongeBuildParticipantMap() {
         unmatched.push({ id: p.id, name: nm });
       }
     }
-    currentEvent.challongeParticipantMap = map;
-    await rosterSaveJoiners('✅ Participant map saved.');
+    await saveChallongeMetadata(
+      { challongeParticipantMap: map },
+      '✅ Participant map saved.'
+    );
     if (unmatched.length) openChallongeMappingModal(unmatched, isTeam);
     else showToast('✅ All ' + participants.length + ' participants mapped.', 'success');
   } catch (e) {
@@ -3722,7 +3772,7 @@ function openChallongeMappingModal(unmatched, isTeam) {
 
 async function challongeSaveMapping(isTeam) {
   const sels = document.querySelectorAll('#challonge-mapping-modal select[data-pid]');
-  const map = currentEvent.challongeParticipantMap || {};
+  const map = { ...(currentEvent.challongeParticipantMap || {}) };
   sels.forEach(s => {
     const pid = s.dataset.pid; const val = s.value;
     if (!val) return;
@@ -3732,8 +3782,7 @@ async function challongeSaveMapping(isTeam) {
       if (p) map[pid] = { name: p.name, entryId: p.entryId, entryType: p.entryType, displayLabel: p.displayLabel };
     }
   });
-  currentEvent.challongeParticipantMap = map;
-  await rosterSaveJoiners('✅ Mapping saved.');
+  await saveChallongeMetadata({ challongeParticipantMap: map }, '✅ Mapping saved.');
   document.getElementById('challonge-mapping-modal')?.remove();
   showToast('✅ Mapping saved.', 'success');
 }
@@ -4079,7 +4128,8 @@ async function publishRoundToChallonge(round) {
   // Targets = decisive, linked, not already published.
   const targets = matchesState.filter(m =>
     m.round === round && m._challongeMatchId &&
-    m._challongePushState !== 'ok' && matchHasDecisiveWinner(m));
+    m.submitted && m._challongePushState !== 'ok' &&
+    matchHasDecisiveWinner(m));
 
   _publishingRound = round;
   // CLAIM: mark pending + persist so other phones disable their button within 3s.
@@ -4136,6 +4186,28 @@ async function retryRoundFailures(round) {
   }
   showToast(`${round} retry: ${ok} published, ${failed} still failing.`, failed ? 'error' : 'success');
 }
+
+// Recover a round left claimed after a browser/device stopped mid-publish.
+// Resuming while another device is still active can repeat identical PUTs, so
+// require an explicit organizer confirmation.
+async function resumePendingRound(round) {
+  if (!currentEvent || currentEvent.challongeMissing) return;
+  if (_publishingRound) {
+    showToast('This device is already publishing a round.', ''); return;
+  }
+  const pending = matchesState.filter(m =>
+    m.round === round && m._challongeMatchId && m.submitted &&
+    m._challongePushState === 'pending' && matchHasDecisiveWinner(m));
+  if (!pending.length) {
+    showToast('No pending Challonge results to resume.', ''); return;
+  }
+  if (typeof confirm === 'function' && !confirm(
+    `Resume ${round} publishing?\n\nUse this only if the other publishing phone was closed, refreshed, or lost connection.`
+  )) return;
+  for (const m of pending) delete m._challongePushState;
+  await persistPublishState();
+  await publishRoundToChallonge(round);
+}
 // === ROUND-PUBLISH END ===
 
 // === CHALLONGE-MISSING START ===
@@ -4155,9 +4227,16 @@ async function handleChallongeMaybeMissing(status, bodyText) {
   if (!currentEvent) return false;
   if (currentEvent.challongeMissing) return true; // already marked
   currentEvent.challongeMissing = true;
-  // Persist ONLY the connection-metadata flag on the event object (separate
-  // /api/events store — costs zero Challonge quota, touches no scoring data).
-  try { await rosterSaveJoiners('⚠ Challonge tournament missing — importing/publishing paused.'); } catch (e) {}
+  // Persist ONLY the connection-metadata flag. Keep the local safety flag even
+  // if persistence fails so this device does not keep hitting the missing link.
+  try {
+    await saveChallongeMetadata(
+      { challongeMissing: true },
+      '⚠ Challonge tournament missing — importing/publishing paused.'
+    );
+  } catch (e) {
+    showToast('⚠ Tournament is missing; could not save that status: ' + e.message, 'error');
+  }
   if (typeof renderChallongeLinkedStatus === 'function') renderChallongeLinkedStatus();
   if (typeof renderResults === 'function') renderResults();
   if (typeof renderRoundPublishBar === 'function') renderRoundPublishBar();
@@ -4173,26 +4252,37 @@ async function challongeUnlink() {
   if (!currentEvent) return;
   if (typeof confirm === 'function' &&
       !confirm('Unlink Challonge? This removes the connection only. Your builds, matches, and scores are kept; imported matches stay as local matches.')) return;
-  delete currentEvent.challongeTournamentId;
-  delete currentEvent.challongeAccount;
-  delete currentEvent.challongeCustomKey;
-  delete currentEvent.challongeParticipantMap;
-  delete currentEvent.challongeGroupMap;
-  delete currentEvent.challongeMissing;
-  await rosterSaveJoiners('🔌 Challonge unlinked — tournament data kept.');
-  if (typeof renderChallongeLinkedStatus === 'function') renderChallongeLinkedStatus();
-  if (typeof renderResults === 'function') renderResults();
-  if (typeof renderRoundPublishBar === 'function') renderRoundPublishBar();
+  try {
+    await saveChallongeMetadata({
+      challongeTournamentId: null,
+      challongeAccount: null,
+      challongeCustomKey: null,
+      challongeParticipantMap: null,
+      challongeGroupMap: null,
+      challongeMissing: null,
+    }, '🔌 Challonge unlinked — tournament data kept.');
+    if (typeof renderChallongeLinkedStatus === 'function') renderChallongeLinkedStatus();
+    if (typeof renderResults === 'function') renderResults();
+    if (typeof renderRoundPublishBar === 'function') renderRoundPublishBar();
+  } catch (e) {
+    showToast('⚠ Could not unlink Challonge: ' + e.message, 'error');
+  }
 }
 
 // Clear the "missing" state and re-open the connection so the organizer can
 // re-pick the same or a new tournament. Keeps the existing link id as a hint.
 async function challongeRelink() {
   if (!currentEvent) return;
-  currentEvent.challongeMissing = false;
-  await rosterSaveJoiners('🔗 Relinking — re-pick your tournament.');
-  if (typeof challongeConnect === 'function') await challongeConnect();
-  if (typeof renderChallongeLinkedStatus === 'function') renderChallongeLinkedStatus();
+  try {
+    await saveChallongeMetadata(
+      { challongeMissing: false },
+      '🔗 Relinking — re-pick your tournament.'
+    );
+    if (typeof challongeConnect === 'function') await challongeConnect();
+    if (typeof renderChallongeLinkedStatus === 'function') renderChallongeLinkedStatus();
+  } catch (e) {
+    showToast('⚠ Could not relink Challonge: ' + e.message, 'error');
+  }
 }
 // === CHALLONGE-UNLINK-RELINK END ===
 
@@ -4815,7 +4905,7 @@ function roundPublishStats(round) {
   );
   let decisive = 0, ready = 0, published = 0, failed = 0, pending = 0;
   for (const m of inRound) {
-    const dec = matchHasDecisiveWinner(m);
+    const dec = m.submitted && matchHasDecisiveWinner(m);
     if (dec) decisive++;
     if (m._challongePushState === 'ok') published++;
     else if (m._challongePushState === 'error') failed++;
@@ -4852,7 +4942,7 @@ function cancelAutoSubmit(mid, rerender = true) {
 }
 
 function invalidateChallongePushState(match) {
-  if (match && match._challongeMatchId && match._challongePushState === 'ok') {
+  if (match && match._challongeMatchId && match._challongePushState) {
     delete match._challongePushState;
   }
 }
@@ -5091,8 +5181,9 @@ function renderRoundPublishBar() {
     } else if (s.failed > 0 && s.ready === 0 && s.pending === 0) {
       btn = `<button class="btn" ${busy ? 'disabled' : ''} onclick="retryRoundFailures('${escHtml(r)}')">⟳ Retry ${escHtml(r)} failures (${s.failed})</button>`;
     } else if (s.pending > 0 && !busy) {
-      btn = `<button class="btn" disabled>⏳ Publishing ${escHtml(r)}…</button>`;
-      note = 'Publishing in progress on another device…';
+      btn = `<button class="btn" disabled>⏳ Publishing ${escHtml(r)}…</button> ` +
+        `<button class="btn" onclick="resumePendingRound('${escJs(r)}')">Resume pending</button>`;
+      note = 'Publishing may be in progress on another device. Resume only if that device stopped.';
     } else {
       const enabled = s.canPublish && !busy;
       btn = `<button class="btn gold" ${enabled ? '' : 'disabled'} onclick="publishRoundToChallonge('${escHtml(r)}')">${busy ? '⏳ Publishing…' : '⬆ Publish ' + escHtml(r) + ' to Challonge'}</button>`;

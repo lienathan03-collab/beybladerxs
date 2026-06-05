@@ -521,6 +521,79 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({ success: true, event }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
     }
 
+    // ── Admin: targeted Challonge metadata update ──
+    // This intentionally reads and patches the current KV event instead of
+    // accepting a full client-side events snapshot. Challonge link changes must
+    // never overwrite builds or beyResults with stale Event Manager data.
+    if (action === 'challonge_update') {
+      const { adminUsername, adminPassword, eventId, challongeMetadata } = body;
+      const validU  = env.ADMIN_USERNAME;
+      const validP  = env.ADMIN_PASSWORD;
+      const valid2U = env.ADMIN2_USERNAME;
+      const valid2P = env.ADMIN2_PASSWORD;
+      const isAdmin =
+        (adminUsername === validU && adminPassword === validP) ||
+        (valid2U && adminUsername === valid2U && adminPassword === valid2P);
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized.' }),
+          { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (!eventId || !challongeMetadata || typeof challongeMetadata !== 'object' || Array.isArray(challongeMetadata)) {
+        return new Response(
+          JSON.stringify({ error: 'eventId and challongeMetadata object required.' }),
+          { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      let eventsData;
+      try {
+        const raw = await kv.get(EVENTS_KEY);
+        eventsData = raw ? JSON.parse(raw) : { events: [] };
+      } catch (e) {
+        return new Response(
+          JSON.stringify({ error: 'Could not load events.' }),
+          { status: 502, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+        );
+      }
+      const event = (eventsData.events || []).find(ev => ev.id === eventId);
+      if (!event) {
+        return new Response(
+          JSON.stringify({ error: 'Event not found.' }),
+          { status: 404, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const allowed = [
+        'challongeTournamentId',
+        'challongeAccount',
+        'challongeCustomKey',
+        'challongeParticipantMap',
+        'challongeGroupMap',
+        'challongeMissing',
+      ];
+      for (const key of allowed) {
+        if (!Object.prototype.hasOwnProperty.call(challongeMetadata, key)) continue;
+        const value = challongeMetadata[key];
+        if (value === null) delete event[key];
+        else event[key] = value;
+      }
+
+      try {
+        await kv.put(EVENTS_KEY, JSON.stringify(eventsData));
+        return new Response(JSON.stringify({ success: true, event }), {
+          status: 200,
+          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
+        });
+      } catch (e) {
+        return new Response(
+          JSON.stringify({ error: e.message }),
+          { status: 502, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     // ── Admin: full events write (create/update/delete events) ──
     {
       const { adminUsername, adminPassword, events } = body;

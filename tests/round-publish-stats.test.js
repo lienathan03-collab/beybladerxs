@@ -64,3 +64,14 @@ test('matches without a challonge id are excluded from publishableTotal', () => 
   assert.equal(s.publishableTotal, 0);
   assert.equal(s.canPublish, false);
 });
+
+test('decisive but unsubmitted match keeps the round incomplete', () => {
+  const roundPublishStats = loadStats([
+    { ...cm(1), submitted: true, p1: { win: true }, p2: {} },
+    { ...cm(2), submitted: false, p1: { win: true }, p2: {} },
+  ]);
+  const s = roundPublishStats('R1');
+  assert.equal(s.decisive, 1, 'only finalized decisive matches count as ready');
+  assert.equal(s.complete, false);
+  assert.equal(s.canPublish, false);
+});

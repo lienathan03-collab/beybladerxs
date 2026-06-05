@@ -29,22 +29,10 @@ function loadPublish(matchesState, fetchImpl, reportImpl) {
     matchHasDecisiveWinner(m) { const a=!!(m.p1&&m.p1.win),b=!!(m.p2&&m.p2.win); return a!==b; },
     challongeReportMatch: reportImpl,
   };
-  ctx.roundPublishStats = function (round) {
-    const inRound = matchesState.filter(m => m.round === round && m._challongeMatchId);
-    let decisive=0, ready=0, published=0, failed=0, pending=0;
-    for (const m of inRound) {
-      const d = ctx.matchHasDecisiveWinner(m);
-      if (d) decisive++;
-      if (m._challongePushState==='ok') published++;
-      else if (m._challongePushState==='error') failed++;
-      else if (m._challongePushState==='pending') pending++;
-      else if (m.submitted && d) ready++;
-    }
-    const publishableTotal = inRound.length;
-    const complete = publishableTotal>0 && decisive===publishableTotal;
-    return { round, publishableTotal, decisive, ready, published, failed, pending, complete, canPublish: complete && ready>0 && pending===0 };
-  };
   vm.createContext(ctx);
+  const statsStart = html.indexOf('// === ROUND-PUBLISH-STATS START ===');
+  const statsEnd = html.indexOf('// === ROUND-PUBLISH-STATS END ===', statsStart);
+  vm.runInContext(html.slice(statsStart, statsEnd), ctx);
   const start = html.indexOf('// === ROUND-PUBLISH START ===');
   const end = html.indexOf('// === ROUND-PUBLISH END ===', start);
   assert.notEqual(start, -1, 'Missing ROUND-PUBLISH markers');
@@ -109,4 +97,26 @@ test('publish persists state to Cloudflare (one PUT)', async () => {
     async (match) => { match._challongePushState = 'ok'; });
   await vm.runInContext('publishRoundToChallonge("R1")', ctx);
   assert.ok(puts >= 1, 'must persist publish state to Cloudflare at least once');
+});
+
+test('decisive but unsubmitted matches are never published', async () => {
+  const calls = [];
+  const ctx = loadPublish(
+    [m(1, 'p1'), m(2, 'p2', { submitted: false })],
+    okFetch,
+    async (match) => { calls.push(match.id); match._challongePushState = 'ok'; });
+  await vm.runInContext('publishRoundToChallonge("R1")', ctx);
+  assert.deepEqual(calls, [], 'the incomplete round must be rejected');
+});
+
+test('interrupted pending round can be explicitly resumed', async () => {
+  const calls = [];
+  const ctx = loadPublish(
+    [m(1, 'p1', { _challongePushState: 'pending' })],
+    okFetch,
+    async (match) => { calls.push(match.id); match._challongePushState = 'ok'; });
+  ctx.confirm = () => true;
+  await vm.runInContext('resumePendingRound("R1")', ctx);
+  assert.deepEqual(calls, [1], 'resume must recover a stale pending claim');
+  assert.equal(ctx.matchesState[0]._challongePushState, 'ok');
 });

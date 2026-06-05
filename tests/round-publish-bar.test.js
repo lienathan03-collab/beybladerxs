@@ -16,6 +16,7 @@ function loadBar(opts) {
     activeRoundFilter: opts.activeRoundFilter || 'ALL',
     document: { getElementById: (id) => id === 'round-publish-bar' ? el : null },
     escHtml: s => String(s),
+    escJs: s => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"),
     roundPublishStats: opts.roundPublishStats,
     _publishingRound: opts._publishingRound || null,
   };
@@ -61,6 +62,7 @@ test('pending on another device disables with in-progress note', () => {
   });
   assert.match(out, /another device/i);
   assert.match(out, /disabled/);
+  assert.match(out, /Resume pending/);
 });
 
 test('failures show a Retry button', () => {

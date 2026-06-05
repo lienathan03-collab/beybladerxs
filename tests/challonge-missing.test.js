@@ -14,7 +14,7 @@ function loadMissing(extra) {
     currentEvent: extra.currentEvent || { id: 'e1', challongeTournamentId: 't1', builds: { a: ['x'] }, beyResults: [{ player: 'a' }] },
     matchesState: extra.matchesState || [],
     buildsState: extra.buildsState || { a: ['x'] },
-    rosterSaveJoiners: async () => {},
+    saveChallongeMetadata: async (patch) => { ctx._savedPatch = patch; },
     renderChallongeLinkedStatus() {},
     renderResults() {}, renderRoundPublishBar() {},
     showToast() {},
@@ -49,6 +49,7 @@ test('handleChallongeMaybeMissing flips flag and preserves all local data', asyn
   assert.equal(ctx.matchesState.length, 1);
   assert.equal(ctx.matchesState[0]._challongeMatchId, 'c1', 'imported match not deleted');
   assert.equal(ctx.matchesState[0].submitted, true, 'submitted state preserved');
+  assert.deepEqual(JSON.parse(JSON.stringify(ctx._savedPatch)), { challongeMissing: true });
 });
 
 test('handleChallongeMaybeMissing on non-404 does nothing', async () => {

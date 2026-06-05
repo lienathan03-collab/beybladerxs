@@ -655,6 +655,20 @@ test('auto-submit: scoring changes after Challonge success make the match report
   assert.equal(ms[0]._challongePushState, undefined);
 });
 
+test('auto-submit: scoring changes clear stale pending and error Challonge states', () => {
+  for (const state of ['pending', 'error']) {
+    const ms = soloMatch(true, false);
+    ms[0]._challongeMatchId = 123;
+    ms[0]._challongePushState = state;
+    const c = autoCtx(ms);
+    loadAutoSubmit(c);
+
+    vm.runInContext('evaluateAutoSubmit(1)', c);
+
+    assert.equal(ms[0]._challongePushState, undefined, `${state} must be invalidated`);
+  }
+});
+
 test('auto-submit: countdown fires submitMatch once it reaches zero', () => {
   const c = autoCtx(soloMatch(true, false));
   loadAutoSubmit(c);

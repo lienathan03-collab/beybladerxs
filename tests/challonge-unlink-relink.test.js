@@ -14,7 +14,13 @@ function loadLink(currentEvent) {
     currentEvent,
     buildsState: { alice: ['Dragoon'] },
     matchesState: [{ id: 1, _challongeMatchId: 'c1', submitted: true, p1: { win: true } }],
-    rosterSaveJoiners: async (msg) => { saved.push(msg); },
+    saveChallongeMetadata: async (patch, msg) => {
+      saved.push({ patch, msg });
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === null) delete currentEvent[key];
+        else currentEvent[key] = value;
+      }
+    },
     renderChallongeLinkedStatus() {},
     challongeConnect: async () => { ctx._connected = true; },
     renderResults() {}, renderRoundPublishBar() {},
@@ -49,6 +55,14 @@ test('unlink removes only Challonge metadata, keeps builds/matches/scores', asyn
   assert.deepEqual(ev.builds, { alice: ['Dragoon'] });
   assert.deepEqual(ev.beyResults, [{ player: 'alice' }]);
   assert.equal(ctx.matchesState.length, 1, 'imported match NOT deleted on unlink');
+  assert.deepEqual(JSON.parse(JSON.stringify(ctx._saved[0].patch)), {
+    challongeTournamentId: null,
+    challongeAccount: null,
+    challongeCustomKey: null,
+    challongeParticipantMap: null,
+    challongeGroupMap: null,
+    challongeMissing: null,
+  });
 });
 
 test('relink clears missing flag and reopens connection', async () => {
