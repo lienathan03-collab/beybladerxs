@@ -4663,7 +4663,7 @@ function matchOverflowMenuHtml(match) {
   const mid = match.id;
   const items = [];
   if (match.submitted) {
-    items.push(`<button class="mc2-menu-item" role="menuitem" onclick="event.stopPropagation();toggleMatchMenu(${mid});unsubmitMatch(${mid})instanceof Function">↩ Unsubmit</button>`);
+    items.push(`<button class="mc2-menu-item" role="menuitem" onclick="event.stopPropagation();toggleMatchMenu(${mid});unsubmitMatch(${mid})">↩ Unsubmit</button>`);
   } else {
     items.push(`<button class="mc2-menu-item" role="menuitem" onclick="event.stopPropagation();toggleMatchMenu(${mid});submitMatch(${mid})">⬆ Submit</button>`);
   }

@@ -177,7 +177,7 @@ test('matchOverflowMenuHtml shows Unsubmit for a submitted match', () => {
   const { matchOverflowMenuHtml } = loadHeaderHelpers();
   const out = matchOverflowMenuHtml({ id: 2, submitted: true });
   assert.match(out, /unsubmitMatch\(2\)/);
-  assert.doesNotMatch(out, /submitMatch\(2\)[^a-zA-Z]/);
+  assert.doesNotMatch(out, /(?<![a-zA-Z])submitMatch\(/);
 });
 
 test('matchOverflowMenuHtml shows a Retry item only on push error', () => {
