@@ -3920,8 +3920,15 @@ let _challongePollTimer = null;
 let _challongePollRunning = false;
 
 async function challongeManualSync() {
+  if (!currentEvent || !currentEvent.challongeTournamentId) {
+    showToast('No Challonge tournament linked.', 'error'); return;
+  }
+  if (currentEvent.challongeMissing) {
+    showToast('Challonge tournament is missing — relink before syncing.', 'error'); return;
+  }
   try {
     const n = await challongeImportOpenMatches();
+    if (currentEvent.challongeMissing) return; // import detected a 404 mid-call
     showToast(n ? `⚡ Imported ${n} match(es).` : 'No new matches.', n ? 'success' : '');
   } catch (e) {
     showToast('Sync failed: ' + e.message, 'error');
