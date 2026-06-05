@@ -1341,3 +1341,122 @@ test('autoCheckDeWin: 0 vs 0 → no winner', () => {
   assert.equal(ctx._m.p1.win, false);
   assert.equal(ctx._m.p2.win, false);
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task 5 — DE self-match lightning score modal
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('deScorePick: updates scratch state only, does not call flatten or markDirty', () => {
+  const ctx = deMatchContext();
+  loadFlattenHelpers(ctx);
+  // Set up _deScore and a match
+  vm.runInContext(`
+    var _deScore = { mid: 1, p1: null, p2: null };
+    matchesState = [{
+      id: 1, _sid: 'R1|eL1|eL2|0', round: 'R1', _deSelfMatch: true,
+      p1: { player: 'Lienathan', entryId: 'eL1', displayLabel: 'Lienathan 1', builds: [] },
+      p2: { player: 'Lienathan', entryId: 'eL2', displayLabel: 'Lienathan 2', builds: [] },
+      submitted: false
+    }];
+    var flattenCalled = 0;
+    var markDirtyCalled = 0;
+    // Stub renderDeScoreModal so it doesn't error
+    function renderDeScoreModal() {}
+  `, ctx);
+  // Override flatten and markDirty to track calls
+  ctx.flattenMatchesToResults = () => { ctx._flattenCalled = (ctx._flattenCalled || 0) + 1; };
+  ctx.markDirty = () => { ctx._markDirtyCalled = (ctx._markDirtyCalled || 0) + 1; };
+  // Load deScorePick — it's defined near renderDeSelfMatchCard; extract it
+  const htmlSrc = require('fs').readFileSync(require('path').join(__dirname, '..', 'eventmanager.html'), 'utf8');
+  const startMarker = 'function deScorePick(';
+  const endMarker = 'function deScoreDone(';
+  const start = htmlSrc.indexOf(startMarker);
+  const end = htmlSrc.indexOf(endMarker, start);
+  assert.notEqual(start, -1, 'deScorePick must exist');
+  vm.runInContext(htmlSrc.slice(start, end), ctx);
+  vm.runInContext('deScorePick("p1", 2)', ctx);
+  assert.equal(ctx._deScore.p1, 2, 'scratch state must update');
+  assert.equal(ctx._flattenCalled || 0, 0, 'flattenMatchesToResults must NOT be called');
+  assert.equal(ctx._markDirtyCalled || 0, 0, 'markDirty must NOT be called');
+  assert.equal(ctx._deScore.p2, null, 'p2 not touched');
+});
+
+test('deScoreDone validation: rejects null scores and tie', () => {
+  const ctx = deMatchContext();
+  loadFlattenHelpers(ctx);
+  const htmlSrc = require('fs').readFileSync(require('path').join(__dirname, '..', 'eventmanager.html'), 'utf8');
+  // Extract deScoreDone + closeDeSelfScore + _deScore
+  const startMarker = 'let _deScore =';
+  const endMarker = '// ── Helper: get play order';
+  const start = htmlSrc.indexOf(startMarker);
+  const end = htmlSrc.indexOf(endMarker, start);
+  assert.notEqual(start, -1, 'DE score state must exist');
+  vm.runInContext(htmlSrc.slice(start, end), ctx);
+
+  // Stub DOM and dependencies
+  const errMessages = [];
+  ctx.document = {
+    getElementById: (id) => ({
+      textContent: '',
+      set textContent(v) { if (id === 'de-score-error') errMessages.push(v); },
+      style: { display: '' }
+    })
+  };
+  ctx.flattenMatchesToResults = () => {};
+  ctx.submitMatch = async () => {};
+  ctx.matchesState = [{
+    id: 99, round: 'R1', _deSelfMatch: true,
+    p1: { player: 'L', entryId: 'eL1', displayLabel: 'L1', builds: [] },
+    p2: { player: 'L', entryId: 'eL2', displayLabel: 'L2', builds: [] },
+    submitted: false
+  }];
+
+  // Test 1: null scores → error
+  vm.runInContext('_deScore = { mid: 99, p1: null, p2: null }', ctx);
+  vm.runInContext('deScoreDone()', ctx);
+  assert.ok(errMessages.some(m => m.includes('select') || m.includes('score')),
+    'null scores must produce an error message');
+
+  // Test 2: tie → error
+  vm.runInContext('_deScore = { mid: 99, p1: 3, p2: 3 }', ctx);
+  vm.runInContext('deScoreDone()', ctx);
+  assert.ok(errMessages.some(m => m.toLowerCase().includes('tie') || m.includes('differ')),
+    'tied scores must produce an error message');
+});
+
+test('deScoreDone valid: writes dePoints and win to match, calls submitMatch once', () => {
+  const ctx = deMatchContext();
+  loadFlattenHelpers(ctx);
+  const htmlSrc = require('fs').readFileSync(require('path').join(__dirname, '..', 'eventmanager.html'), 'utf8');
+  const startMarker = 'let _deScore =';
+  const endMarker = '// ── Helper: get play order';
+  const start = htmlSrc.indexOf(startMarker);
+  const end = htmlSrc.indexOf(endMarker, start);
+  vm.runInContext(htmlSrc.slice(start, end), ctx);
+
+  let submitCalls = 0;
+  ctx.flattenMatchesToResults = () => {};
+  ctx.submitMatch = async (id) => { submitCalls++; return; };
+  ctx.document = {
+    getElementById: () => ({
+      textContent: '', set textContent(v) {}, style: { display: '' }
+    })
+  };
+  ctx.matchesState = [{
+    id: 99, round: 'R1', _deSelfMatch: true,
+    p1: { player: 'L', entryId: 'eL1', displayLabel: 'L1', builds: [], dePoints: null },
+    p2: { player: 'L', entryId: 'eL2', displayLabel: 'L2', builds: [], dePoints: null },
+    submitted: false
+  }];
+  vm.runInContext('_deScore = { mid: 99, p1: 2, p2: 4 }', ctx);
+  // Run async deScoreDone (resolves immediately since submitMatch is a stub)
+  const result = vm.runInContext('deScoreDone()', ctx);
+  // Drain microtasks
+  return (result || Promise.resolve()).then ? (result || Promise.resolve()).then(() => {
+    assert.equal(ctx.matchesState[0].p1.dePoints, 2, 'p1 dePoints must be written');
+    assert.equal(ctx.matchesState[0].p2.dePoints, 4, 'p2 dePoints must be written');
+    assert.equal(ctx.matchesState[0].p1.win, false, 'p1 must lose (lower score)');
+    assert.equal(ctx.matchesState[0].p2.win, true,  'p2 must win (higher score)');
+    assert.equal(submitCalls, 1, 'submitMatch must be called exactly once');
+  }) : Promise.resolve();
+});

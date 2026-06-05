@@ -1875,6 +1875,29 @@
   </div>
 </div>
 
+<!-- DE SELF-MATCH SCORE MODAL -->
+<div id="de-self-score-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1100;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:20px 24px;min-width:300px;max-width:420px;width:90%">
+    <div style="font-size:13px;font-family:'Share Tech Mono',monospace;color:var(--gold);margin-bottom:14px;letter-spacing:1px">🪙 DE COIN TOSS RESULT</div>
+    <div id="de-score-threshold-note" style="font-size:11px;color:var(--muted);margin-bottom:16px"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div>
+        <div id="de-score-p1-label" style="font-size:12px;color:var(--blue);margin-bottom:8px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+        <div id="de-score-p1-btns" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
+      <div>
+        <div id="de-score-p2-label" style="font-size:12px;color:var(--gold2);margin-bottom:8px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+        <div id="de-score-p2-btns" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
+    </div>
+    <div id="de-score-error" style="font-size:11px;color:var(--red);min-height:16px;margin-bottom:10px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" style="padding:6px 16px" onclick="closeDeSelfScore()">Cancel</button>
+      <button class="btn success" style="padding:6px 18px;font-weight:600" onclick="deScoreDone()">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- Finish Picker Popup -->
 <div id="finish-picker-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999" onclick="closePicker()"></div>
 <div class="finish-picker" id="finish-picker" style="display:none">
@@ -4623,19 +4646,10 @@ function renderDeSelfMatchCard(match) {
   else if (p2wins) summary = `<span style="color:var(--green)">${escHtml(p2Label)} ADV <span style="color:var(--muted2);font-size:11px">${threshold}-${p1pts !== '' ? p1pts : '?'}</span></span>`;
   else summary = `<span style="color:var(--muted)">select advancing side</span>`;
 
-  // Loser points input — shown only after a side is selected
-  const loserSide    = p1wins ? 'p2' : (p2wins ? 'p1' : null);
-  const loserVal     = loserSide === 'p1' ? p1pts : (loserSide === 'p2' ? p2pts : '');
-  const loserLabel   = loserSide === 'p1' ? escHtml(p1Label) : (loserSide === 'p2' ? escHtml(p2Label) : '');
-  const loserInput   = loserSide ? `
-    <div style="margin-top:10px;display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface2);border-radius:6px">
-      <span style="font-size:12px;color:var(--muted)">Loser points (${loserLabel}):</span>
-      <input type="number" min="0" max="${threshold - 1}" value="${loserVal}"
-        style="width:56px;background:var(--surface3);border:1px solid var(--border2);border-radius:4px;color:var(--text);padding:3px 6px;font-size:13px;font-family:'Share Tech Mono',monospace;text-align:center"
-        oninput="mSetDeLoserPoints(${mid},'${loserSide}',+this.value)"
-        onclick="event.stopPropagation()" />
-      <span style="font-size:12px;color:var(--muted)">/ ${threshold - 1} max</span>
-    </div>` : '';
+  // Read-only winner line for the expanded body
+  let winnerLine = '';
+  if (p1wins) winnerLine = `<span style="color:var(--green)">${escHtml(p1Label)} ADV</span> <span style="color:var(--muted2);font-size:11px">${p1pts}–${p2pts !== '' ? p2pts : '?'}</span>`;
+  else if (p2wins) winnerLine = `<span style="color:var(--green)">${escHtml(p2Label)} ADV</span> <span style="color:var(--muted2);font-size:11px">${p2pts}–${p1pts !== '' ? p1pts : '?'}</span>`;
 
   return `
   <div class="match-card" id="match-${mid}">
@@ -4654,23 +4668,15 @@ function renderDeSelfMatchCard(match) {
         <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕ Remove</button>
         <span style="color:var(--muted2);font-size:12px;margin-left:4px">${match.collapsed ? '▼' : '▲'}</span>
       </div>
+      <button class="btn live-btn" onclick="event.stopPropagation();openDeSelfScore(${mid})">⚡</button>
     </div>
     ${match.collapsed ? '' : `
     <div style="padding:12px 14px">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
-        Coin toss advancement — first to <strong style="color:var(--text)">${threshold} pts</strong>. No Beyblade battle or finish scoring.
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">
+        Coin toss result — click ⚡ to enter scores. No Beyblade battle.
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn ${p1wins ? 'success' : ''}" style="flex:1;min-width:120px;font-size:13px;padding:8px 10px${p1wins ? '' : ';opacity:0.7'}"
-          onclick="mSelectDeWinner(${mid},'p1')">
-          ${p1wins ? '✓ ' : ''}${escHtml(p1Label)} advances
-        </button>
-        <button class="btn ${p2wins ? 'success' : ''}" style="flex:1;min-width:120px;font-size:13px;padding:8px 10px${p2wins ? '' : ';opacity:0.7'}"
-          onclick="mSelectDeWinner(${mid},'p2')">
-          ${p2wins ? '✓ ' : ''}${escHtml(p2Label)} advances
-        </button>
-      </div>
-      ${loserInput}
+      ${(p1wins || p2wins) ? `
+        <div style="font-size:13px">${winnerLine}</div>` : `<div style="font-size:12px;color:var(--muted2)">No scores entered yet.</div>`}
     </div>`}
   </div>`;
 }
@@ -4702,6 +4708,80 @@ function mSetDeLoserPoints(mid, loserSide, value) {
   markDirty();
   evaluateAutoSubmit(mid);
   renderResults();
+}
+
+// ─── DE SELF-SCORE MODAL FUNCTIONS ───────────────────────────────────────────
+let _deScore = { mid: null, p1: null, p2: null };
+
+function openDeSelfScore(mid) {
+  const match = matchesState.find(m => m.id === mid);
+  if (!match || !match._deSelfMatch) return;
+  _deScore = {
+    mid,
+    p1: match.p1.dePoints != null ? match.p1.dePoints : null,
+    p2: match.p2 != null && match.p2.dePoints != null ? match.p2.dePoints : null,
+  };
+  renderDeScoreModal(match);
+  document.getElementById('de-self-score-modal').style.display = 'flex';
+}
+
+function renderDeScoreModal(match) {
+  const threshold = soloThreshold(match.round);
+  const p1Label = match.p1.displayLabel || match.p1.player;
+  const p2Label = match.p2 ? (match.p2.displayLabel || match.p2.player) : '?';
+  const makeButtons = (side) => {
+    const selected = _deScore[side];
+    let html = '';
+    for (let i = 1; i <= threshold; i++) {
+      const active = selected === i;
+      html += `<button class="btn${active ? ' success' : ''}" style="min-width:42px;padding:6px 10px;font-size:14px;${active ? '' : 'opacity:0.65'}" onclick="deScorePick('${side}',${i})">${i}</button>`;
+    }
+    return html;
+  };
+  document.getElementById('de-score-p1-label').textContent = p1Label;
+  document.getElementById('de-score-p2-label').textContent = p2Label;
+  document.getElementById('de-score-p1-btns').innerHTML = makeButtons('p1');
+  document.getElementById('de-score-p2-btns').innerHTML = makeButtons('p2');
+  document.getElementById('de-score-error').textContent = '';
+  document.getElementById('de-score-threshold-note').textContent =
+    `First to ${threshold} pts · round ${match.round}`;
+}
+
+function deScorePick(side, value) {
+  _deScore[side] = value;
+  const match = matchesState.find(m => m.id === _deScore.mid);
+  if (match) renderDeScoreModal(match);
+}
+
+// function deScoreDone( — marker for test extraction boundary
+async function deScoreDone() {
+  const match = matchesState.find(m => m.id === _deScore.mid);
+  if (!match) return;
+  const errEl = document.getElementById('de-score-error');
+  if (_deScore.p1 == null || _deScore.p2 == null) {
+    errEl.textContent = 'Please select a score for both sides.'; return;
+  }
+  if (_deScore.p1 === _deScore.p2) {
+    errEl.textContent = 'Tie not allowed — scores must differ.'; return;
+  }
+  // Write to match
+  match.p1.dePoints = _deScore.p1;
+  if (match.p2) match.p2.dePoints = _deScore.p2;
+  match._deSelfMatch = true;
+  // Set win based on higher score
+  if (_deScore.p1 > _deScore.p2) { match.p1.win = true; if (match.p2) match.p2.win = false; }
+  else { if (match.p2) match.p2.win = true; match.p1.win = false; }
+  // Close modal first
+  document.getElementById('de-self-score-modal').style.display = 'none';
+  _deScore = { mid: null, p1: null, p2: null };
+  // Flatten, then submit (which calls challongeReportMatch at the end)
+  flattenMatchesToResults();
+  await submitMatch(match.id);
+}
+
+function closeDeSelfScore() {
+  document.getElementById('de-self-score-modal').style.display = 'none';
+  _deScore = { mid: null, p1: null, p2: null };
 }
 
 // ── Helper: get play order for a team, falling back to finish-order detection ──
