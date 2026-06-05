@@ -7766,7 +7766,7 @@ async function submitMatch(mid) {
     }
     const toSubmit = target || match;
     toSubmit.submitted = true;
-    toSubmit.collapsed = false;
+    toSubmit.collapsed = true;
 
     // 6. Collapse any _sid duplicates — keep the match being submitted.
     if (toSubmit._sid) {

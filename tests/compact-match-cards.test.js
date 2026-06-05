@@ -36,3 +36,12 @@ test('mergeIncomingMatches adds server matches collapsed', () => {
   assert.match(body, /sm\.collapsed\s*=\s*true/);
   assert.match(body, /sm\.collapsed\s*=\s*existing\s*\?\s*existing\.collapsed\s*:\s*true/);
 });
+
+test('submitMatch leaves the match collapsed (does not auto-expand)', () => {
+  // Slice the submit routine (submitMatch:7712 → unsubmitMatch:7813) and assert
+  // the collapse line is true, not false.
+  const body = bodyOf('async function submitMatch(mid)', 'async function unsubmitMatch(mid)');
+  assert.match(body, /toSubmit\.collapsed\s*=\s*true/,
+    'submitting should keep the compact row collapsed');
+  assert.doesNotMatch(body, /toSubmit\.collapsed\s*=\s*false/);
+});
