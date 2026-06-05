@@ -3749,13 +3749,17 @@ function challongeEntryToMatchSlot(ref) {
   if (!ref) return null;
   const players = getPlayers();
   const full = players.find(p => ref.entryId ? p.entryId === ref.entryId : p.name === ref.name) || ref;
-  return JSON.parse(JSON.stringify({
-    player: full.name || full.player || '',
+  const name = full.name || full.player || '';
+  const key = full.entryId || playerKey(name);
+  const slot = {
+    player: name,
     entryId: full.entryId || null,
     entryType: full.entryType || 'main',
-    displayLabel: full.displayLabel || full.name || full.player || '',
-    builds: full.builds || [],
-  }));
+    displayLabel: full.displayLabel || name,
+    builds: [],
+  };
+  reconcileMatchSlotBuilds(slot, buildsState[key] || []);
+  return JSON.parse(JSON.stringify(slot));
 }
 
 async function challongeImportOpenMatches() {

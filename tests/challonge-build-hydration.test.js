@@ -103,3 +103,63 @@ test('reconcile: missing builds array is initialised', () => {
   assert.equal(slot.builds.length, 1);
   assert.equal(slot.builds[0].build, 'Dragoon');
 });
+
+function loadChallongeSlot(ctxExtras) {
+  const ctx = Object.assign({ JSON, Array }, ctxExtras);
+  vm.createContext(ctx);
+  // reconcile helper first (challongeEntryToMatchSlot depends on it)
+  vm.runInContext(
+    sliceBetween('// === BUILD-RECONCILE START ===', '// === BUILD-RECONCILE END ==='),
+    ctx
+  );
+  vm.runInContext(
+    sliceBetween('function challongeEntryToMatchSlot(ref)', 'async function challongeImportOpenMatches'),
+    ctx
+  );
+  return ctx;
+}
+
+test('challongeEntryToMatchSlot: builds submitted BEFORE sync hydrate the slot by entryId', () => {
+  const ctx = loadChallongeSlot({
+    playerKey: (name) => name,
+    buildsState: { 'e-ken': ['Dragoon', 'Dranzer', 'Draciel'] },
+    getPlayers: () => [
+      { name: 'Ken', displayLabel: 'Ken', entryId: 'e-ken', entryType: 'main' },
+    ],
+  });
+  const slot = vm.runInContext(
+    `challongeEntryToMatchSlot({ entryId: 'e-ken', name: 'Ken' })`, ctx
+  );
+  assert.deepEqual(slot.builds.map(b => b.build), ['Dragoon', 'Dranzer', 'Draciel']);
+  assert.deepEqual(slot.builds[0], { build: 'Dragoon', finishes: [], deployed: false });
+  assert.equal(slot.entryId, 'e-ken');
+  assert.equal(slot.player, 'Ken');
+});
+
+test('challongeEntryToMatchSlot: main vs DE same name resolve by SEPARATE entryId keys', () => {
+  const ctx = loadChallongeSlot({
+    playerKey: (name) => name,
+    buildsState: {
+      'e-lien-1': ['MainA', 'MainB'],
+      'e-lien-2': ['DeA', 'DeB'],
+    },
+    getPlayers: () => [
+      { name: 'Lienathan', displayLabel: 'Lienathan 1', entryId: 'e-lien-1', entryType: 'main' },
+      { name: 'Lienathan', displayLabel: 'Lienathan 2', entryId: 'e-lien-2', entryType: 'double' },
+    ],
+  });
+  const main = vm.runInContext(`challongeEntryToMatchSlot({ entryId: 'e-lien-1', name: 'Lienathan' })`, ctx);
+  const de   = vm.runInContext(`challongeEntryToMatchSlot({ entryId: 'e-lien-2', name: 'Lienathan' })`, ctx);
+  assert.deepEqual(main.builds.map(b => b.build), ['MainA', 'MainB']);
+  assert.deepEqual(de.builds.map(b => b.build), ['DeA', 'DeB']);
+});
+
+test('challongeEntryToMatchSlot: no submitted builds yields an empty (not undefined) builds array', () => {
+  const ctx = loadChallongeSlot({
+    playerKey: (name) => name,
+    buildsState: {},
+    getPlayers: () => [{ name: 'Mia', displayLabel: 'Mia', entryId: 'e-mia', entryType: 'main' }],
+  });
+  const slot = vm.runInContext(`challongeEntryToMatchSlot({ entryId: 'e-mia', name: 'Mia' })`, ctx);
+  assert.deepEqual(slot.builds, []);
+});
