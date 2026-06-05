@@ -817,6 +817,63 @@ test('merge does NOT clobber the actively-edited match', () => {
   assert.deepEqual(m.p1.builds, [{ finishes: ['O', 'O'] }], 'local edits preserved');
 });
 
+test('merge does NOT clobber a just-finalized match whose live push is still un-acked (outbox op pending)', () => {
+  // Repro of the live-scoring data-loss bug. The judge finishes a match and taps
+  // Done; closeLiveMode() clears _activeLiveMatchSid, but the final per-match
+  // live-push is still queued/in-flight (its outbox op has not been acked by the
+  // server). A 3s sync poll — or submitMatch's own internal merge — then reads a
+  // STALE server snapshot that lacks the just-entered finishes. Without a guard
+  // the merge overwrites the fresh local 5-0 with the stale server 0-0, which the
+  // judge sees as an erased score / "no winner", a missing 2nd fight, or the right
+  // winner with the wrong points (when the stale snapshot was an earlier push).
+  const local = { id: 1, _sid: 'R1|a|b|0', round: 'R1',
+    p1: { player: 'a', entryId: 'a', builds: [{ finishes: ['O', 'O', 'S'] }], win: true },
+    p2: { player: 'b', entryId: 'b', builds: [{ finishes: ['L', 'L', 'L'] }], win: false },
+    submitted: false };
+  const context = createContext([local]);
+  context._activeLiveMatchSid = null;     // live mode already closed (Done tapped)
+  context.localStorage = makeLocalStorage();
+  context.crypto = { randomUUID: (() => { let n = 0; return () => 'op-' + (++n); })() };
+  loadOutboxHelpers(context);
+  loadMergeHelper(context);
+
+  // The final live-push for this match is still pending (not yet acked).
+  context.enqueueOutboxOp('R1|a|b|0', { eventId: 'evt-test', beyResults: [] });
+
+  // Stale server snapshot: the finishes for this match haven't landed yet.
+  const staleServer = [
+    { player: 'a', entryId: 'a', round: 'R1', builds: [], win: false, _matchSid: 'R1|a|b|0' },
+    { player: 'b', entryId: 'b', round: 'R1', builds: [], win: false, _matchSid: 'R1|a|b|0' }
+  ];
+  context.mergeIncomingMatches({}, staleServer);
+
+  const m = context.matchesState.find(x => x._sid === 'R1|a|b|0');
+  assert.deepEqual(m.p1.builds, [{ finishes: ['O', 'O', 'S'] }], 'pending local score preserved');
+  assert.equal(m.p1.win, true, 'winner preserved while the live push is un-acked');
+});
+
+test('full-replace merge preserves a match whose live push is still un-acked', () => {
+  const local = { id: 1, _sid: 'R1|a|b|0', round: 'R1',
+    p1: { player: 'a', entryId: 'a', builds: [{ finishes: ['O', 'O', 'S'] }], win: true },
+    p2: { player: 'b', entryId: 'b', builds: [{ finishes: ['L', 'L', 'L'] }], win: false },
+    submitted: false };
+  const context = createContext([local]);
+  context.dirty = false;
+  context.localStorage = makeLocalStorage();
+  context.crypto = { randomUUID: (() => { let n = 0; return () => 'op-' + (++n); })() };
+  loadOutboxHelpers(context);
+  loadMergeHelper(context);
+
+  context.enqueueOutboxOp('R1|a|b|0', { eventId: 'evt-test', beyResults: [] });
+  context.mergeIncomingMatches({}, [
+    { player: 'a', entryId: 'a', round: 'R1', builds: [], win: false, _matchSid: 'R1|a|b|0' },
+    { player: 'b', entryId: 'b', round: 'R1', builds: [], win: false, _matchSid: 'R1|a|b|0' }
+  ]);
+
+  assert.equal(context.matchesState[0], local, 'full replace keeps the protected local match object');
+  assert.deepEqual(context.matchesState[0].p1.builds, [{ finishes: ['O', 'O', 'S'] }]);
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // LIVE SCORING — debounced per-match live push (Task 4)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -824,6 +881,13 @@ test('merge does NOT clobber the actively-edited match', () => {
 function loadLivePush(context) {
   vm.runInContext(
     extractBetween('// LIVE PUSH ENGINE (start)', '// LIVE PUSH ENGINE (end)'),
+    context
+  );
+}
+
+function loadCloseLiveMode(context) {
+  vm.runInContext(
+    extractBetween('function closeLiveMode()', 'function lmBackdropClick'),
     context
   );
 }
@@ -857,6 +921,120 @@ test('scheduleLivePush coalesces rapid calls into one push after the debounce', 
   context.scheduleLivePush(1);
   await new Promise(r => setTimeout(r, 60));
   assert.equal(puts, 1, 'three rapid taps -> one PUT');
+});
+
+test('scheduleLivePush enqueues the un-acked-write marker synchronously, before the debounce fires', () => {
+  // Closes the post-Done gap: the outbox op (the marker the merge uses to refuse
+  // stale-server overwrites) must exist the instant a push is scheduled — not only
+  // 800ms later when pushMatchLive runs. Otherwise a sync poll landing in the
+  // debounce window can clobber the just-scored 5-0 with an earlier 4-0 push.
+  const match = { id: 1, _sid: 'R1|a|b|0', round: 'R1',
+    p1: { player: 'a', builds: [{ finishes: ['O', 'O', 'S'] }], win: true },
+    p2: { player: 'b', builds: [{ finishes: ['L', 'L', 'L'] }], win: false } };
+  const context = vm.createContext({
+    setTimeout, clearTimeout,
+    localStorage: makeLocalStorage(),
+    matchesState: [match],
+    buildsState: {},
+    currentEvent: { id: 'evt-1' },
+    adminUser: 'admin', adminPass: 'secret',
+    _concurrencyMode: 'durable-object',
+    navigator: { onLine: true },
+    crypto: { randomUUID: (() => { let n = 0; return () => 'op-' + (++n); })() },
+    calcPoints: (builds) => (builds || []).reduce((n, b) =>
+      n + (b.finishes || []).filter(f => f !== 'L').length, 0),
+    autoCheckWin() {}, autoCheckTeamWin() {},
+    LIVE_PUSH_DEBOUNCE_MS: 5, // short, so the debounced PUT resolves instead of dangling
+    Promise,
+    fetch: async () => ({ ok: true, headers: { get: () => 'durable-object' }, json: async () => ({ beyResults: [] }) })
+  });
+  loadPatchHelpers(context);
+  loadOutboxHelpers(context);
+  loadLivePush(context);
+
+  context.scheduleLivePush(1);
+
+  // No await — assert the marker exists synchronously, before any timer fires.
+  const ops = context.loadOutbox('evt-1');
+  assert.equal(ops.length, 1, 'outbox op enqueued immediately on schedule');
+  assert.equal(ops[0].matchSid, 'R1|a|b|0', 'marker tracks the scored match');
+});
+
+test('an older live-push ack does not clear a newer outbox write for the same match', async () => {
+  let releaseFirstPush;
+  let firstRequest;
+  const match = { id: 1, _sid: 'R1|a|b|0', round: 'R1',
+    p1: { player: 'a', builds: [{ finishes: ['O'] }], win: false },
+    p2: { player: 'b', builds: [], win: false } };
+  const context = vm.createContext({
+    setTimeout, clearTimeout,
+    localStorage: makeLocalStorage(),
+    matchesState: [match],
+    buildsState: {},
+    currentEvent: { id: 'evt-1' },
+    adminUser: 'admin', adminPass: 'secret',
+    _concurrencyMode: 'durable-object',
+    navigator: { onLine: true },
+    crypto: { randomUUID: (() => { let n = 0; return () => 'op-' + (++n); })() },
+    calcPoints: (builds) => (builds || []).reduce((n, b) =>
+      n + (b.finishes || []).filter(f => f !== 'L').length, 0),
+    autoCheckWin() {}, autoCheckTeamWin() {},
+    sidsFromServerPayload: (rows) => new Set((rows || []).map(r => r._matchSid)),
+    Promise,
+    fetch: async (_url, init) => {
+      firstRequest = JSON.parse(init.body);
+      await new Promise(resolve => { releaseFirstPush = resolve; });
+      return { ok: true, headers: { get: () => 'durable-object' },
+        json: async () => ({ beyResults: firstRequest.beyResults }) };
+    }
+  });
+  loadPatchHelpers(context);
+  loadOutboxHelpers(context);
+  loadLivePush(context);
+
+  const firstPush = context.pushMatchLive(match);
+  await new Promise(resolve => setImmediate(resolve));
+
+  match.p1.builds[0].finishes.push('S');
+  const { body: newerBody } = context.buildMatchPatchBody('evt-1', match);
+  const newerOp = context.enqueueOutboxOp(match._sid, newerBody);
+
+  releaseFirstPush();
+  await firstPush;
+
+  const ops = context.loadOutbox('evt-1');
+  assert.equal(ops.length, 1, 'the newer un-acked write must remain protected');
+  assert.equal(ops[0].opId, newerOp.opId, 'only the exact acknowledged op may be removed');
+  assert.equal(JSON.stringify(ops[0].payload.beyResults[0].builds[0].finishes), '["O","S"]');
+});
+
+test('closeLiveMode schedules a live push for partially-scored state', () => {
+  const scheduled = [];
+  const target = { id: 17, _sid: 'R1|a|b|0' };
+  const element = { style: {}, classList: { remove() {} } };
+  const context = vm.createContext({
+    lmState: { match: target },
+    _activeLiveMatchSid: target._sid,
+    _editingBeyToken: null,
+    _syncPaused: false,
+    lmSyncSoloProxyToReal: () => target,
+    flattenMatchesToResults() {},
+    markDirty() {},
+    scheduleLivePush: (mid) => scheduled.push(mid),
+    renderResults() {},
+    document: {
+      body: { style: {} },
+      getElementById: () => element
+    },
+    lmRemoveLandscape() {}
+  });
+  loadCloseLiveMode(context);
+
+  context.closeLiveMode();
+
+  assert.deepEqual(scheduled, [17]);
+  assert.equal(context.lmState, null);
+  assert.equal(context._activeLiveMatchSid, null);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

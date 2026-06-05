@@ -5099,6 +5099,20 @@ function _livePushDebounceMs() {
 
 function scheduleLivePush(mid) {
   if (typeof _concurrencyMode !== 'undefined' && _concurrencyMode === 'best-effort-kv') return;
+  // Enqueue the outbox op NOW, synchronously — not 800ms later when the debounced
+  // PUT fires. The op is the "un-acked local write" marker the sync merge uses to
+  // refuse stale-server overwrites. Enqueuing it up front protects the score for
+  // the entire debounce window, including the instant after Done is tapped (which
+  // clears _activeLiveMatchSid). pushMatchLive supersedes this op with the freshly
+  // built body when it actually sends. Without this, a poll landing in the debounce
+  // gap could overwrite the local 5-0 with the server's earlier 4-0 push.
+  const _m = matchesState.find(m => m.id === mid);
+  if (_m && _m._sid && currentEvent) {
+    try {
+      const { body } = buildMatchPatchBody(currentEvent.id, _m);
+      enqueueOutboxOp(_m._sid, body);
+    } catch (e) { /* best-effort marker; pushMatchLive will still enqueue */ }
+  }
   if (_livePushTimers[mid]) clearTimeout(_livePushTimers[mid]);
   _livePushTimers[mid] = setTimeout(() => {
     delete _livePushTimers[mid];
@@ -5124,7 +5138,6 @@ async function pushMatchLive(match) {
     if (!res.ok) throw new Error((data && data.error) || 'live push failed');
     const acked = sidsFromServerPayload(data.beyResults);
     if (acked && acked.has(match._sid)) { if (op) dropOutboxOp(eventId, op.opId); }
-    confirmOutboxAcked(eventId, acked);
   });
   try { await _livePushQueue; } catch (e) { /* op stays in outbox for retry */ }
 }
@@ -6249,9 +6262,13 @@ function closeLiveMode() {
   _activeLiveMatchSid = null;
   // Commit any in-progress scores back to the real match before closing
   if (lmState) {
-    lmSyncSoloProxyToReal();
+    const _target = lmSyncSoloProxyToReal();
     flattenMatchesToResults();
     markDirty();
+    // Protect + persist whatever was scored (even a partial ✕-close): scheduling
+    // the live push synchronously enqueues the un-acked-write marker so a sync
+    // poll can't clobber the just-entered score with a stale server snapshot.
+    if (_target && typeof scheduleLivePush === 'function') scheduleLivePush(_target.id);
     renderResults();
   }
   document.getElementById('live-mode-overlay').style.display = 'none';
@@ -8089,6 +8106,24 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
     }
   }
 
+  // A match with an un-acked local write — its latest per-match live-push has
+  // not yet round-tripped back from the server, so it still sits in the outbox —
+  // must be treated exactly like the actively-scored match: NEVER overwritten by
+  // a (necessarily stale) server snapshot. Tapping Done closes Live Mode and
+  // clears _activeLiveMatchSid while that final push is still queued/in-flight;
+  // without this guard the next poll (or submitMatch's own internal merge) reads
+  // the pre-score server state and erases the just-entered finishes — surfacing
+  // as a wiped score / "no winner", a missing 2nd fight, or right-winner-wrong-
+  // points (when the stale snapshot was an earlier intermediate push).
+  let _pendingOutboxSids = new Set();
+  try {
+    if (typeof loadOutbox === 'function' && currentEvent) {
+      for (const op of loadOutbox(currentEvent.id)) {
+        if (op && op.matchSid) _pendingOutboxSids.add(op.matchSid);
+      }
+    }
+  } catch (e) { /* outbox unavailable — fall back to active-match guard only */ }
+
   // If user has unsaved dirty changes, add NEW matches from server and remove deleted ones,
   // but don't overwrite local edits to existing matches
   if (dirty) {
@@ -8113,7 +8148,8 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
         const local = matchesState.find(m => m._sid === sm._sid);
         if (local) {
           if (local._pendingServerSave) delete local._pendingServerSave;
-          const isActive = _activeLiveMatchSid && sm._sid === _activeLiveMatchSid;
+          const isActive = (_activeLiveMatchSid && sm._sid === _activeLiveMatchSid)
+            || _pendingOutboxSids.has(sm._sid);
           if (!isActive && (sm.submitted || local.submitted ||
               JSON.stringify({ p1: sm.p1, p2: sm.p2, team1: sm.team1, team2: sm.team2 }) !==
               JSON.stringify({ p1: local.p1, p2: local.p2, team1: local.team1, team2: local.team2 }))) {
@@ -8193,6 +8229,12 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
   // (preserve local match IDs, collapse state, and submitted flag to avoid flicker)
   const newState = serverMatches.map(sm => {
     const existing = matchesState.find(m => m._sid === sm._sid);
+    // Keep the local match intact if its live-push hasn't been acked yet — the
+    // server snapshot is stale and would erase the just-entered score (same rule
+    // as the dirty-path guard above).
+    if (existing && sm._sid && _pendingOutboxSids.has(sm._sid)) {
+      return existing;
+    }
     sm.id        = existing ? existing.id        : _matchIdCounter++;
     sm.collapsed = existing ? existing.collapsed : true;
     // Server is authoritative for submitted status when not dirty
