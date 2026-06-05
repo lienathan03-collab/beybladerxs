@@ -150,3 +150,56 @@ test('challongeImportOpenMatches does NOT open scoring', () => {
   assert.doesNotMatch(body, /openManualMatchScoring|openLiveModeSolo|openLiveMode\(|openDeSelfScore/,
     'imports must never auto-open scoring');
 });
+
+function loadHeaderHelpers() {
+  const start = html.indexOf('// === MATCH-HEADER-HTML START ===');
+  const end = html.indexOf('// === MATCH-HEADER-HTML END ===');
+  assert.notEqual(start, -1, 'Missing MATCH-HEADER-HTML START marker');
+  assert.notEqual(end, -1, 'Missing MATCH-HEADER-HTML END marker');
+  const ctx = {
+    escHtml: s => String(s == null ? '' : s).replace(/[&<>"]/g, c =>
+      ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),
+  };
+  vm.createContext(ctx);
+  vm.runInContext(html.slice(start, end), ctx);
+  return ctx;
+}
+
+test('matchOverflowMenuHtml shows Submit (not Unsubmit) for a pending match', () => {
+  const { matchOverflowMenuHtml } = loadHeaderHelpers();
+  const out = matchOverflowMenuHtml({ id: 1, submitted: false });
+  assert.match(out, /submitMatch\(1\)/);
+  assert.doesNotMatch(out, /unsubmitMatch\(/);
+  assert.match(out, /removeMatch\(1\)/);
+});
+
+test('matchOverflowMenuHtml shows Unsubmit for a submitted match', () => {
+  const { matchOverflowMenuHtml } = loadHeaderHelpers();
+  const out = matchOverflowMenuHtml({ id: 2, submitted: true });
+  assert.match(out, /unsubmitMatch\(2\)/);
+  assert.doesNotMatch(out, /submitMatch\(2\)[^a-zA-Z]/);
+});
+
+test('matchOverflowMenuHtml shows a Retry item only on push error', () => {
+  const { matchOverflowMenuHtml } = loadHeaderHelpers();
+  const err = matchOverflowMenuHtml({ id: 3, _challongeMatchId: 'c', _challongePushState: 'error' });
+  assert.match(err, /retry/i);
+  const ok = matchOverflowMenuHtml({ id: 3, _challongeMatchId: 'c', _challongePushState: 'ok' });
+  assert.doesNotMatch(ok, /retry/i);
+});
+
+test('matchOverflowMenuHtml Remove item carries the danger class and stops propagation', () => {
+  const { matchOverflowMenuHtml } = loadHeaderHelpers();
+  const out = matchOverflowMenuHtml({ id: 9, submitted: false });
+  assert.match(out, /class="[^"]*mc2-menu-item[^"]*danger[^"]*"[^>]*removeMatch\(9\)/);
+  assert.match(out, /event\.stopPropagation\(\)/);
+});
+
+test('matchStatusChipHtml reflects submitted / pending / push states', () => {
+  const { matchStatusChipHtml } = loadHeaderHelpers();
+  assert.match(matchStatusChipHtml({ id: 1, submitted: true }), /submitted/i);
+  assert.match(matchStatusChipHtml({ id: 2, submitted: false }), /pending/i);
+  assert.match(
+    matchStatusChipHtml({ id: 3, _challongeMatchId: 'c', _challongePushState: 'error' }),
+    /retry|failed|⚠/i);
+});

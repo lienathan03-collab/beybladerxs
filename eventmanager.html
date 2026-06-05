@@ -3933,6 +3933,12 @@ function challongeRetryFailedPushes() {
   });
 }
 
+// Retry the Challonge push for a single match (overflow-menu entry point).
+function challongeRetryPush(mid) {
+  const m = (matchesState || []).find(x => x.id === mid);
+  if (m && m._challongeMatchId) challongeReportMatch(m);
+}
+
 // DEDUP-HELPERS START
 function isMatchScored(m) {
   if (m.submitted) return true;
@@ -4636,6 +4642,39 @@ function submitAreaHtml(match) {
   }
   return `<button class="btn success" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();submitMatch(${mid})">⬆ Submit</button>`;
 }
+
+// === MATCH-HEADER-HTML START ===
+// Compact status chip for the collapsed row. Color is paired with a glyph/text
+// so state is never conveyed by color alone (WCAG 1.4.1).
+function matchStatusChipHtml(match) {
+  if (match._challongeMatchId && match._challongePushState === 'pending')
+    return `<span class="mc2-status pend">⟳ pushing…</span>`;
+  if (match._challongeMatchId && match._challongePushState === 'error')
+    return `<span class="mc2-status err">⚠ retry</span>`;
+  if (match.submitted)
+    return `<span class="mc2-status ok">✓ submitted${match._challongePushState === 'ok' ? ' · pushed' : ''}</span>`;
+  return `<span class="mc2-status">pending</span>`;
+}
+
+// Overflow-menu body. Submit XOR Unsubmit (Auto-submit countdown stays inline on
+// the row via submitAreaHtml). Retry only when a Challonge push errored. Remove
+// is always last, red, and still routes through removeMatch()'s confirm dialog.
+function matchOverflowMenuHtml(match) {
+  const mid = match.id;
+  const items = [];
+  if (match.submitted) {
+    items.push(`<button class="mc2-menu-item" role="menuitem" onclick="event.stopPropagation();toggleMatchMenu(${mid});unsubmitMatch(${mid})instanceof Function">↩ Unsubmit</button>`);
+  } else {
+    items.push(`<button class="mc2-menu-item" role="menuitem" onclick="event.stopPropagation();toggleMatchMenu(${mid});submitMatch(${mid})">⬆ Submit</button>`);
+  }
+  if (match._challongeMatchId && match._challongePushState === 'error') {
+    items.push(`<button class="mc2-menu-item" role="menuitem" onclick="event.stopPropagation();toggleMatchMenu(${mid});challongeRetryPush(${mid})">⟳ Retry Challonge push</button>`);
+  }
+  items.push(`<button class="mc2-menu-item danger" role="menuitem" onclick="event.stopPropagation();toggleMatchMenu(${mid});removeMatch(${mid})">✕ Remove match</button>`);
+  return `<div class="mc2-menu" id="mc2-menu-${mid}" role="menu" hidden>${items.join('')}</div>`;
+}
+// === MATCH-HEADER-HTML END ===
+
 // ─── AUTO-SUBMIT ENGINE (end) ────────────────────────────────────────────────
 
 // LIVE PUSH ENGINE (start)
