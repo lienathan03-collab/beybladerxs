@@ -4941,27 +4941,14 @@ function renderDeSelfMatchCard(match) {
 
   return `
   <div class="match-card" id="match-${mid}">
-    <div style="display:flex;align-items:stretch;border-bottom:1px solid var(--border)">
-      <div class="match-card-header" style="flex:1;border-bottom:none" onclick="toggleMatchCollapse(${mid})">
-        <span class="match-round-badge">${escHtml(match.round||'')}</span>
-        <span class="match-vs-label">
-          <span style="color:var(--blue)">${escHtml(p1Label)}</span>
-          <span style="color:var(--muted2);margin:0 6px;font-size:11px">↔</span>
-          <span style="color:var(--gold2)">${escHtml(p2Label)}</span>
-        </span>
-        <span style="font-size:10px;padding:2px 6px;border-radius:10px;background:rgba(160,100,255,0.15);color:#c084fc;font-family:'Share Tech Mono',monospace;letter-spacing:0.5px;white-space:nowrap">🪙 DE · NO BATTLE</span>
-        <span class="match-result-summary">${summary}</span>
-        ${challongePushChipHtml(match)}
-        ${submitAreaHtml(match)}
-        <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕ Remove</button>
-        <span style="color:var(--muted2);font-size:12px;margin-left:4px">${match.collapsed ? '▼' : '▲'}</span>
-      </div>
-      <button class="btn live-btn" onclick="event.stopPropagation();openDeSelfScore(${mid})">⚡</button>
-    </div>
+    ${compactMatchHeaderHtml(match, {
+      name1: p1Label, name2: p2Label, vsGlyph: '↔',
+      liveOnClick: `openDeSelfScore(${mid})`
+    })}
     ${match.collapsed ? '' : `
     <div style="padding:12px 14px">
       <div style="font-size:11px;color:var(--muted);margin-bottom:8px">
-        Coin toss result — click ⚡ to enter scores. No Beyblade battle.
+        Coin toss result — tap ⚡ to enter scores. No Beyblade battle.
       </div>
       ${(p1wins || p2wins) ? `
         <div style="font-size:13px">${winnerLine}</div>` : `<div style="font-size:12px;color:var(--muted2)">No scores entered yet.</div>`}

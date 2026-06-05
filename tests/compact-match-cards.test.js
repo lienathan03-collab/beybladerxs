@@ -244,3 +244,11 @@ test('renderMatchCard collapsed solo uses the compact header (no legacy live-btn
   assert.doesNotMatch(body, /✕ Remove/);            // remove text moved to menu
   assert.doesNotMatch(body, /class="btn live-btn"/); // legacy header live button gone
 });
+
+test('renderDeSelfMatchCard uses the compact header and routes ⚡ to openDeSelfScore', () => {
+  const body = bodyOf('function renderDeSelfMatchCard(match)', 'function mSelectDeWinner');
+  assert.match(body, /compactMatchHeaderHtml\(/);
+  assert.match(body, /openDeSelfScore\(\$\{mid\}\)/);
+  assert.match(body, /vsGlyph:\s*'↔'/);                  // DE uses the ↔ glyph
+  assert.doesNotMatch(body, /class="btn live-btn"/);
+});
