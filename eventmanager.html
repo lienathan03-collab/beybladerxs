@@ -3792,7 +3792,7 @@ async function challongeImportOpenMatches() {
           team2: mt2,
           p1: JSON.parse(JSON.stringify(mt1.members[0] || { player: t1.teamName, builds: [] })),
           p2: JSON.parse(JSON.stringify(mt2.members[0] || { player: t2.teamName, builds: [] })),
-          collapsed: false,
+          collapsed: true,
         });
       } else {
         const e1 = challongeEntryToMatchSlot(item.side1Ref);
@@ -3813,7 +3813,7 @@ async function challongeImportOpenMatches() {
           round: item.round,
           p1: JSON.parse(JSON.stringify(e1)),
           p2: JSON.parse(JSON.stringify(e2)),
-          collapsed: false,
+          collapsed: true,
         });
       }
       created++;
