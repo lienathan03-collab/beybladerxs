@@ -3447,7 +3447,7 @@ function matchSoloParticipant(rawName, players) {
     if (sameName.length) {
       const wantDouble = num >= 2;
       hit = sameName.find(p => (p.entryType === 'double') === wantDouble);
-      return hit || sameName[0];
+      return hit || null;
     }
   }
   return null;
@@ -3565,6 +3565,93 @@ function eventPointsToScoresCsv(p1pts, p2pts, winnerId, p1Id, p2Id) {
 
   return { scores_csv, winner_id };
 }
+
+function hasDuplicateSoloParticipantMappings(map) {
+  const seen = new Set();
+  for (const ref of Object.values(map || {})) {
+    if (!ref || !ref.entryId) continue;
+    if (seen.has(ref.entryId)) return true;
+    seen.add(ref.entryId);
+  }
+  return false;
+}
+
+// Pure function: build/revalidate the Challonge participant map from scratch.
+// - Auto-detected mappings always replace stale ones.
+// - Manual mapping kept only when auto-match fails AND entryId still in roster.
+// - Two participants resolving to the same entryId → both flagged as duplicates.
+function buildParticipantMapCore({ participants, players, teams, existingMap, isTeam }) {
+  const map = {};
+  const unmatched = [];
+  const rosterIds = isTeam
+    ? null
+    : new Set((players || []).map(p => p.entryId).filter(Boolean));
+
+  for (const p of (participants || [])) {
+    const nm = p.display_name || p.name || '';
+    const ref = isTeam
+      ? matchTeamParticipant(nm, teams)
+      : matchSoloParticipant(nm, players);
+
+    if (ref) {
+      map[p.id] = isTeam
+        ? { teamName: ref.teamName }
+        : { name: ref.name, entryId: ref.entryId, entryType: ref.entryType, displayLabel: ref.displayLabel };
+    } else {
+      // Auto-match failed — keep a manual mapping only when its entryId still exists
+      const existing = existingMap && existingMap[p.id];
+      const manualValid = existing &&
+        (isTeam
+          ? true
+          : (existing.entryId && rosterIds && rosterIds.has(existing.entryId)));
+      if (manualValid) {
+        map[p.id] = existing;
+      } else {
+        unmatched.push({ id: p.id, name: nm });
+      }
+    }
+  }
+
+  // Detect duplicate solo entryId mappings (two Challonge IDs → same entryId).
+  const duplicatePids = new Set();
+  if (!isTeam) {
+    const entryIdToPids = {};
+    for (const [pid, ref] of Object.entries(map)) {
+      if (!ref.entryId) continue;
+      (entryIdToPids[ref.entryId] = entryIdToPids[ref.entryId] || []).push(pid);
+    }
+    for (const pids of Object.values(entryIdToPids)) {
+      if (pids.length > 1) pids.forEach(pid => duplicatePids.add(pid));
+    }
+    for (const pid of duplicatePids) {
+      const ref = map[pid];
+      unmatched.push({ id: parseInt(pid, 10), name: ref.displayLabel || ref.name || '', duplicate: true });
+      delete map[pid];
+    }
+  }
+
+  return { map, unmatched, hasDuplicates: duplicatePids.size > 0 };
+}
+
+// Pure function: apply a challonge_update response to currentEvent (and the
+// matching allEvents cache entry). Merges patch keys and refreshes joiners from
+// the authoritative server event without overwriting builds, beyResults, or
+// other live tournament state.
+function applyChallongeMetadataResponse(currentEvent, allEvents, patch, serverEvent) {
+  const applyTo = (event) => {
+    if (!event) return;
+    for (const [key, value] of Object.entries(patch || {})) {
+      if (value === null) delete event[key];
+      else event[key] = value;
+    }
+    if (serverEvent && Array.isArray(serverEvent.joiners)) {
+      event.joiners = serverEvent.joiners;
+    }
+  };
+  applyTo(currentEvent);
+  const cached = (allEvents || []).find(e => e.id === (currentEvent || {}).id);
+  if (cached && cached !== currentEvent) applyTo(cached);
+}
 // === CHALLONGE-HELPERS END ===
 
 // ─────────────────────────────────────────────
@@ -3607,16 +3694,7 @@ async function saveChallongeMetadata(patch, successMsg) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'Could not save Challonge settings.');
 
-  const applyPatch = (event) => {
-    if (!event) return;
-    for (const [key, value] of Object.entries(patch || {})) {
-      if (value === null) delete event[key];
-      else event[key] = value;
-    }
-  };
-  applyPatch(currentEvent);
-  const cached = allEvents.find(e => e.id === currentEvent.id);
-  if (cached && cached !== currentEvent) applyPatch(cached);
+  applyChallongeMetadataResponse(currentEvent, allEvents, patch, data.event || null);
   if (successMsg) showToast(successMsg, 'success');
   return data.event || currentEvent;
 }
@@ -3722,24 +3800,22 @@ async function challongeBuildParticipantMap() {
     const participants = (Array.isArray(data) ? data : []).map(p => p.participant || p);
     const players = isTeam ? null : getPlayers();
     const teams = isTeam ? (currentEvent.joiners || []).filter(j => j.type === 'team') : null;
-    const map = { ...(currentEvent.challongeParticipantMap || {}) };
-    const unmatched = [];
-    for (const p of participants) {
-      if (map[p.id]) continue;
-      const nm = p.display_name || p.name || '';
-      const ref = isTeam ? matchTeamParticipant(nm, teams) : matchSoloParticipant(nm, players);
-      if (ref) {
-        map[p.id] = isTeam ? { teamName: ref.teamName } : { name: ref.name, entryId: ref.entryId, entryType: ref.entryType, displayLabel: ref.displayLabel };
-      } else {
-        unmatched.push({ id: p.id, name: nm });
-      }
-    }
+    const { map, unmatched, hasDuplicates } = buildParticipantMapCore({
+      participants,
+      players,
+      teams,
+      existingMap: currentEvent.challongeParticipantMap || {},
+      isTeam,
+    });
     await saveChallongeMetadata(
       { challongeParticipantMap: map },
-      '✅ Participant map saved.'
+      hasDuplicates ? null : '✅ Participant map saved.'
     );
+    if (hasDuplicates) {
+      showToast('⚠ Some participants share the same roster slot — resolve duplicates before importing.', 'error');
+    }
     if (unmatched.length) openChallongeMappingModal(unmatched, isTeam);
-    else showToast('✅ All ' + participants.length + ' participants mapped.', 'success');
+    else if (!hasDuplicates) showToast('✅ All ' + participants.length + ' participants mapped.', 'success');
   } catch (e) {
     showToast('⚠ Failed to build participant map: ' + e.message, 'error');
   }
@@ -3779,6 +3855,10 @@ async function challongeSaveMapping(isTeam) {
       if (p) map[pid] = { name: p.name, entryId: p.entryId, entryType: p.entryType, displayLabel: p.displayLabel };
     }
   });
+  if (!isTeam && hasDuplicateSoloParticipantMappings(map)) {
+    showToast('⚠ Two Challonge participants cannot use the same roster slot.', 'error');
+    return;
+  }
   await saveChallongeMetadata({ challongeParticipantMap: map }, '✅ Mapping saved.');
   document.getElementById('challonge-mapping-modal')?.remove();
   showToast('✅ Mapping saved.', 'success');
@@ -3883,6 +3963,10 @@ async function challongeImportOpenMatches() {
   if (!currentEvent || !currentEvent.challongeTournamentId) return 0;
   if (currentEvent.challongeMissing) return 0;
   const isTeam = currentEvent.type === '3v3';
+  if (!isTeam && hasDuplicateSoloParticipantMappings(currentEvent.challongeParticipantMap)) {
+    showToast('⚠ Some Challonge participants share the same roster slot — fix the participant mapping before importing.', 'error');
+    return 0;
+  }
   try {
     const res = await fetch(
       '/api/challonge?action=matches&tournament_id=' +
