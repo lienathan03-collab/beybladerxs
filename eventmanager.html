@@ -7618,9 +7618,10 @@ async function doLiveSync() {
     if (!res.ok) throw new Error('fetch failed');
     const data = await res.json();
 
-    // Fingerprint the incoming matches so we skip no-op syncs
+    // Fingerprint BOTH builds and matches so build-only updates aren't skipped
+    // (zero-matches build-sync bug). See syncFingerprint.
     const incoming = data.beyResults || [];
-    const hash = JSON.stringify(incoming);
+    const hash = syncFingerprint(data.builds || {}, incoming);
     if (hash === _lastSyncHash) { setLiveIndicator('live'); _syncErrorCount = 0; return; }
     _lastSyncHash = hash;
 

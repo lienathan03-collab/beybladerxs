@@ -39,3 +39,15 @@ test('syncFingerprint changes when results change', () => {
   const b = syncFingerprint({}, [{ player: 'b', round: 'R1' }]);
   assert.notEqual(a, b);
 });
+
+test('doLiveSync source fingerprints builds, not just beyResults', () => {
+  const start = html.indexOf('async function doLiveSync()');
+  const end = html.indexOf('function mergeIncomingMatches', start);
+  const src = html.slice(start, end);
+  // The hash must be derived from syncFingerprint over builds+results,
+  // never from JSON.stringify(incoming) alone.
+  assert.ok(/syncFingerprint\(\s*data\.builds/.test(src),
+    'doLiveSync must fingerprint data.builds via syncFingerprint');
+  assert.ok(!/const hash = JSON\.stringify\(incoming\)/.test(src),
+    'doLiveSync must not fingerprint beyResults alone');
+});
