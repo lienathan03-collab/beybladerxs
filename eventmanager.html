@@ -3629,14 +3629,21 @@ function renderChallongeLinkedStatus() {
   const syncBtn = document.getElementById('challonge-sync-btn');
   if (!el) return;
   const tid = currentEvent && currentEvent.challongeTournamentId;
-  if (tid) {
+  const missing = currentEvent && currentEvent.challongeMissing;
+  if (tid && missing) {
+    el.style.display = '';
+    el.innerHTML = `⚠ Challonge tournament missing — it was deleted or moved. ` +
+      `<button class="btn" style="font-size:11px;padding:2px 8px;margin-left:6px" onclick="challongeRelink()">Relink tournament</button> ` +
+      `<button class="btn" style="font-size:11px;padding:2px 8px;margin-left:4px;border-color:#ef4444;color:#ef4444" onclick="challongeUnlink()">Unlink</button>`;
+  } else if (tid) {
     const acct = currentEvent.challongeAccount || 'custom key';
     el.style.display = '';
-    el.textContent = `⚡ Linked: ${tid}  ·  account: ${acct}`;
+    el.innerHTML = `⚡ Linked: ${escHtml(String(tid))}  ·  account: ${escHtml(String(acct))} ` +
+      `<button class="btn" style="font-size:11px;padding:2px 8px;margin-left:6px;border-color:#ef4444;color:#ef4444" onclick="challongeUnlink()">Unlink</button>`;
   } else {
     el.style.display = 'none';
   }
-  if (syncBtn) syncBtn.style.display = tid ? '' : 'none';
+  if (syncBtn) syncBtn.style.display = (tid && !missing) ? '' : 'none';
 }
 
 function challongeLinkTournament() {
@@ -4150,6 +4157,37 @@ async function handleChallongeMaybeMissing(status, bodyText) {
   return true;
 }
 // === CHALLONGE-MISSING END ===
+
+// === CHALLONGE-UNLINK-RELINK START ===
+// Remove ONLY Challonge connection metadata from the event. Builds, matches,
+// scores, submitted flags, and scoring history are never touched, and
+// Challonge-imported matches are NOT deleted (they become local-only matches).
+async function challongeUnlink() {
+  if (!currentEvent) return;
+  if (typeof confirm === 'function' &&
+      !confirm('Unlink Challonge? This removes the connection only. Your builds, matches, and scores are kept; imported matches stay as local matches.')) return;
+  delete currentEvent.challongeTournamentId;
+  delete currentEvent.challongeAccount;
+  delete currentEvent.challongeCustomKey;
+  delete currentEvent.challongeParticipantMap;
+  delete currentEvent.challongeGroupMap;
+  delete currentEvent.challongeMissing;
+  await rosterSaveJoiners('🔌 Challonge unlinked — tournament data kept.');
+  if (typeof renderChallongeLinkedStatus === 'function') renderChallongeLinkedStatus();
+  if (typeof renderResults === 'function') renderResults();
+  if (typeof renderRoundPublishBar === 'function') renderRoundPublishBar();
+}
+
+// Clear the "missing" state and re-open the connection so the organizer can
+// re-pick the same or a new tournament. Keeps the existing link id as a hint.
+async function challongeRelink() {
+  if (!currentEvent) return;
+  currentEvent.challongeMissing = false;
+  await rosterSaveJoiners('🔗 Relinking — re-pick your tournament.');
+  if (typeof challongeConnect === 'function') await challongeConnect();
+  if (typeof renderChallongeLinkedStatus === 'function') renderChallongeLinkedStatus();
+}
+// === CHALLONGE-UNLINK-RELINK END ===
 
 // DEDUP-HELPERS START
 function isMatchScored(m) {
