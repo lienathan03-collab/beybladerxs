@@ -3599,7 +3599,13 @@ async function challongeConnect() {
   try {
     const res = await fetch('/api/challonge?action=list&' + challongeAccountParams());
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || res.status);
+    if (!res.ok) {
+      if (await handleChallongeMaybeMissing(res.status, data && data.error)) {
+        status.textContent = '● Tournament missing'; status.className = 'challonge-status error';
+        return;
+      }
+      throw new Error(data.error || res.status);
+    }
     const tours = Array.isArray(data) ? data
                 : Array.isArray(data.tournaments) ? data.tournaments
                 : [];
@@ -3655,7 +3661,11 @@ async function challongeBuildParticipantMap() {
       '/api/challonge?action=participants&tournament_id=' +
       encodeURIComponent(currentEvent.challongeTournamentId) + '&' + challongeAccountParams()
     );
-    if (!res.ok) throw new Error('Challonge API error ' + res.status);
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      if (await handleChallongeMaybeMissing(res.status, txt)) return;
+      throw new Error('Challonge API error ' + res.status);
+    }
     const data = await res.json();
     const participants = (Array.isArray(data) ? data : []).map(p => p.participant || p);
     const players = isTeam ? null : getPlayers();
@@ -3818,13 +3828,18 @@ function challongeJoinerTeamToMatchTeam(joiner) {
 
 async function challongeImportOpenMatches() {
   if (!currentEvent || !currentEvent.challongeTournamentId) return 0;
+  if (currentEvent.challongeMissing) return 0;
   const isTeam = currentEvent.type === '3v3';
   try {
     const res = await fetch(
       '/api/challonge?action=matches&tournament_id=' +
       encodeURIComponent(currentEvent.challongeTournamentId) + '&' + challongeAccountParams()
     );
-    if (!res.ok) throw new Error('Challonge API error ' + res.status);
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      if (await handleChallongeMaybeMissing(res.status, txt)) return 0;
+      throw new Error('Challonge API error ' + res.status);
+    }
     const matches = await res.json();
     const pidMap = {};
     Object.entries(currentEvent.challongeParticipantMap || {}).forEach(([pid, ref]) => { pidMap[pid] = ref; });
@@ -3954,6 +3969,7 @@ async function challongeReportMatch(match) {
   const { scores_csv, winner_id } = eventPointsToScoresCsv(p1pts, p2pts, winnerId, p1Id, p2Id);
 
   if (match._challongePushState === 'pending' || match._challongePushState === 'ok') return;
+  if (currentEvent.challongeMissing) return;
   match._challongePushState = 'pending';
   if (typeof renderResults === 'function') renderResults();
 
@@ -3967,6 +3983,10 @@ async function challongeReportMatch(match) {
     });
     if (!res.ok) {
       const text = await res.text().catch(() => '');
+      if (await handleChallongeMaybeMissing(res.status, text)) {
+        match._challongePushState = 'error';
+        return;
+      }
       throw new Error(`HTTP ${res.status}: ${text.slice(0, 80)}`);
     }
     match._challongePushState = 'ok';
@@ -4103,6 +4123,33 @@ async function retryRoundFailures(round) {
   showToast(`${round} retry: ${ok} published, ${failed} still failing.`, failed ? 'error' : 'success');
 }
 // === ROUND-PUBLISH END ===
+
+// === CHALLONGE-MISSING START ===
+// A Challonge link is "missing" when the API says the tournament is gone:
+// HTTP 404, or any response body that mentions "not found". We treat that as a
+// terminal connection state — we STOP importing/publishing but NEVER touch
+// builds, matches, scores, submitted flags, or scoring history.
+function isChallongeMissingError(status, bodyText) {
+  if (status === 404) return true;
+  return /not\s*found/i.test(String(bodyText || ''));
+}
+
+// Returns true if it flipped the event into the missing state. Idempotent.
+// IMPORTANT: this function must never delete or mutate any tournament data.
+async function handleChallongeMaybeMissing(status, bodyText) {
+  if (!isChallongeMissingError(status, bodyText)) return false;
+  if (!currentEvent) return false;
+  if (currentEvent.challongeMissing) return true; // already marked
+  currentEvent.challongeMissing = true;
+  // Persist ONLY the connection-metadata flag on the event object (separate
+  // /api/events store — costs zero Challonge quota, touches no scoring data).
+  try { await rosterSaveJoiners('⚠ Challonge tournament missing — importing/publishing paused.'); } catch (e) {}
+  if (typeof renderChallongeLinkedStatus === 'function') renderChallongeLinkedStatus();
+  if (typeof renderResults === 'function') renderResults();
+  if (typeof renderRoundPublishBar === 'function') renderRoundPublishBar();
+  return true;
+}
+// === CHALLONGE-MISSING END ===
 
 // DEDUP-HELPERS START
 function isMatchScored(m) {
