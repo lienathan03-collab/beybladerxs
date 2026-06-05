@@ -5106,22 +5106,10 @@ function renderTeamMatchCard(match) {
   if (match.collapsed) {
     return `
     <div class="match-card" id="match-${mid}">
-      <div style="display:flex;align-items:stretch;border-bottom:1px solid var(--border)">
-        <div class="match-card-header" style="flex:1;border-bottom:none" onclick="toggleMatchCollapse(${mid})">
-          <span class="match-round-badge">${escHtml(match.round||'')}</span>
-          <span class="match-vs-label">
-            <span style="color:var(--blue)">${escHtml(t1.teamName)}</span>
-            <span style="color:var(--muted2);margin:0 8px;font-size:12px">VS</span>
-            <span style="color:var(--gold2)">${escHtml(t2.teamName)}</span>
-          </span>
-          <span class="match-result-summary">${summary}</span>
-          ${challongePushChipHtml(match)}
-          ${submitAreaHtml(match)}
-          <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕ Remove</button>
-          <span style="color:var(--muted2);font-size:12px;margin-left:4px">▼</span>
-        </div>
-        <button class="btn live-btn" onclick="openLiveMode(${mid},'team1',0)">⚡</button>
-      </div>
+      ${compactMatchHeaderHtml(match, {
+        name1: t1.teamName, name2: t2.teamName, vsGlyph: 'VS',
+        liveOnClick: `openLiveMode(${mid},'team1',0)`
+      })}
     </div>`;
   }
 
@@ -5143,22 +5131,10 @@ function renderTeamMatchCard(match) {
 
   return `
   <div class="match-card" id="match-${mid}">
-    <div style="display:flex;align-items:stretch;border-bottom:1px solid var(--border)">
-      <div class="match-card-header" style="flex:1;border-bottom:none" onclick="toggleMatchCollapse(${mid})">
-        <span class="match-round-badge">${escHtml(match.round||'')}</span>
-        <span class="match-vs-label">
-          <span style="color:var(--blue)">${escHtml(t1.teamName)}</span>
-          <span style="color:var(--muted2);margin:0 8px;font-size:12px">VS</span>
-          <span style="color:var(--gold2)">${escHtml(t2.teamName)}</span>
-        </span>
-        <span class="match-result-summary">${summary}</span>
-        ${challongePushChipHtml(match)}
-        ${submitAreaHtml(match)}
-        <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕ Remove</button>
-        <span style="color:var(--muted2);font-size:12px;margin-left:4px">▲</span>
-      </div>
-      <button class="btn live-btn" onclick="openLiveMode(${mid},'team1',0)">⚡</button>
-    </div>
+    ${compactMatchHeaderHtml(match, {
+      name1: t1.teamName, name2: t2.teamName, vsGlyph: 'VS',
+      liveOnClick: `openLiveMode(${mid},'team1',0)`
+    })}
     <!-- Team name headers -->
     <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--border)">
       <div style="padding:4px 10px;background:rgba(74,158,255,0.06);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;color:var(--blue);letter-spacing:1px;border-right:1px solid var(--border)">${escHtml(t1.teamName)}</div>

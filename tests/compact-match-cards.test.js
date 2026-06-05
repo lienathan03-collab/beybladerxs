@@ -238,6 +238,14 @@ test('compact card CSS defines touch-target minimums and two-line name clamp', (
   assert.match(html, /\.mc2-menu-item\.danger/);
 });
 
+test('renderTeamMatchCard uses the compact header and routes ⚡ to openLiveMode team1', () => {
+  const body = bodyOf('function renderTeamMatchCard(match)', 'function renderTeamMemberSide');
+  const count = (body.match(/compactMatchHeaderHtml\(/g) || []).length;
+  assert.ok(count >= 2, 'both collapsed and expanded branches use the compact header');
+  assert.match(body, /openLiveMode\(\$\{mid\},'team1',0\)/);
+  assert.doesNotMatch(body, /class="btn live-btn"/);
+});
+
 test('renderMatchCard collapsed solo uses the compact header (no legacy live-btn/Remove text)', () => {
   const body = bodyOf('function renderMatchCard(match)', 'function renderDeSelfMatchCard');
   assert.match(body, /compactMatchHeaderHtml\(/);
