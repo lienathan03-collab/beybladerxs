@@ -92,3 +92,40 @@ test('manualMatchScoringTarget returns null for a missing match', () => {
   const { manualMatchScoringTarget } = loadManualOpen();
   assert.equal(manualMatchScoringTarget(null), null);
 });
+
+test('openManualMatchScoring calls the solo entry point exactly once', () => {
+  const { openManualMatchScoring } = loadManualOpen();
+  const calls = [];
+  const table = {
+    openLiveModeSolo: (...a) => calls.push(['solo', a]),
+    openLiveMode:     (...a) => calls.push(['team', a]),
+    openDeSelfScore:  (...a) => calls.push(['de', a]),
+  };
+  const ok = openManualMatchScoring({ id: 3 }, table);
+  assert.equal(ok, true);
+  assert.deepEqual(calls, [['solo', [3, 'p1']]]);
+});
+
+test('openManualMatchScoring routes team + DE without touching solo', () => {
+  const { openManualMatchScoring } = loadManualOpen();
+  const calls = [];
+  const table = {
+    openLiveModeSolo: () => calls.push('solo'),
+    openLiveMode:     () => calls.push('team'),
+    openDeSelfScore:  () => calls.push('de'),
+  };
+  openManualMatchScoring({ id: 1, isTeamMatch: true }, table);
+  openManualMatchScoring({ id: 2, _deSelfMatch: true }, table);
+  assert.deepEqual(calls, ['team', 'de']);
+});
+
+test('openManualMatchScoring returns false when the entry point throws', () => {
+  const { openManualMatchScoring } = loadManualOpen();
+  const table = { openLiveModeSolo: () => { throw new Error('modal boom'); } };
+  assert.equal(openManualMatchScoring({ id: 5 }, table), false);
+});
+
+test('openManualMatchScoring returns false when the fn is missing', () => {
+  const { openManualMatchScoring } = loadManualOpen();
+  assert.equal(openManualMatchScoring({ id: 6 }, {}), false);
+});
