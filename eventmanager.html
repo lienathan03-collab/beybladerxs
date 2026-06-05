@@ -3959,7 +3959,10 @@ function challongeJoinerTeamToMatchTeam(joiner) {
 }
 // === TEAM-CONVERT END ===
 
+let _challongeImportSaveDeferred = false;
+
 async function challongeImportOpenMatches() {
+  _challongeImportSaveDeferred = false;
   if (!currentEvent || !currentEvent.challongeTournamentId) return 0;
   if (currentEvent.challongeMissing) return 0;
   const isTeam = currentEvent.type === '3v3';
@@ -4036,7 +4039,8 @@ async function challongeImportOpenMatches() {
       flattenMatchesToResults();
       markDirty();
       renderResults();
-      await queueCreatedMatchSave();
+      const savedImmediately = await queueCreatedMatchSave();
+      _challongeImportSaveDeferred = savedImmediately === false;
     }
     return created;
   } catch (e) {
@@ -4059,7 +4063,11 @@ async function challongeManualSync() {
   try {
     const n = await challongeImportOpenMatches();
     if (currentEvent.challongeMissing) return; // import detected a 404 mid-call
-    showToast(n ? `⚡ Imported ${n} match(es).` : 'No new matches.', n ? 'success' : '');
+    if (n && _challongeImportSaveDeferred) {
+      showToast(`Imported ${n} match(es) locally; server retry queued.`, 'error');
+    } else {
+      showToast(n ? `⚡ Imported ${n} match(es).` : 'No new matches.', n ? 'success' : '');
+    }
   } catch (e) {
     showToast('Sync failed: ' + e.message, 'error');
   }
@@ -7900,9 +7908,9 @@ function saveOutbox(eventId, ops) {
   try { localStorage.setItem(_outboxKey(eventId), JSON.stringify(ops)); } catch (e) {}
 }
 
-function enqueueOutboxOp(matchSid, payload) {
-  if (!currentEvent || !matchSid) return null;
-  const eventId = currentEvent.id;
+function enqueueOutboxOp(matchSid, payload, eventIdOverride) {
+  const eventId = eventIdOverride || (currentEvent && currentEvent.id);
+  if (!eventId || !matchSid) return null;
   const ops = loadOutbox(eventId).filter(o => o.matchSid !== matchSid); // supersede
   const op = { eventId, matchSid, clientId: getClientId(), opId: _uuid(), payload, createdAt: Date.now() };
   ops.push(op);
@@ -7987,6 +7995,17 @@ async function queueCreatedMatchSave() {
   const savedResults = JSON.parse(JSON.stringify(resultsState));
   const savedBuilds = JSON.parse(JSON.stringify(buildsState));
   const { body: savedBody, deletedSnapshot } = buildMergePutBody(eventId, savedBuilds, savedResults);
+  const retryOps = [];
+  for (const match of matchesState) {
+    if (!match || !match._pendingServerSave || !match._sid) continue;
+    try {
+      const { body } = buildMatchPatchBody(eventId, match);
+      const op = enqueueOutboxOp(match._sid, body, eventId);
+      if (op) retryOps.push(op);
+    } catch (e) {
+      console.warn('Could not queue match creation retry:', e);
+    }
+  }
 
   _queuedCreateMatchSaves++;
   _syncPaused = true;
@@ -8004,24 +8023,36 @@ async function queueCreatedMatchSave() {
     try { data = await res.json(); } catch(e) {}
     if (!res.ok) throw new Error(data.error || 'Automatic match save failed.');
     clearAckedDeletedSids(eventId, deletedSnapshot);
+    const observedSids = sidsFromServerPayload(data.beyResults);
+    for (const op of retryOps) {
+      if (observedSids.has(op.matchSid)) dropOutboxOp(eventId, op.opId);
+    }
+    const creationsConfirmed = retryOps.every(op => observedSids.has(op.matchSid));
 
     // Only mutate live UI state if the user is still looking at event A.
     // Confirming pending flags or updating _lastSyncHash against another
     // event's matchesState would corrupt that event's sync state.
-    if (!currentEvent || currentEvent.id !== eventId) return;
+    if (!currentEvent || currentEvent.id !== eventId) return creationsConfirmed;
     // Server-observed acknowledgement only. If the server response did not
     // echo our sids back (legacy server or a concurrent overwrite), we leave
     // _pendingServerSave set and rely on the next live-sync poll to confirm
     // — which is exactly the protection Finding 1 demands.
-    confirmPendingMatchesSaved(sidsFromServerPayload(data.beyResults));
+    confirmPendingMatchesSaved(observedSids);
     _lastSyncHash = syncFingerprint(savedBuilds, savedResults);
+    return creationsConfirmed;
   });
 
   _createMatchSaveQueue = queuedSave;
   try {
-    await queuedSave;
+    const creationsConfirmed = await queuedSave;
+    if (!creationsConfirmed) {
+      showToast('Match kept locally; waiting for server confirmation. Automatic retry queued.', 'error');
+      return false;
+    }
+    return true;
   } catch (e) {
-    showToast('Match kept locally, but server sync failed: ' + e.message + ' Use Finalize to retry.', 'error');
+    showToast('Match kept locally; automatic server retry queued: ' + e.message, 'error');
+    return false;
   } finally {
     _queuedCreateMatchSaves--;
     if (_queuedCreateMatchSaves === 0) _syncPaused = false;

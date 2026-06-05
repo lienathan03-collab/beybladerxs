@@ -58,6 +58,8 @@ function createContext(matchesState) {
     currentEvent: { id: 'evt-test' },
     adminUser: 'admin',
     adminPass: 'secret',
+    localStorage: makeLocalStorage(),
+    crypto: { randomUUID: (() => { let n = 0; return () => 'queue-op-' + (++n); })() },
     dirty: true,
     matchesState,
     resultsState: [],
@@ -74,6 +76,22 @@ function createContext(matchesState) {
     },
     playerKey(player) { return player; },
     slotKey(player) { return player.entryId || player.player; },
+    syncFingerprint(builds, results) { return JSON.stringify([builds, results]); },
+    buildMatchPatchBody(eventId, match) {
+      return {
+        body: {
+          adminUsername: context.adminUser,
+          adminPassword: context.adminPass,
+          eventId,
+          builds: {},
+          beyResults: [
+            { ...match.p1, round: match.round, _matchSid: match._sid },
+            { ...match.p2, round: match.round, _matchSid: match._sid }
+          ],
+          mergeMode: true
+        }
+      };
+    },
     showToast() {},
     console,
     Promise,
@@ -171,6 +189,45 @@ test('automatic creation saves are serialized so the latest list is persisted la
   assert.equal(context.matchesState.some(match => match._pendingServerSave), false);
 });
 
+test('failed automatic creation save stays in the outbox and reports deferred persistence', async () => {
+  const match = makePendingMatch(1, '1');
+  const context = createContext([match]);
+  context.fetch = async () => ({
+    ok: false,
+    json: async () => ({ error: 'temporary failure' })
+  });
+
+  loadQueueHelpers(context);
+  const saved = await vm.runInContext('queueCreatedMatchSave()', context);
+
+  assert.equal(saved, false);
+  const ops = context.loadOutbox('evt-test');
+  assert.equal(ops.length, 1, 'failed creation must remain queued for retry');
+  assert.equal(ops[0].matchSid, match._sid);
+  assert.equal(match._pendingServerSave, true);
+});
+
+test('successful automatic creation save clears its retry outbox entry', async () => {
+  const match = makePendingMatch(1, '1');
+  const context = createContext([match]);
+  const toasts = [];
+  context.showToast = (message) => toasts.push(message);
+  context.fetch = async (_url, options) => {
+    const request = JSON.parse(options.body);
+    return {
+      ok: true,
+      json: async () => ({ success: true, beyResults: request.beyResults })
+    };
+  };
+
+  loadQueueHelpers(context);
+  const saved = await vm.runInContext('queueCreatedMatchSave()', context);
+
+  assert.equal(saved, true, toasts.join('\n'));
+  assert.equal(context.loadOutbox('evt-test').length, 0);
+  assert.equal(match._pendingServerSave, undefined);
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Finding 1 — _pendingServerSave must not be cleared just because the local
 // PUT returned 200 OK. The match's sid has to be visible in the server's
@@ -187,8 +244,10 @@ test('Finding 1: stale PUT response (no beyResults) does NOT clear pending flag'
   });
 
   loadQueueHelpers(context);
-  await vm.runInContext('queueCreatedMatchSave()', context);
+  const saved = await vm.runInContext('queueCreatedMatchSave()', context);
 
+  assert.equal(saved, false, 'an unconfirmed 200 response must stay queued for retry');
+  assert.equal(context.loadOutbox('evt-test').length, 1);
   assert.equal(context.matchesState[0]._pendingServerSave, true,
     'pending flag must remain set until a server response confirms the sid');
 });

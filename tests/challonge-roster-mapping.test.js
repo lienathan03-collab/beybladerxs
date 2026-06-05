@@ -292,3 +292,27 @@ test('challongeImportOpenMatches: persisted duplicate solo mapping blocks import
   assert.equal(fetchCalled, false, 'duplicate map must block before Challonge fetch');
   assert.equal(toasts.some(t => /same roster slot/i.test(t.message)), true);
 });
+
+test('challongeManualSync reports a queued server retry instead of false synced success', async () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'eventmanager.html'), 'utf8');
+  const start = html.indexOf('async function challongeManualSync()');
+  const end = html.indexOf('// Challonge importing is MANUAL ONLY', start);
+  assert.notEqual(start, -1, 'Missing challongeManualSync');
+  assert.notEqual(end, -1, 'Missing challongeManualSync end marker');
+
+  const toasts = [];
+  const ctx = {
+    currentEvent: { challongeTournamentId: 'tour-1', challongeMissing: false },
+    _challongeImportSaveDeferred: true,
+    challongeImportOpenMatches: async () => 14,
+    showToast: (message, type) => toasts.push({ message, type }),
+  };
+  vm.createContext(ctx);
+  vm.runInContext(html.slice(start, end), ctx);
+
+  await vm.runInContext('challongeManualSync()', ctx);
+
+  assert.equal(toasts.length, 1);
+  assert.match(toasts[0].message, /retry queued/i);
+  assert.doesNotMatch(toasts[0].message, /^.*Imported 14 match\(es\)\.$/);
+});
