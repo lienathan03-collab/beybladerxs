@@ -4322,6 +4322,31 @@ function nmClearPlayer(slot) {
   document.getElementById(`nm-p${slot}-dropdown`).style.display = 'none';
 }
 
+// === MANUAL-OPEN-ROUTE START ===
+// Pure routing: given a just-created match, decide which scoring entry point
+// to open. DE self-matches have no Beyblade battle, so they route to their own
+// coin-toss modal before the generic solo path. Team matches use the 3v3 engine.
+function manualMatchScoringTarget(match) {
+  if (!match) return null;
+  if (match.isTeamMatch) return { fn: 'openLiveMode', args: [match.id, 'team1', 0] };
+  if (match._deSelfMatch) return { fn: 'openDeSelfScore', args: [match.id] };
+  return { fn: 'openLiveModeSolo', args: [match.id, 'p1'] };
+}
+
+// Thin dispatcher: looks the target fn up in fnTable (defaults to globalThis) and
+// invokes it. Returns true on a clean call, false if no match, no fn, or it threw
+// — the caller uses false to fall back to a visible collapsed match + error toast.
+function openManualMatchScoring(match, fnTable) {
+  const target = manualMatchScoringTarget(match);
+  if (!target) return false;
+  const table = fnTable || (typeof globalThis !== 'undefined' ? globalThis : {});
+  const fn = table[target.fn];
+  if (typeof fn !== 'function') return false;
+  try { fn.apply(null, target.args); return true; }
+  catch (e) { if (typeof console !== 'undefined') console.error('openManualMatchScoring failed:', e); return false; }
+}
+// === MANUAL-OPEN-ROUTE END ===
+
 async function createMatch() {
   const errEl = document.getElementById('nm-error');
   const round = document.getElementById('nm-round-select').value;

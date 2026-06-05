@@ -45,3 +45,50 @@ test('submitMatch leaves the match collapsed (does not auto-expand)', () => {
     'submitting should keep the compact row collapsed');
   assert.doesNotMatch(body, /toSubmit\.collapsed\s*=\s*false/);
 });
+
+const vm = require('node:vm');
+
+function loadManualOpen() {
+  const start = html.indexOf('// === MANUAL-OPEN-ROUTE START ===');
+  const end = html.indexOf('// === MANUAL-OPEN-ROUTE END ===');
+  assert.notEqual(start, -1, 'Missing MANUAL-OPEN-ROUTE START marker');
+  assert.notEqual(end, -1, 'Missing MANUAL-OPEN-ROUTE END marker');
+  const ctx = {};
+  vm.createContext(ctx);
+  vm.runInContext(html.slice(start, end), ctx);
+  // Wrap exported functions so returned plain objects are in the outer realm
+  // (vm context produces a different realm on Node 24, breaking deepStrictEqual).
+  const wrapped = {};
+  for (const key of Object.keys(ctx)) {
+    const val = ctx[key];
+    wrapped[key] = typeof val === 'function'
+      ? (...args) => { const r = val(...args); return r == null ? r : JSON.parse(JSON.stringify(r)); }
+      : val;
+  }
+  return wrapped;
+}
+
+test('manualMatchScoringTarget routes a solo match to openLiveModeSolo', () => {
+  const { manualMatchScoringTarget } = loadManualOpen();
+  assert.deepEqual(manualMatchScoringTarget({ id: 7 }),
+    { fn: 'openLiveModeSolo', args: [7, 'p1'] });
+});
+
+test('manualMatchScoringTarget routes a team match to openLiveMode', () => {
+  const { manualMatchScoringTarget } = loadManualOpen();
+  assert.deepEqual(manualMatchScoringTarget({ id: 9, isTeamMatch: true }),
+    { fn: 'openLiveMode', args: [9, 'team1', 0] });
+});
+
+test('manualMatchScoringTarget routes a DE self-match to openDeSelfScore', () => {
+  const { manualMatchScoringTarget } = loadManualOpen();
+  assert.deepEqual(manualMatchScoringTarget({ id: 4, _deSelfMatch: true }),
+    { fn: 'openDeSelfScore', args: [4] });
+  // DE flag wins even though the match is otherwise solo-shaped:
+  assert.equal(manualMatchScoringTarget({ id: 4, _deSelfMatch: true }).fn, 'openDeSelfScore');
+});
+
+test('manualMatchScoringTarget returns null for a missing match', () => {
+  const { manualMatchScoringTarget } = loadManualOpen();
+  assert.equal(manualMatchScoringTarget(null), null);
+});
