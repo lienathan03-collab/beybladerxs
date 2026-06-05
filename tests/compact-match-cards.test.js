@@ -129,3 +129,24 @@ test('openManualMatchScoring returns false when the fn is missing', () => {
   const { openManualMatchScoring } = loadManualOpen();
   assert.equal(openManualMatchScoring({ id: 6 }, {}), false);
 });
+
+test('createMatch creates matches collapsed and opens scoring after the save await', () => {
+  const body = bodyOf('async function createMatch()', '// ROUND FILTER');
+  // (a) created matches are collapsed
+  const flags = [...body.matchAll(/collapsed:\s*(true|false)/g)].map(m => m[1]);
+  assert.ok(flags.length >= 2 && flags.every(f => f === 'true'),
+    `manual matches must be created collapsed; got ${flags}`);
+  // (b) it captures the created match and opens scoring via the dispatcher
+  assert.match(body, /openManualMatchScoring\s*\(/);
+  // (c) ordering: the await of the save queue comes BEFORE opening scoring
+  const awaitIdx = body.indexOf('await queueCreatedMatchSave()');
+  const openIdx  = body.indexOf('openManualMatchScoring');
+  assert.ok(awaitIdx !== -1 && openIdx !== -1 && awaitIdx < openIdx,
+    'must persist/queue before opening scoring');
+});
+
+test('challongeImportOpenMatches does NOT open scoring', () => {
+  const body = bodyOf('async function challongeImportOpenMatches()', '\nlet _challongePollTimer');
+  assert.doesNotMatch(body, /openManualMatchScoring|openLiveModeSolo|openLiveMode\(|openDeSelfScore/,
+    'imports must never auto-open scoring');
+});

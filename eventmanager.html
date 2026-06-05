@@ -4352,6 +4352,7 @@ async function createMatch() {
   const round = document.getElementById('nm-round-select').value;
   const is3v3 = currentEvent && currentEvent.type === '3v3';
 
+  let _created = null;
   if (is3v3) {
     if (!_nmTeam1) { errEl.textContent = 'Select Team 1.'; return; }
     if (!_nmTeam2) { errEl.textContent = 'Select Team 2.'; return; }
@@ -4362,7 +4363,7 @@ async function createMatch() {
       m.team1?.teamName === _nmTeam1.teamName && m.team2?.teamName === _nmTeam2.teamName
     ).length;
 
-    matchesState.push({
+    const _team = {
       id: _matchIdCounter++,
       _sid: _teamSid(round, _nmTeam1.teamName, _nmTeam2.teamName, teamPairCount),
       _pendingServerSave: true,
@@ -4372,8 +4373,10 @@ async function createMatch() {
       team2: JSON.parse(JSON.stringify(_nmTeam2)),
       p1: JSON.parse(JSON.stringify(_nmTeam1.members[0] || { player: _nmTeam1.teamName, builds: [] })),
       p2: JSON.parse(JSON.stringify(_nmTeam2.members[0] || { player: _nmTeam2.teamName, builds: [] })),
-      collapsed: false
-    });
+      collapsed: true
+    };
+    matchesState.push(_team);
+    _created = _team;
   } else {
     if (!_nmP1) { errEl.textContent = 'Select Player 1.'; return; }
     if (!_nmP2) { errEl.textContent = 'Select Player 2.'; return; }
@@ -4394,7 +4397,7 @@ async function createMatch() {
       (_nmP2.entryId ? m.p2?.entryId === _nmP2.entryId : m.p2?.player === _nmP2.player)
     ).length;
 
-    matchesState.push({
+    const _solo = {
       id: _matchIdCounter++,
       _sid: _soloSid(round, _nmP1, _nmP2, soloPairCount),
       _pendingServerSave: true,
@@ -4402,8 +4405,10 @@ async function createMatch() {
       round,
       p1: JSON.parse(JSON.stringify(_nmP1)),
       p2: JSON.parse(JSON.stringify(_nmP2)),
-      collapsed: false
-    });
+      collapsed: true
+    };
+    matchesState.push(_solo);
+    _created = _solo;
   }
 
   flattenMatchesToResults();
@@ -4428,6 +4433,17 @@ async function createMatch() {
 
   // Push in order so rapid additions cannot let an older full-state save win last.
   await queueCreatedMatchSave();
+
+  // Manual creation only: jump straight into the right scoring flow once the
+  // match is persisted-or-safely-queued. On failure leave the collapsed match
+  // visible with a clear error. Imports/reloads/live-sync never reach here.
+  if (_created) {
+    const opened = openManualMatchScoring(_created);
+    if (!opened) {
+      showToast('⚠️ Match created — open it from the list to start scoring.', '');
+      renderResults();
+    }
+  }
 }
 
 // ─────────────────────────────────────────────
