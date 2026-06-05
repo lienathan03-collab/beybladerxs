@@ -3739,6 +3739,21 @@ function challongeEntryToMatchSlot(ref) {
   return JSON.parse(JSON.stringify(slot));
 }
 
+// === TEAM-CONVERT START ===
+// Convert a roster joiner (team) into a match team with hydrated member builds.
+// Joiner members are { displayName } (or bare strings); match members need
+// { player, builds:[{build,finishes,deployed}] } keyed by name from buildsState.
+function challongeJoinerTeamToMatchTeam(joiner) {
+  const members = (joiner.members || []).map(m => {
+    const name = (typeof m === 'object') ? (m.displayName || m.player || '') : m;
+    const slot = { player: name, builds: [] };
+    reconcileMatchSlotBuilds(slot, buildsState[playerKey(name)] || []);
+    return slot;
+  });
+  return JSON.parse(JSON.stringify({ teamName: joiner.teamName, members }));
+}
+// === TEAM-CONVERT END ===
+
 async function challongeImportOpenMatches() {
   if (!currentEvent || !currentEvent.challongeTournamentId) return 0;
   const isTeam = currentEvent.type === '3v3';
@@ -3763,6 +3778,8 @@ async function challongeImportOpenMatches() {
           m.isTeamMatch && m.round === item.round &&
           m.team1?.teamName === t1.teamName && m.team2?.teamName === t2.teamName
         ).length;
+        const mt1 = challongeJoinerTeamToMatchTeam(t1);
+        const mt2 = challongeJoinerTeamToMatchTeam(t2);
         matchesState.push({
           id: _matchIdCounter++,
           _sid: _teamSid(item.round, t1.teamName, t2.teamName, teamPairCount),
@@ -3771,10 +3788,10 @@ async function challongeImportOpenMatches() {
           division: currentEvent.challongeGroupMap?.[item.groupId] ?? null,
           round: item.round,
           isTeamMatch: true,
-          team1: JSON.parse(JSON.stringify(t1)),
-          team2: JSON.parse(JSON.stringify(t2)),
-          p1: JSON.parse(JSON.stringify((t1.members || [])[0] || { player: t1.teamName, builds: [] })),
-          p2: JSON.parse(JSON.stringify((t2.members || [])[0] || { player: t2.teamName, builds: [] })),
+          team1: mt1,
+          team2: mt2,
+          p1: JSON.parse(JSON.stringify(mt1.members[0] || { player: t1.teamName, builds: [] })),
+          p2: JSON.parse(JSON.stringify(mt2.members[0] || { player: t2.teamName, builds: [] })),
           collapsed: false,
         });
       } else {

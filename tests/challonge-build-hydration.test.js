@@ -255,3 +255,44 @@ test('applySubmittedBuildsToMatches: idempotent across repeated submit passes', 
   vm.runInContext('applySubmittedBuildsToMatches()', ctx);
   assert.equal(ctx.matchesState[0].p1.builds.length, 2);
 });
+
+// The team-import conversion mirrors nmSelectTeam: each joiner member
+// { displayName } becomes { player, builds:[…] } hydrated from buildsState by name.
+function loadTeamConvert(ctxExtras) {
+  const ctx = Object.assign({ JSON, Array }, ctxExtras);
+  vm.createContext(ctx);
+  vm.runInContext(
+    sliceBetween('// === BUILD-RECONCILE START ===', '// === BUILD-RECONCILE END ==='),
+    ctx
+  );
+  vm.runInContext(
+    sliceBetween('function challongeJoinerTeamToMatchTeam(joiner)', '// === TEAM-CONVERT END ==='),
+    ctx
+  );
+  return ctx;
+}
+
+test('challongeJoinerTeamToMatchTeam: maps joiner members to hydrated {player, builds}', () => {
+  const ctx = loadTeamConvert({
+    playerKey: (name) => name,
+    buildsState: { 'Alice': ['A1', 'A2'], 'Bob': ['B1'] },
+  });
+  const team = vm.runInContext(
+    `challongeJoinerTeamToMatchTeam({ teamName: 'Dragons', members: [{ displayName: 'Alice' }, { displayName: 'Bob' }] })`,
+    ctx
+  );
+  assert.equal(team.teamName, 'Dragons');
+  assert.equal(team.members.length, 2);
+  assert.equal(team.members[0].player, 'Alice');
+  assert.deepEqual(team.members[0].builds.map(b => b.build), ['A1', 'A2']);
+  assert.deepEqual(team.members[1].builds.map(b => b.build), ['B1']);
+});
+
+test('challongeJoinerTeamToMatchTeam: string members and missing builds are handled', () => {
+  const ctx = loadTeamConvert({ playerKey: (name) => name, buildsState: {} });
+  const team = vm.runInContext(
+    `challongeJoinerTeamToMatchTeam({ teamName: 'X', members: ['Solo'] })`, ctx
+  );
+  assert.equal(team.members[0].player, 'Solo');
+  assert.deepEqual(team.members[0].builds, []);
+});
