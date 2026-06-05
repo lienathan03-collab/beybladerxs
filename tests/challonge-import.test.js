@@ -180,29 +180,36 @@ test('alreadyImported detects existing challonge match id', () => {
   assert.equal(alreadyImported(state, 999), false);
 });
 
-test('buildImportPlan: imports open matches, skips non-open and duplicates', () => {
+test('buildImportPlan: imports open matches, skips non-open and duplicates; DE self-match imports as de-self', () => {
   const { buildImportPlan } = loadChallongeHelpers();
   const pidMap = {
-    10: { name: 'Ken', entryId: 'eK', entryType: 'main' },
-    11: { name: 'Mia', entryId: 'eM', entryType: 'main' },
+    10: { name: 'Ken',       entryId: 'eK',  entryType: 'main' },
+    11: { name: 'Mia',       entryId: 'eM',  entryType: 'main' },
     12: { name: 'Lienathan', entryId: 'eL1', entryType: 'main' },
     13: { name: 'Lienathan', entryId: 'eL2', entryType: 'double' },
   };
   const matches = [
-    { match: { id: 100, state: 'open', round: 1, player1_id: 10, player2_id: 11, group_id: null } },
+    { match: { id: 100, state: 'open',    round: 1, player1_id: 10, player2_id: 11, group_id: null } },
     { match: { id: 101, state: 'pending', round: 1, player1_id: null, player2_id: null } },
-    { match: { id: 102, state: 'open', round: 1, player1_id: 12, player2_id: 13 } }, // same owner
-    { match: { id: 103, state: 'open', round: 1, player1_id: 10, player2_id: 11 } }, // dup of existing
+    { match: { id: 102, state: 'open',    round: 1, player1_id: 12, player2_id: 13 } }, // DE self-match
+    { match: { id: 103, state: 'open',    round: 1, player1_id: 10, player2_id: 11 } }, // dup of existing
   ];
   const matchesState = [{ id: 9, _challongeMatchId: 103 }];
   const plan = buildImportPlan({ matches, pidMap, matchesState, isTeam: false });
-  const create = plan.filter(p => !p.skip);
-  assert.equal(create.length, 1);
-  assert.equal(create[0].challongeMatchId, 100);
-  assert.equal(create[0].round, 'R1');
-  assert.equal(create[0].side1Ref.entryId, 'eK');
-  // 101 skipped (not open), 102 skipped (same owner), 103 skipped (dup)
-  assert.equal(plan.find(p => p.challongeMatchId === 102).reason, 'same-owner');
+  const creates = plan.filter(p => !p.skip);
+  // 100 (Ken vs Mia) and 102 (Lienathan DE self-match) should both be created
+  assert.equal(creates.length, 2);
+  assert.ok(creates.some(p => p.challongeMatchId === 100), 'Ken vs Mia must be created');
+  assert.ok(creates.some(p => p.challongeMatchId === 102), 'DE self-match must be created');
+  const deEntry = plan.find(p => p.challongeMatchId === 102);
+  assert.equal(deEntry.skip,        false,    'DE self-match must not be skipped');
+  assert.equal(deEntry.reason,      'de-self', 'DE self-match reason must be de-self');
+  assert.equal(deEntry.deSelfMatch, true);
+  // Ken vs Mia
+  const kenMia = creates.find(p => p.challongeMatchId === 100);
+  assert.equal(kenMia.round, 'R1');
+  assert.equal(kenMia.side1Ref.entryId, 'eK');
+  // 101 skipped (not open), 103 skipped (dup)
   assert.equal(plan.find(p => p.challongeMatchId === 103).reason, 'duplicate');
 });
 
@@ -292,4 +299,77 @@ test('soloSlotLabel round-trip: labels resolve back to correct entryId via match
   const players = joiners.map(j => ({ ...j, displayLabel: soloSlotLabel(j, joiners) }));
   assert.equal(matchSoloParticipant('Lienathan 1', players).entryId, 'e-lien-1');
   assert.equal(matchSoloParticipant('Lienathan 2', players).entryId, 'e-lien-2');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// isDeSelfMatch — discriminates legit DE self-matches from true duplicates
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('isDeSelfMatch: true for same name, different entryId (legit DE pairing)', () => {
+  const { isDeSelfMatch } = loadChallongeHelpers();
+  const main   = { name: 'VG.GAV X', entryId: 'e-main',   entryType: 'main' };
+  const double = { name: 'VG.GAV X', entryId: 'e-double', entryType: 'double' };
+  assert.equal(isDeSelfMatch(main, double), true);
+});
+
+test('isDeSelfMatch: false when entryIds match (true duplicate mistake)', () => {
+  const { isDeSelfMatch } = loadChallongeHelpers();
+  const a = { name: 'VG.GAV X', entryId: 'e-same', entryType: 'main' };
+  const b = { name: 'VG.GAV X', entryId: 'e-same', entryType: 'main' };
+  assert.equal(isDeSelfMatch(a, b), false);
+});
+
+test('isDeSelfMatch: false for different names', () => {
+  const { isDeSelfMatch } = loadChallongeHelpers();
+  const a = { name: 'Ken', entryId: 'e-ken', entryType: 'main' };
+  const b = { name: 'Mia', entryId: 'e-mia', entryType: 'main' };
+  assert.equal(isDeSelfMatch(a, b), false);
+});
+
+test('isDeSelfMatch: false when entryId is missing on either side', () => {
+  const { isDeSelfMatch } = loadChallongeHelpers();
+  assert.equal(isDeSelfMatch({ name: 'VG.GAV X', entryId: null },    { name: 'VG.GAV X', entryId: 'e-double' }), false);
+  assert.equal(isDeSelfMatch({ name: 'VG.GAV X', entryId: 'e-main' }, { name: 'VG.GAV X', entryId: null }),    false);
+});
+
+test('isDeSelfMatch: works with player property (match-slot objects from createMatch)', () => {
+  const { isDeSelfMatch } = loadChallongeHelpers();
+  // nmSelectPlayer stores the name under 'player', not 'name'
+  const slot1 = { player: 'Lienathan', entryId: 'eL1', entryType: 'main' };
+  const slot2 = { player: 'Lienathan', entryId: 'eL2', entryType: 'double' };
+  assert.equal(isDeSelfMatch(slot1, slot2), true);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// buildImportPlan — DE pair must import as 'de-self', not be skipped
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('buildImportPlan: DE pair (same name, different entryId) imports as de-self, not skipped', () => {
+  const { buildImportPlan } = loadChallongeHelpers();
+  const pidMap = {
+    12: { name: 'Lienathan', entryId: 'eL1', entryType: 'main' },
+    13: { name: 'Lienathan', entryId: 'eL2', entryType: 'double' },
+  };
+  const matches = [
+    { match: { id: 102, state: 'open', round: 1, player1_id: 12, player2_id: 13, group_id: null } },
+  ];
+  const plan = buildImportPlan({ matches, pidMap, matchesState: [], isTeam: false });
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0].skip, false, 'DE self-match must not be skipped');
+  assert.equal(plan[0].reason, 'de-self');
+  assert.equal(plan[0].deSelfMatch, true);
+});
+
+test('buildImportPlan: true same-entryId pair is still blocked as same-owner', () => {
+  const { buildImportPlan } = loadChallongeHelpers();
+  const pidMap = {
+    12: { name: 'Lienathan', entryId: 'eL1', entryType: 'main' },
+    13: { name: 'Lienathan', entryId: 'eL1', entryType: 'main' }, // same entryId — mistake
+  };
+  const matches = [
+    { match: { id: 102, state: 'open', round: 1, player1_id: 12, player2_id: 13, group_id: null } },
+  ];
+  const plan = buildImportPlan({ matches, pidMap, matchesState: [], isTeam: false });
+  assert.equal(plan[0].skip, true);
+  assert.equal(plan[0].reason, 'same-owner');
 });

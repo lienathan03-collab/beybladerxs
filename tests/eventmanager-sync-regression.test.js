@@ -950,3 +950,243 @@ test('live-mode finish and undo schedule in-progress live push before Done', () 
     'live-mode undo must push the reverted in-progress score'
   );
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DE SELF-MATCH — flatten, reload, stats exclusion
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Load _soloSid/_teamSid, loadMatchesFromResults, flattenMatchesToResults,
+// flattenSingleMatch, buildMatchPatchBody, autoCheckTeamWin, soloThreshold,
+// autoCheckWin, autoCheckDeWin (new).
+//
+// Starts from _soloSid (NOT from calcPoints) so the 'let matchesState = []'
+// declaration between them is never loaded — the context property takes effect.
+// calcPoints is provided as a context stub; FINISH_PTS is supplied inline.
+function loadFlattenHelpers(context) {
+  const start = html.indexOf('function _soloSid(round, p1, p2, instanceIdx)');
+  const end   = html.indexOf('// === CHALLONGE-HELPERS START ===');
+  assert.notEqual(start, -1, 'Missing _soloSid source');
+  assert.notEqual(end,   -1, 'Missing CHALLONGE-HELPERS START marker');
+  vm.runInContext(html.slice(start, end), context);
+}
+
+// Load _normalizePlayerName, _resolveBladerKey, archiveBeyResultsToGamedata, syncBladerStats.
+function loadStatsHelpers(context) {
+  const start = html.indexOf('function _normalizePlayerName(raw)');
+  const end   = html.indexOf('let _toastTimer;');
+  assert.notEqual(start, -1, 'Missing _normalizePlayerName source');
+  assert.notEqual(end,   -1, 'Missing _toastTimer end marker');
+  vm.runInContext(html.slice(start, end), context);
+}
+
+function deMatchContext() {
+  const ctx = vm.createContext({
+    matchesState: [],
+    resultsState: [],
+    _matchIdCounter: 1,
+    // calcPoints stub — FINISH_PTS lives earlier in the file, avoid loading the let declarations
+    calcPoints: (builds) => (builds || []).reduce((n, b) =>
+      n + (b.finishes || []).reduce((s, f) => s + ({S:1,O:2,E:3,B:2}[f]||0), 0), 0),
+    buildsState: {},
+    adminUser: 'admin', adminPass: 'secret',
+    currentEvent: { id: 'evt-1' },
+    console, JSON, Math, Object, Set, Array, String, Promise
+  });
+  return ctx;
+}
+
+test('flattenMatchesToResults: _deSelfMatch rows carry _noStats:true and no auto-win by points', () => {
+  const ctx = deMatchContext();
+  loadFlattenHelpers(ctx);
+
+  // A DE match where p1 has been awarded the win (dePoints = 4 = threshold for R1)
+  // and p2 has 2 dePoints. No Beyblade finishes on either side.
+  ctx.matchesState = [{
+    id: 1, _sid: 'R1|eL1|eL2|0', round: 'R1', _deSelfMatch: true,
+    p1: { player: 'Lienathan', entryId: 'eL1', displayLabel: 'Lienathan 1', builds: [], dePoints: 4 },
+    p2: { player: 'Lienathan', entryId: 'eL2', displayLabel: 'Lienathan 2', builds: [], dePoints: 2 },
+    submitted: true
+  }];
+
+  vm.runInContext('flattenMatchesToResults()', ctx);
+
+  assert.equal(ctx.resultsState.length, 2, 'two rows emitted');
+  assert.equal(ctx.resultsState[0]._noStats, true,  'p1 row must carry _noStats');
+  assert.equal(ctx.resultsState[1]._noStats, true,  'p2 row must carry _noStats');
+  assert.equal(ctx.resultsState[0].dePoints, 4, 'p1 dePoints must be persisted');
+  assert.equal(ctx.resultsState[1].dePoints, 2, 'p2 dePoints must be persisted');
+
+  // Win must be derived from dePoints (4 >= threshold 4), not from finishes
+  assert.equal(ctx.resultsState[0].win, true,  'p1 wins (dePoints hit threshold)');
+  assert.equal(ctx.resultsState[1].win, false, 'p2 loses');
+
+  const patchRows = vm.runInContext('flattenSingleMatch(matchesState[0])', ctx);
+  assert.equal(patchRows[0].dePoints, 4, 'match-level live push must persist p1 dePoints');
+  assert.equal(patchRows[1].dePoints, 2, 'match-level live push must persist p2 dePoints');
+});
+
+test('flattenMatchesToResults: normal match (no _deSelfMatch) rows do NOT carry _noStats', () => {
+  const ctx = deMatchContext();
+  loadFlattenHelpers(ctx);
+
+  ctx.matchesState = [{
+    id: 2, _sid: 'R1|eA|eB|0', round: 'R1',
+    p1: { player: 'Ken', entryId: 'eA', builds: [], win: true  },
+    p2: { player: 'Mia', entryId: 'eB', builds: [], win: false },
+    submitted: false
+  }];
+
+  vm.runInContext('flattenMatchesToResults()', ctx);
+
+  assert.equal(ctx.resultsState[0]._noStats, undefined, 'normal match must not carry _noStats');
+  assert.equal(ctx.resultsState[1]._noStats, undefined);
+});
+
+test('loadMatchesFromResults: _noStats rows rebuild match with _deSelfMatch:true', () => {
+  const ctx = deMatchContext();
+  loadFlattenHelpers(ctx);
+
+  ctx.resultsState = [
+    { player: 'Lienathan', entryId: 'eL1', entryType: 'main',   displayLabel: 'Lienathan 1',
+      round: 'R1', builds: [], win: true,  dePoints: 4, _noStats: true, _submitted: true, _matchSid: 'R1|eL1|eL2|0' },
+    { player: 'Lienathan', entryId: 'eL2', entryType: 'double', displayLabel: 'Lienathan 2',
+      round: 'R1', builds: [], win: false, dePoints: 1, _noStats: true, _submitted: true, _matchSid: 'R1|eL1|eL2|0' },
+  ];
+
+  vm.runInContext('loadMatchesFromResults()', ctx);
+
+  assert.equal(ctx.matchesState.length, 1, 'one match loaded');
+  assert.equal(ctx.matchesState[0]._deSelfMatch, true, '_deSelfMatch must be rehydrated from _noStats rows');
+  assert.equal(ctx.matchesState[0]._sid, 'R1|eL1|eL2|0');
+  assert.equal(ctx.matchesState[0].p1.dePoints, 4, 'p1 dePoints must rehydrate');
+  assert.equal(ctx.matchesState[0].p2.dePoints, 1, 'p2 dePoints must rehydrate');
+
+  vm.runInContext('flattenMatchesToResults()', ctx);
+  assert.equal(ctx.resultsState[0].win, true, 'reload then flatten must preserve the DE winner');
+  assert.equal(ctx.resultsState[1].win, false, 'reload then flatten must preserve the DE loser');
+});
+
+test('syncBladerStats: _noStats entries do not affect wins, losses, or matchesPlayed', async () => {
+  const putBodies = [];
+  const ctx = vm.createContext({
+    currentEvent: { id: 'evt-1', season: 's3' },
+    resultsState: [
+      // DE self-match rows — must be ignored by stats
+      { player: 'Lienathan', round: 'R1', builds: [], win: true,  _submitted: true, _noStats: true },
+      { player: 'Lienathan', round: 'R1', builds: [], win: false, _submitted: true, _noStats: true },
+      // Normal match rows — must be counted
+      { player: 'Ken', round: 'R1', builds: [], win: true,  _submitted: true },
+      { player: 'Mia', round: 'R1', builds: [], win: false, _submitted: true },
+    ],
+    buildsState: {},
+    adminUser: 'admin', adminPass: 'secret',
+    fetch: async (url, opts) => {
+      if (opts && opts.method === 'PUT') {
+        putBodies.push(JSON.parse(opts.body).payload);
+        return { ok: true, json: async () => ({}) };
+      }
+      return { ok: true, json: async () => ({ bladerStats: {}, eventSnapshots: {} }) };
+    },
+    console, JSON, Math, Object, Set, Array, String, Promise
+  });
+  loadStatsHelpers(ctx);
+
+  await vm.runInContext('syncBladerStats()', ctx);
+
+  assert.equal(putBodies.length, 1, 'one PUT must have been made');
+  const bs = putBodies[0].bladerStats;
+
+  // Lienathan's DE match must not pollute stats
+  assert.ok(!bs['Lienathan'] || (
+    !(bs['Lienathan'].wins || 0) && !(bs['Lienathan'].losses || 0) && !(bs['Lienathan'].matchesPlayed || 0)
+  ), 'Lienathan _noStats entries must not be counted');
+
+  // Normal players must be counted correctly
+  assert.equal((bs['Ken'] || {}).wins,         1, 'Ken must have 1 win');
+  assert.equal((bs['Mia'] || {}).losses,       1, 'Mia must have 1 loss');
+  assert.equal((bs['Ken'] || {}).matchesPlayed, 1);
+  assert.equal((bs['Mia'] || {}).matchesPlayed, 1);
+});
+
+test('archiveBeyResultsToGamedata: _noStats entries are excluded from the archive', async () => {
+  const putBodies = [];
+  const ctx = vm.createContext({
+    currentEvent: { id: 'evt-1', season: 's3', title: 'Test Event', date: '2026-01-01' },
+    resultsState: [
+      { player: 'Lienathan', round: 'R1', builds: [], win: true,  _submitted: true, _noStats: true },
+      { player: 'Lienathan', round: 'R1', builds: [], win: false, _submitted: true, _noStats: true },
+      { player: 'Ken', round: 'R1', builds: [], win: true,  _submitted: true },
+      { player: 'Mia', round: 'R1', builds: [], win: false, _submitted: true },
+    ],
+    buildsState: {},
+    adminUser: 'admin', adminPass: 'secret',
+    fetch: async (url, opts) => {
+      if (opts && opts.method === 'PUT') {
+        putBodies.push(JSON.parse(opts.body).payload);
+        return { ok: true, json: async () => ({}) };
+      }
+      return { ok: true, json: async () => ({ archivedBeyResults: [], bladerStats: {} }) };
+    },
+    console, JSON, Math, Object, Set, Array, String, Promise
+  });
+  loadStatsHelpers(ctx);
+
+  await vm.runInContext('archiveBeyResultsToGamedata()', ctx);
+
+  assert.equal(putBodies.length, 1);
+  const archived = putBodies[0].archivedBeyResults[0].beyResults;
+  assert.ok(archived.every(r => !r._noStats), '_noStats rows must not appear in archive');
+  assert.ok(archived.some(r => r.player === 'Ken'), 'normal rows must be archived');
+  assert.ok(!archived.some(r => r.player === 'Lienathan'), 'DE rows must not be archived');
+});
+
+test('challongeReportMatch uses dePoints for _deSelfMatch score (source check)', () => {
+  const start = html.indexOf('async function challongeReportMatch(');
+  assert.notEqual(start, -1, 'challongeReportMatch must exist');
+  const end = html.indexOf('\nasync function ', start + 1);
+  const src = html.slice(start, end);
+  assert.ok(src.includes('_deSelfMatch'), 'challongeReportMatch must branch on _deSelfMatch');
+  assert.ok(src.includes('dePoints'),     'challongeReportMatch must use dePoints for DE matches');
+});
+
+test('importPreview allows DE self-match JSON but still excludes true same-entry duplicates', () => {
+  const elements = {
+    'import-json-text': {
+      value: JSON.stringify([
+        {
+          _sid: 'R1|eL1|eL2|0', round: 'R1',
+          p1: { player: 'Lienathan', entryId: 'eL1', displayLabel: 'Lienathan 1' },
+          p2: { player: 'Lienathan', entryId: 'eL2', displayLabel: 'Lienathan 2' },
+        },
+        {
+          _sid: 'R1|eBad|eBad|0', round: 'R1',
+          p1: { player: 'Bad Same', entryId: 'eBad' },
+          p2: { player: 'Bad Same', entryId: 'eBad' },
+        },
+      ])
+    },
+    'import-error': { textContent: '' },
+    'import-preview': { textContent: '', innerHTML: '' },
+  };
+  const ctx = vm.createContext({
+    matchesState: [],
+    VALID_ROUNDS: new Set(['R1','R2','R3','R4','R5','R6','R7','TC','QF','SF','F']),
+    document: { getElementById: id => elements[id] },
+    escHtml: value => String(value ?? ''),
+    console, JSON, Set, Array, String
+  });
+
+  vm.runInContext(extractBetween('// === CHALLONGE-HELPERS START ===', '// === CHALLONGE-HELPERS END ==='), ctx);
+  const start = html.indexOf('let _importParsed = null');
+  const end = html.indexOf('async function importCommit', start);
+  assert.notEqual(start, -1, 'Missing import state marker');
+  assert.notEqual(end, -1, 'Missing importCommit marker');
+  vm.runInContext(html.slice(start, end), ctx);
+
+  vm.runInContext('importPreview()', ctx);
+  const parsed = vm.runInContext('_importParsed', ctx);
+  assert.equal(parsed.newMatches.length, 1);
+  assert.equal(parsed.newMatches[0]._deSelfMatch, true, 'DE JSON import must stamp _deSelfMatch');
+  assert.equal(parsed.newMatches[0].p1.entryId, 'eL1');
+  assert.match(elements['import-preview'].innerHTML, /1 invalid same-owner match/);
+});

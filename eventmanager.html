@@ -3196,9 +3196,10 @@ function loadMatchesFromResults() {
         // the first of two identical A-vs-B matches). Fall back to positional
         // computation only for legacy entries without _matchSid.
         _sid: p1._matchSid || _soloSid(round, p1, p2, idx),
+        _deSelfMatch: (p1._noStats || p2._noStats) ? true : undefined,
         round,
-        p1: { player: p1.player, entryId: p1.entryId, entryType: p1.entryType, displayLabel: p1.displayLabel, builds: p1.builds || [], pointsTotal: p1.pointsTotal || 0, win: p1.win },
-        p2: { player: p2.player, entryId: p2.entryId, entryType: p2.entryType, displayLabel: p2.displayLabel, builds: p2.builds || [], pointsTotal: p2.pointsTotal || 0, win: p2.win },
+        p1: { player: p1.player, entryId: p1.entryId, entryType: p1.entryType, displayLabel: p1.displayLabel, builds: p1.builds || [], pointsTotal: p1.pointsTotal || 0, win: p1.win, dePoints: p1.dePoints },
+        p2: { player: p2.player, entryId: p2.entryId, entryType: p2.entryType, displayLabel: p2.displayLabel, builds: p2.builds || [], pointsTotal: p2.pointsTotal || 0, win: p2.win, dePoints: p2.dePoints },
         submitted: p1._submitted ? true : false,
         collapsed: true
       });
@@ -3207,10 +3208,13 @@ function loadMatchesFromResults() {
 }
 
 function flattenMatchesToResults() {
-  // Auto-assign wins based on point thresholds before flattening
+  // Auto-assign wins based on point thresholds before flattening.
+  // DE self-matches use coin-toss dePoints; normal matches use Beyblade finishes.
   for (const m of matchesState) {
-    if (!m.isTeamMatch) autoCheckWin(m);
-    else autoCheckTeamWin(m);
+    if (!m.isTeamMatch) {
+      if (m._deSelfMatch) autoCheckDeWin(m);
+      else autoCheckWin(m);
+    } else autoCheckTeamWin(m);
   }
   resultsState = [];
   for (const m of matchesState) {
@@ -3235,8 +3239,8 @@ function flattenMatchesToResults() {
         resultsState.push(entry);
       }
     } else {
-      if (m.p1) resultsState.push({ player: m.p1.player, entryId: m.p1.entryId || undefined, entryType: m.p1.entryType || undefined, displayLabel: m.p1.displayLabel || undefined, round: m.round, builds: m.p1.builds, pointsTotal: calcPoints(m.p1.builds), win: m.p1.win, _submitted: m.submitted || undefined, _matchSid: sid });
-      if (m.p2) resultsState.push({ player: m.p2.player, entryId: m.p2.entryId || undefined, entryType: m.p2.entryType || undefined, displayLabel: m.p2.displayLabel || undefined, round: m.round, builds: m.p2.builds, pointsTotal: calcPoints(m.p2.builds), win: m.p2.win, _submitted: m.submitted || undefined, _matchSid: sid });
+      if (m.p1) resultsState.push({ player: m.p1.player, entryId: m.p1.entryId || undefined, entryType: m.p1.entryType || undefined, displayLabel: m.p1.displayLabel || undefined, round: m.round, builds: m.p1.builds, pointsTotal: calcPoints(m.p1.builds), win: m.p1.win, _submitted: m.submitted || undefined, _matchSid: sid, _noStats: m._deSelfMatch || undefined, dePoints: m._deSelfMatch ? (m.p1.dePoints ?? undefined) : undefined });
+      if (m.p2) resultsState.push({ player: m.p2.player, entryId: m.p2.entryId || undefined, entryType: m.p2.entryType || undefined, displayLabel: m.p2.displayLabel || undefined, round: m.round, builds: m.p2.builds, pointsTotal: calcPoints(m.p2.builds), win: m.p2.win, _submitted: m.submitted || undefined, _matchSid: sid, _noStats: m._deSelfMatch || undefined, dePoints: m._deSelfMatch ? (m.p2.dePoints ?? undefined) : undefined });
     }
   }
 }
@@ -3247,7 +3251,9 @@ function flattenMatchesToResults() {
 function flattenSingleMatch(match) {
   const rows = [];
   if (!match) return rows;
-  if (!match.isTeamMatch) autoCheckWin(match); else autoCheckTeamWin(match);
+  if (!match.isTeamMatch) {
+    if (match._deSelfMatch) autoCheckDeWin(match); else autoCheckWin(match);
+  } else autoCheckTeamWin(match);
   const sid = match._sid || undefined;
   if (match.isTeamMatch) {
     let firstT1 = true;
@@ -3263,8 +3269,8 @@ function flattenSingleMatch(match) {
       rows.push(entry);
     }
   } else {
-    if (match.p1) rows.push({ player: match.p1.player, entryId: match.p1.entryId || undefined, entryType: match.p1.entryType || undefined, displayLabel: match.p1.displayLabel || undefined, round: match.round, builds: match.p1.builds, pointsTotal: calcPoints(match.p1.builds), win: match.p1.win, _submitted: match.submitted || undefined, _matchSid: sid });
-    if (match.p2) rows.push({ player: match.p2.player, entryId: match.p2.entryId || undefined, entryType: match.p2.entryType || undefined, displayLabel: match.p2.displayLabel || undefined, round: match.round, builds: match.p2.builds, pointsTotal: calcPoints(match.p2.builds), win: match.p2.win, _submitted: match.submitted || undefined, _matchSid: sid });
+    if (match.p1) rows.push({ player: match.p1.player, entryId: match.p1.entryId || undefined, entryType: match.p1.entryType || undefined, displayLabel: match.p1.displayLabel || undefined, round: match.round, builds: match.p1.builds, pointsTotal: calcPoints(match.p1.builds), win: match.p1.win, _submitted: match.submitted || undefined, _matchSid: sid, _noStats: match._deSelfMatch || undefined, dePoints: match._deSelfMatch ? (match.p1.dePoints ?? undefined) : undefined });
+    if (match.p2) rows.push({ player: match.p2.player, entryId: match.p2.entryId || undefined, entryType: match.p2.entryType || undefined, displayLabel: match.p2.displayLabel || undefined, round: match.round, builds: match.p2.builds, pointsTotal: calcPoints(match.p2.builds), win: match.p2.win, _submitted: match.submitted || undefined, _matchSid: sid, _noStats: match._deSelfMatch || undefined, dePoints: match._deSelfMatch ? (match.p2.dePoints ?? undefined) : undefined });
   }
   return rows;
 }
@@ -3343,6 +3349,18 @@ function autoCheckWin(m) {
   }
 }
 
+// DE self-match: winner is determined by coin-toss dePoints reaching soloThreshold.
+// No Beyblade finishes exist, so autoCheckWin is skipped for these matches.
+function autoCheckDeWin(m) {
+  if (!m.p1 || !m.p2) return;
+  const threshold = soloThreshold(m.round);
+  const p1pts = m.p1.dePoints || 0;
+  const p2pts = m.p2.dePoints || 0;
+  if (p1pts >= threshold && p2pts < threshold)      { m.p1.win = true;  m.p2.win = false; }
+  else if (p2pts >= threshold && p1pts < threshold) { m.p2.win = true;  m.p1.win = false; }
+  else                                               { m.p1.win = false; m.p2.win = false; }
+}
+
 // === CHALLONGE-HELPERS START ===
 function soloSlotLabel(joiner, allJoiners) {
   const name = String(joiner.name || joiner.displayName || joiner.username || '').trim();
@@ -3404,6 +3422,21 @@ function isSameOwnerSolo(p1Entry, p2Entry) {
   return String(p1Entry.name || '').toLowerCase() === String(p2Entry.name || '').toLowerCase();
 }
 
+// True only when same account appears as both main AND double entries (legit bracket pairing).
+// Same name + different non-null entryId = real DE self-match (coin-toss advancement, no battle).
+// Same entryId = true duplicate mistake — still blocked.
+// Checks both 'name' (Challonge refs) and 'player' (match-slot objects from createMatch).
+function isDeSelfMatch(p1Entry, p2Entry) {
+  if (!p1Entry || !p2Entry) return false;
+  const id1 = p1Entry.entryId;
+  const id2 = p2Entry.entryId;
+  if (!id1 || !id2) return false;
+  if (id1 === id2) return false;
+  const n1 = String(p1Entry.name || p1Entry.player || '').toLowerCase();
+  const n2 = String(p2Entry.name || p2Entry.player || '').toLowerCase();
+  return n1 !== '' && n1 === n2;
+}
+
 function alreadyImported(matchesState, challongeMatchId) {
   return (matchesState || []).some(m => m._challongeMatchId === challongeMatchId);
 }
@@ -3419,7 +3452,14 @@ function buildImportPlan({ matches, pidMap, matchesState, isTeam }) {
     const side2Ref = pidMap[m.player2_id] || null;
     const base = { challongeMatchId: cmId, round: challongeRoundLabel(m.round), groupId: m.group_id ?? null, side1Ref, side2Ref };
     if (!side1Ref || !side2Ref) { plan.push({ ...base, skip: false, reason: 'unmapped' }); continue; }
-    if (!isTeam && isSameOwnerSolo(side1Ref, side2Ref)) { plan.push({ ...base, skip: true, reason: 'same-owner' }); continue; }
+    if (!isTeam && isSameOwnerSolo(side1Ref, side2Ref)) {
+      if (isDeSelfMatch(side1Ref, side2Ref)) {
+        plan.push({ ...base, skip: false, reason: 'de-self', deSelfMatch: true });
+      } else {
+        plan.push({ ...base, skip: true, reason: 'same-owner' });
+      }
+      continue;
+    }
     plan.push({ ...base, skip: false, reason: 'create' });
   }
   return plan;
@@ -3667,6 +3707,7 @@ async function challongeImportOpenMatches() {
           _sid: _soloSid(item.round, e1, e2, soloPairCount),
           _pendingServerSave: true,
           _challongeMatchId: item.challongeMatchId,
+          _deSelfMatch: item.deSelfMatch || undefined,
           needsPlayerPick: item.reason === 'unmapped' || undefined,
           round: item.round,
           p1: JSON.parse(JSON.stringify(e1)),
@@ -3746,8 +3787,9 @@ async function challongeReportMatch(match) {
     const t2wins = (match.team2?.members || []).filter(m => m.win).length;
     winnerId = t1wins > t2wins ? p1Id : (t2wins > t1wins ? p2Id : null);
   } else {
-    p1pts = calcPoints((match.p1?.builds) || []);
-    p2pts = calcPoints((match.p2?.builds) || []);
+    // DE self-match: use coin-toss dePoints; normal match: use Beyblade finish points.
+    p1pts = match._deSelfMatch ? (match.p1?.dePoints || 0) : calcPoints((match.p1?.builds) || []);
+    p2pts = match._deSelfMatch ? (match.p2?.dePoints || 0) : calcPoints((match.p2?.builds) || []);
     p1Id = match.p1 ? findPid(match.p1.entryId, false) : null;
     p2Id = match.p2 ? findPid(match.p2.entryId, false) : null;
     winnerId = match.p1?.win ? p1Id : (match.p2?.win ? p2Id : null);
@@ -4106,9 +4148,14 @@ async function createMatch() {
     if (!_nmP1) { errEl.textContent = 'Select Player 1.'; return; }
     if (!_nmP2) { errEl.textContent = 'Select Player 2.'; return; }
     if (_nmP1.player === _nmP2.player) {
-      errEl.textContent = 'A player cannot match themselves (including Double Entry).';
-      return;
+      if (!isDeSelfMatch(_nmP1, _nmP2)) {
+        errEl.textContent = 'A player cannot match themselves. For a Double Entry advancement, select the main and DE entries of the same account.';
+        return;
+      }
+      // Fall through — legit DE self-match (same name, different entryId).
     }
+
+    const _isDE = isDeSelfMatch(_nmP1, _nmP2);
 
     // Stable _sid: count existing solo matches with same slots in same round
     const soloPairCount = matchesState.filter(m =>
@@ -4121,6 +4168,7 @@ async function createMatch() {
       id: _matchIdCounter++,
       _sid: _soloSid(round, _nmP1, _nmP2, soloPairCount),
       _pendingServerSave: true,
+      _deSelfMatch: _isDE || undefined,
       round,
       p1: JSON.parse(JSON.stringify(_nmP1)),
       p2: JSON.parse(JSON.stringify(_nmP2)),
@@ -4468,6 +4516,10 @@ function renderMatchCard(match) {
       return renderTeamMatchCard(match);
     }
 
+    if (match._deSelfMatch) {
+      return renderDeSelfMatchCard(match);
+    }
+
     const p1pts = calcPoints(match.p1.builds);
     const p2pts = match.p2 ? calcPoints(match.p2.builds) : 0;
 
@@ -4507,6 +4559,106 @@ function renderMatchCard(match) {
     console.error('renderMatchCard error:', e, match);
     return `<div class="match-card" style="padding:10px;color:var(--red);font-size:11px">⚠️ Render error for match ${match?.id} — ${e.message}</div>`;
   }
+}
+
+// ─── DE SELF-MATCH CARD ───────────────────────────────────────────────────────
+// No Beyblade battle. Winner determined by coin toss (1 pt per toss, first to
+// threshold wins). Admin picks the advancing side and enters the loser's points.
+function renderDeSelfMatchCard(match) {
+  const mid = match.id;
+  const p1Label = match.p1.displayLabel || match.p1.player;
+  const p2Label = match.p2 ? (match.p2.displayLabel || match.p2.player) : '?';
+  const threshold = soloThreshold(match.round);
+
+  const p1pts  = match.p1.dePoints ?? '';
+  const p2pts  = match.p2 ? (match.p2.dePoints ?? '') : '';
+  const p1wins = !!(match.p1 && match.p1.win);
+  const p2wins = !!(match.p2 && match.p2.win);
+
+  let summary;
+  if (p1wins) summary = `<span style="color:var(--green)">${escHtml(p1Label)} ADV <span style="color:var(--muted2);font-size:11px">${threshold}-${p2pts !== '' ? p2pts : '?'}</span></span>`;
+  else if (p2wins) summary = `<span style="color:var(--green)">${escHtml(p2Label)} ADV <span style="color:var(--muted2);font-size:11px">${threshold}-${p1pts !== '' ? p1pts : '?'}</span></span>`;
+  else summary = `<span style="color:var(--muted)">select advancing side</span>`;
+
+  // Loser points input — shown only after a side is selected
+  const loserSide    = p1wins ? 'p2' : (p2wins ? 'p1' : null);
+  const loserVal     = loserSide === 'p1' ? p1pts : (loserSide === 'p2' ? p2pts : '');
+  const loserLabel   = loserSide === 'p1' ? escHtml(p1Label) : (loserSide === 'p2' ? escHtml(p2Label) : '');
+  const loserInput   = loserSide ? `
+    <div style="margin-top:10px;display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface2);border-radius:6px">
+      <span style="font-size:12px;color:var(--muted)">Loser points (${loserLabel}):</span>
+      <input type="number" min="0" max="${threshold - 1}" value="${loserVal}"
+        style="width:56px;background:var(--surface3);border:1px solid var(--border2);border-radius:4px;color:var(--text);padding:3px 6px;font-size:13px;font-family:'Share Tech Mono',monospace;text-align:center"
+        oninput="mSetDeLoserPoints(${mid},'${loserSide}',+this.value)"
+        onclick="event.stopPropagation()" />
+      <span style="font-size:12px;color:var(--muted)">/ ${threshold - 1} max</span>
+    </div>` : '';
+
+  return `
+  <div class="match-card" id="match-${mid}">
+    <div style="display:flex;align-items:stretch;border-bottom:1px solid var(--border)">
+      <div class="match-card-header" style="flex:1;border-bottom:none" onclick="toggleMatchCollapse(${mid})">
+        <span class="match-round-badge">${escHtml(match.round||'')}</span>
+        <span class="match-vs-label">
+          <span style="color:var(--blue)">${escHtml(p1Label)}</span>
+          <span style="color:var(--muted2);margin:0 6px;font-size:11px">↔</span>
+          <span style="color:var(--gold2)">${escHtml(p2Label)}</span>
+        </span>
+        <span style="font-size:10px;padding:2px 6px;border-radius:10px;background:rgba(160,100,255,0.15);color:#c084fc;font-family:'Share Tech Mono',monospace;letter-spacing:0.5px;white-space:nowrap">🪙 DE · NO BATTLE</span>
+        <span class="match-result-summary">${summary}</span>
+        ${challongePushChipHtml(match)}
+        ${submitAreaHtml(match)}
+        <button class="btn danger" style="font-size:10px;padding:2px 8px;margin-left:4px" onclick="event.stopPropagation();removeMatch(${mid})">✕ Remove</button>
+        <span style="color:var(--muted2);font-size:12px;margin-left:4px">${match.collapsed ? '▼' : '▲'}</span>
+      </div>
+    </div>
+    ${match.collapsed ? '' : `
+    <div style="padding:12px 14px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
+        Coin toss advancement — first to <strong style="color:var(--text)">${threshold} pts</strong>. No Beyblade battle or finish scoring.
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn ${p1wins ? 'success' : ''}" style="flex:1;min-width:120px;font-size:13px;padding:8px 10px${p1wins ? '' : ';opacity:0.7'}"
+          onclick="mSelectDeWinner(${mid},'p1')">
+          ${p1wins ? '✓ ' : ''}${escHtml(p1Label)} advances
+        </button>
+        <button class="btn ${p2wins ? 'success' : ''}" style="flex:1;min-width:120px;font-size:13px;padding:8px 10px${p2wins ? '' : ';opacity:0.7'}"
+          onclick="mSelectDeWinner(${mid},'p2')">
+          ${p2wins ? '✓ ' : ''}${escHtml(p2Label)} advances
+        </button>
+      </div>
+      ${loserInput}
+    </div>`}
+  </div>`;
+}
+
+function mSelectDeWinner(mid, side) {
+  const match = matchesState.find(m => m.id === mid);
+  if (!match || !match._deSelfMatch) return;
+  const threshold = soloThreshold(match.round);
+  const otherSide = side === 'p1' ? 'p2' : 'p1';
+  match[side].win = true;
+  match[otherSide].win = false;
+  match[side].dePoints = threshold;
+  if (match[otherSide].dePoints == null) match[otherSide].dePoints = 0;
+  invalidateChallongePushState(match);
+  flattenMatchesToResults();
+  markDirty();
+  evaluateAutoSubmit(mid);
+  renderResults();
+}
+
+function mSetDeLoserPoints(mid, loserSide, value) {
+  const match = matchesState.find(m => m.id === mid);
+  if (!match || !match._deSelfMatch) return;
+  const threshold = soloThreshold(match.round);
+  const clamped = Math.max(0, Math.min(threshold - 1, Math.floor(value) || 0));
+  match[loserSide].dePoints = clamped;
+  invalidateChallongePushState(match);
+  flattenMatchesToResults();
+  markDirty();
+  evaluateAutoSubmit(mid);
+  renderResults();
 }
 
 // ── Helper: get play order for a team, falling back to finish-order detection ──
@@ -7551,12 +7703,15 @@ function importPreview() {
     return `${m.round}|${m.p1?.entryId||m.p1?.player}|${m.p2?.entryId||m.p2?.player}`;
   }));
 
-  // Same-owner solo matches (Ken vs Ken DE) are never valid — record via Challonge instead
-  const sameOwner = incoming.filter(m => !m.isTeamMatch && m.p1?.player && m.p2?.player && m.p1.player === m.p2.player);
+  // Same-owner solo matches are invalid unless they are a legit DE self-match.
+  const isInvalidSameOwnerImport = m =>
+    !m.isTeamMatch && m.p1?.player && m.p2?.player &&
+    m.p1.player === m.p2.player && !isDeSelfMatch(m.p1, m.p2);
+  const sameOwner = incoming.filter(isInvalidSameOwnerImport);
   // Reject matches with unrecognized round values — untrusted field from imported JSON
   const badRound = incoming.filter(m => !VALID_ROUNDS.has(m.round));
   const eligibleIncoming = incoming.filter(m =>
-    (m.isTeamMatch || !m.p1?.player || !m.p2?.player || m.p1.player !== m.p2.player) &&
+    !isInvalidSameOwnerImport(m) &&
     VALID_ROUNDS.has(m.round)
   );
 
@@ -7566,11 +7721,15 @@ function importPreview() {
       ? `${m.round}|${m.team1?.teamName}|${m.team2?.teamName}`
       : `${m.round}|${m.p1?.entryId||m.p1?.player}|${m.p2?.entryId||m.p2?.player}`;
     return !existingPairs.has(pair);
+  }).map(m => {
+    const fresh = JSON.parse(JSON.stringify(m));
+    if (!fresh.isTeamMatch && isDeSelfMatch(fresh.p1, fresh.p2)) fresh._deSelfMatch = true;
+    return fresh;
   });
 
   const skipped = eligibleIncoming.length - newMatches.length;
   previewEl.innerHTML = `<span style="color:var(--green)">✓ ${newMatches.length} new match(es) to import</span>${skipped ? `<span style="color:var(--muted2)"> · ${skipped} duplicate(s) skipped</span>` : ''}` +
-    (sameOwner.length ? `<span style="color:var(--gold)"> · ${sameOwner.length} same-owner match(es) excluded — record Double Entry advancement in Challonge, not here</span>` : '') +
+    (sameOwner.length ? `<span style="color:var(--gold)"> · ${sameOwner.length} invalid same-owner match(es) excluded</span>` : '') +
     (badRound.length  ? `<span style="color:var(--red)"> · ${badRound.length} match(es) with unrecognized round excluded</span>` : '') +
     `<br><br>` +
     newMatches.map(m => {
@@ -7597,10 +7756,11 @@ async function importCommit() {
 
   // Add new matches with fresh IDs
   for (const m of _importParsed.newMatches) {
-    // Defensive: never admit same-owner solo matches or unrecognized rounds
-    if (!m.isTeamMatch && m.p1?.player && m.p2?.player && m.p1.player === m.p2.player) continue;
+    // Defensive: never admit invalid same-owner solo matches or unrecognized rounds.
+    if (!m.isTeamMatch && m.p1?.player && m.p2?.player && m.p1.player === m.p2.player && !isDeSelfMatch(m.p1, m.p2)) continue;
     if (!VALID_ROUNDS.has(m.round)) continue;
     const fresh = JSON.parse(JSON.stringify(m));
+    if (!fresh.isTeamMatch && isDeSelfMatch(fresh.p1, fresh.p2)) fresh._deSelfMatch = true;
     fresh.id = _matchIdCounter++;
     fresh.collapsed = true;
     fresh.submitted = false;
@@ -7738,7 +7898,7 @@ async function archiveBeyResultsToGamedata() {
   const existingBladerStats = (gdData.bladerStats || {});
   // Build a deep copy of resultsState so we don't mutate the user's live state.
   // Only include submitted matches — unsubmitted ones must not be archived.
-  const cleanedResults = resultsState.filter(entry => entry._submitted).map(entry => {
+  const cleanedResults = resultsState.filter(entry => entry._submitted && !entry._noStats).map(entry => {
     const e = JSON.parse(JSON.stringify(entry));
     e.player = _resolveBladerKey(e.player, existingBladerStats) || _normalizePlayerName(e.player);
     return e;
@@ -7811,6 +7971,7 @@ async function syncBladerStats() {
   const perPlayer = {};
   for (const entry of resultsState) {
     if (!entry._submitted) continue; // ← skip unsubmitted matches
+    if (entry._noStats) continue;    // ← skip DE self-match rows (coin-toss, no battle)
     const name = _resolveBladerKey(entry.player, bladerStats);
     if (!name) continue; // skip blank/whitespace-only player names
     if (!perPlayer[name]) {
