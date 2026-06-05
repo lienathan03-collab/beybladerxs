@@ -303,8 +303,10 @@ test('challongeManualSync reports a queued server retry instead of false synced 
   const toasts = [];
   const ctx = {
     currentEvent: { challongeTournamentId: 'tour-1', challongeMissing: false },
+    matchesState: [],
     _challongeImportSaveDeferred: true,
     challongeImportOpenMatches: async () => 14,
+    queueCreatedMatchSave: async () => true,
     showToast: (message, type) => toasts.push({ message, type }),
   };
   vm.createContext(ctx);
@@ -315,4 +317,31 @@ test('challongeManualSync reports a queued server retry instead of false synced 
   assert.equal(toasts.length, 1);
   assert.match(toasts[0].message, /retry queued/i);
   assert.doesNotMatch(toasts[0].message, /^.*Imported 14 match\(es\)\.$/);
+});
+
+test('challongeManualSync republishes pending local matches when Challonge has nothing new', async () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'eventmanager.html'), 'utf8');
+  const start = html.indexOf('async function challongeManualSync()');
+  const end = html.indexOf('// Challonge importing is MANUAL ONLY', start);
+  let saveCalls = 0;
+  const toasts = [];
+  const ctx = {
+    currentEvent: { challongeTournamentId: 'tour-1', challongeMissing: false },
+    matchesState: [
+      { _sid: 'R1|a|b|0', _pendingServerSave: true },
+      { _sid: 'R1|c|d|0' },
+    ],
+    _challongeImportSaveDeferred: false,
+    challongeImportOpenMatches: async () => 0,
+    queueCreatedMatchSave: async () => { saveCalls++; return true; },
+    showToast: (message, type) => toasts.push({ message, type }),
+  };
+  vm.createContext(ctx);
+  vm.runInContext(html.slice(start, end), ctx);
+
+  await vm.runInContext('challongeManualSync()', ctx);
+
+  assert.equal(saveCalls, 1);
+  assert.equal(toasts.length, 1);
+  assert.match(toasts[0].message, /synced 1 pending match/i);
 });

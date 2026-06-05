@@ -4063,6 +4063,17 @@ async function challongeManualSync() {
   try {
     const n = await challongeImportOpenMatches();
     if (currentEvent.challongeMissing) return; // import detected a 404 mid-call
+    const pendingCount = matchesState.filter(m => m && m._pendingServerSave && m._sid).length;
+    if (!n && pendingCount) {
+      const savedPending = await queueCreatedMatchSave();
+      showToast(
+        savedPending
+          ? `Synced ${pendingCount} pending match(es).`
+          : `${pendingCount} pending match(es) kept locally; server retry queued.`,
+        savedPending ? 'success' : 'error'
+      );
+      return;
+    }
     if (n && _challongeImportSaveDeferred) {
       showToast(`Imported ${n} match(es) locally; server retry queued.`, 'error');
     } else {
