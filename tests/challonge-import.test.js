@@ -220,10 +220,12 @@ test('eventPointsToScoresCsv: p1 wins', () => {
   assert.equal(result.winner_id, 10);
 });
 
-test('eventPointsToScoresCsv: p2 wins', () => {
+test('eventPointsToScoresCsv: p2 wins (scores stay in player1-player2 order)', () => {
   const { eventPointsToScoresCsv } = loadChallongeHelpers();
+  // Challonge scores_csv is ALWAYS player1 score first, then player2 —
+  // regardless of who won. The winner is conveyed via winner_id, not order.
   const result = eventPointsToScoresCsv(2, 7, 11, 10, 11);
-  assert.equal(result.scores_csv, '7-2');
+  assert.equal(result.scores_csv, '2-7');
   assert.equal(result.winner_id, 11);
 });
 
@@ -234,10 +236,10 @@ test('eventPointsToScoresCsv: equal points, p1 wins', () => {
   assert.equal(result.winner_id, 10);
 });
 
-test('eventPointsToScoresCsv: null winnerId fallback (pts decides order)', () => {
+test('eventPointsToScoresCsv: null winnerId keeps player1-player2 score order', () => {
   const { eventPointsToScoresCsv } = loadChallongeHelpers();
-  const result = eventPointsToScoresCsv(6, 2, null, 10, 11);
-  assert.equal(result.scores_csv, '6-2');
+  const result = eventPointsToScoresCsv(2, 6, null, 10, 11);
+  assert.equal(result.scores_csv, '2-6');
   assert.equal(result.winner_id, 'tie');
 });
 

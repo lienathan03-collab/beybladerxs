@@ -3546,23 +3546,20 @@ function buildImportPlan({ matches, pidMap, matchesState, isTeam }) {
 }
 
 function eventPointsToScoresCsv(p1pts, p2pts, winnerId, p1Id, p2Id) {
-  let scores_csv;
-  let winner_id;
+  // Challonge's scores_csv is ALWAYS in player1-then-player2 order, no matter
+  // who won. The winner is conveyed separately via winner_id. Ordering the
+  // scores by winner would make Challonge map the winner's score onto the
+  // losing slot (and vice-versa) whenever player 2 won — so the order here
+  // must stay tied to participant position, never to the result.
+  const scores_csv = `${p1pts}-${p2pts}`;
 
+  let winner_id;
   if (winnerId === p1Id) {
-    // p1 is the winner
-    scores_csv = `${p1pts}-${p2pts}`;
     winner_id = p1Id;
   } else if (winnerId === p2Id) {
-    // p2 is the winner
-    scores_csv = `${p2pts}-${p1pts}`;
     winner_id = p2Id;
   } else {
-    // winnerId is null/undefined or doesn't match either participant
-    // Fall back to comparing points - higher score first
-    const maxPts = Math.max(p1pts, p2pts);
-    const minPts = Math.min(p1pts, p2pts);
-    scores_csv = `${maxPts}-${minPts}`;
+    // No explicit winner (e.g. unresolved tie)
     winner_id = winnerId != null ? winnerId : 'tie';
   }
 

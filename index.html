@@ -3259,7 +3259,9 @@ async function confirmImport(labelEnc, resultsEnc, tournamentId, tournamentUrl) 
         const loserName  = match.winner_id === match.player1_id ? p2Name : p1Name;
         if (winnerName) winCounts[winnerName]   = (winCounts[winnerName]  || 0) + 1;
         if (loserName)  lossCounts[loserName]    = (lossCounts[loserName] || 0) + 1;
-        // scores_csv: Challonge always stores higher score first
+        // This app's newer aggregate scores use Challonge's player1-player2
+        // order, while its older exports were winner-first. Use max/min here
+        // so leaderboard imports remain compatible with both app formats.
         if (match.scores_csv && winnerName && loserName) {
           let winnerPts = 0, loserPts = 0;
           match.scores_csv.split(',').forEach(set => {
