@@ -7942,7 +7942,9 @@ async function submitMatch(mid) {
     _lastSyncHash = syncFingerprint(buildsState, resultsState);
     markDirty(); // still dirty until Finalize runs archive+stats
     renderResults();
-    challongeReportMatch(toSubmit);
+    // Challonge publishing is now a deliberate per-round organizer action
+    // ("Publish RN to Challonge"), NOT a side effect of finalizing. The match
+    // is saved to Cloudflare above and now shows a "Ready" state.
     showToast(`✅ Match submitted! All devices will update within 5 seconds.`, 'success');
   } catch (e) {
     showToast('❌ Submit failed: ' + e.message, 'error');
