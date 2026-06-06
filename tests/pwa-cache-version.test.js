@@ -7,10 +7,10 @@ const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'eventmanager.html'), 'utf8');
 const serviceWorker = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
 
-test('Event Manager and service worker ship matching cache version v16', () => {
+test('Event Manager and service worker ship matching cache version v17', () => {
   const appVersion = html.match(/const APP_VERSION = '([^']+)'/)?.[1];
   const cacheVersion = serviceWorker.match(/const CACHE_VERSION = '([^']+)'/)?.[1];
 
-  assert.equal(appVersion, 'rxs-em-v16');
+  assert.equal(appVersion, 'rxs-em-v17');
   assert.equal(cacheVersion, appVersion);
 });

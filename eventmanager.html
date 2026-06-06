@@ -2213,7 +2213,7 @@
 let adminUser = '';
 let adminPass = '';
 let allEvents = [];
-const APP_VERSION = 'rxs-em-v16';
+const APP_VERSION = 'rxs-em-v17';
 
 let currentEvent = null;
 
@@ -2819,19 +2819,40 @@ async function rosterAddTeam() {
     }
   }
 
-  if (!currentEvent.joiners) currentEvent.joiners = [];
-  currentEvent.joiners.push({ type: 'team', teamName, members: members.map(m => ({ displayName: m })) });
+  // Use the targeted team_add action (atomic server-side append) instead of
+  // round-tripping the entire allEvents snapshot, which could clobber concurrent
+  // roster/match changes.
+  try {
+    const res = await fetch('/api/events?action=team_add', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        adminUsername: adminUser,
+        adminPassword: adminPass,
+        eventId: currentEvent.id,
+        teamName,
+        members: members.map(m => ({ displayName: m }))
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to add team.');
+    currentEvent.joiners = (data.event && data.event.joiners) || currentEvent.joiners;
+    const idx = allEvents.findIndex(e => e.id === currentEvent.id);
+    if (idx !== -1) allEvents[idx] = { ...allEvents[idx], joiners: currentEvent.joiners };
 
-  // Clear inputs and close form
-  document.getElementById('roster-team-name-input').value = '';
-  document.getElementById('roster-team-m1').value = '';
-  document.getElementById('roster-team-m2').value = '';
-  document.getElementById('roster-team-m3').value = '';
-  document.getElementById('roster-add-team-form').style.display = 'none';
+    // Clear inputs and close form
+    document.getElementById('roster-team-name-input').value = '';
+    document.getElementById('roster-team-m1').value = '';
+    document.getElementById('roster-team-m2').value = '';
+    document.getElementById('roster-team-m3').value = '';
+    document.getElementById('roster-add-team-form').style.display = 'none';
 
-  renderRoster();
-  renderBuilds();
-  await rosterSaveJoiners(`✅ Team "${teamName}" added to roster.`);
+    renderRoster();
+    renderBuilds();
+    showToast(`✅ Team "${teamName}" added to roster.`, 'success');
+  } catch(e) {
+    showToast('⚠️ ' + e.message, 'error');
+  }
 }
 
 // ─────────────────────────────────────────────

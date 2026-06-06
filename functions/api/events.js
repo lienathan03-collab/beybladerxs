@@ -1,4 +1,5 @@
 import { fetchLiveEventResults } from './_shared/do-client.js';
+import { applyEventsAction } from './_shared/events-ops.js';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -9,6 +10,44 @@ const CORS_HEADERS = {
 const EVENTS_KEY = 'events';
 const TEAM_NAME_MAX = 30;
 const TEAM_NAME_RE = /^[a-zA-Z0-9 ._\-]+$/;
+
+// Single serialized registry instance — every events-blob mutation funnels here
+// so concurrent writers cannot clobber each other (see _shared/events-ops.js).
+const REGISTRY_ID = '__events_registry__';
+
+// Attempt to commit a mutation through the registry Durable Object.
+// Returns { status, body } on a real DO response, or null to signal the caller
+// should fall back to the direct-KV path. null is returned when:
+//   • BEY_STATE_DO is not bound, or
+//   • the DO is reachable but lacks the registry route (old worker → 404/405), or
+//   • the fetch threw (DO unreachable).
+// This makes deploying the Pages change BEFORE the DO worker safe: until the new
+// DO worker is live, every write transparently uses today's KV code path.
+async function commitViaRegistry(env, op, params, ctx = {}) {
+  if (!env.BEY_STATE_DO) return null;
+  let res;
+  try {
+    const id = env.BEY_STATE_DO.idFromName(REGISTRY_ID);
+    const stub = env.BEY_STATE_DO.get(id);
+    res = await stub.fetch('https://bey-state-do/registry/events/mutate', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ op, params, ctx })
+    });
+  } catch (e) {
+    return null; // DO unreachable → KV fallback (today's behavior)
+  }
+  if (res.status === 404 || res.status === 405) return null; // old worker w/o registry
+  let body;
+  try { body = await res.json(); } catch (e) { body = { error: 'Registry returned non-JSON response.' }; }
+  return { status: res.status, body };
+}
+
+function corsJson(body, status) {
+  return new Response(JSON.stringify(body), {
+    status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
+  });
+}
 
 // Inspects beyResults and builds from a live-state snapshot.
 // When BEY_STATE_DO is bound the caller must pass DO-fetched results;
@@ -336,6 +375,20 @@ export async function onRequest(context) {
         });
       }
 
+      // Serialize the mutation through the registry DO when available. Auth and
+      // (for de_remove/unjoin) the live-result guard already ran above; the DO
+      // re-applies the validated op against the freshest blob.
+      {
+        let regOp, regParams, regCtx = {};
+        if (action === 'join') { regOp = 'join'; regParams = { eventId, username, playerName }; }
+        else if (action === 'team_join') { regOp = 'team_join'; regParams = { eventId, username, teamName: teamName.trim(), members }; regCtx = { accounts }; }
+        else if (action === 'de_add') { regOp = 'de_add'; regParams = { eventId, username, canonicalName: account.displayName || username }; }
+        else if (action === 'de_remove') { regOp = 'de_remove'; regParams = { eventId, username }; }
+        else { regOp = 'unjoin'; regParams = { eventId, username }; }
+        const doRes = await commitViaRegistry(env, regOp, regParams, regCtx);
+        if (doRes) return corsJson(doRes.body, doRes.status);
+      }
+
       try {
         await kv.put(EVENTS_KEY, JSON.stringify(eventsData));
         return new Response(JSON.stringify({ success: true, event }), {
@@ -382,6 +435,8 @@ export async function onRequest(context) {
       const event = (eventsData.events || []).find(ev => ev.id === eventId);
       if (!event) return new Response(JSON.stringify({ error: 'Event not found.' }), { status: 404, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
       if (!Array.isArray(event.joiners)) event.joiners = [];
+      const addDoRes = await commitViaRegistry(env, 'admin_add', { eventId, name });
+      if (addDoRes) return corsJson(addDoRes.body, addDoRes.status);
       event.joiners.push({
         entryId:      crypto.randomUUID(),
         entryType:    'main',
@@ -393,6 +448,43 @@ export async function onRequest(context) {
       });
       await kv.put(EVENTS_KEY, JSON.stringify(eventsData));
       return new Response(JSON.stringify({ success: true, event }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+    }
+
+    // ── Admin: add a walk-in team (display-name members) ──
+    // Targeted action so a single team add no longer requires the client to
+    // round-trip the whole events array (which could clobber concurrent edits).
+    if (action === 'team_add') {
+      const { adminUsername, adminPassword, eventId, teamName, members } = body;
+      const validU  = env.ADMIN_USERNAME;
+      const validP  = env.ADMIN_PASSWORD;
+      const valid2U = env.ADMIN2_USERNAME;
+      const valid2P = env.ADMIN2_PASSWORD;
+      const isAdmin =
+        (adminUsername === validU && adminPassword === validP) ||
+        (valid2U && adminUsername === valid2U && adminPassword === valid2P);
+      if (!isAdmin) return corsJson({ error: 'Unauthorized.' }, 401);
+      if (!eventId) return corsJson({ error: 'eventId required.' }, 400);
+
+      const params = { eventId, teamName, members };
+      const teamDoRes = await commitViaRegistry(env, 'team_add', params);
+      if (teamDoRes) return corsJson(teamDoRes.body, teamDoRes.status);
+
+      // KV fallback — reuse the shared mutation so behavior matches the DO path.
+      let eventsData;
+      try {
+        const raw = await kv.get(EVENTS_KEY);
+        eventsData = raw ? JSON.parse(raw) : { events: [] };
+      } catch (e) {
+        return corsJson({ error: 'Could not load events.' }, 502);
+      }
+      const result = applyEventsAction(eventsData, 'team_add', params);
+      if (result.status !== 200) return corsJson(result.body, result.status);
+      try {
+        await kv.put(EVENTS_KEY, JSON.stringify(eventsData));
+      } catch (e) {
+        return corsJson({ error: e.message }, 502);
+      }
+      return corsJson(result.body, 200);
     }
 
     // ── Admin: add DE slot for a main entry ──
@@ -458,6 +550,8 @@ export async function onRequest(context) {
         joinedAt:      new Date().toISOString(),
         manualAdd:     target.manualAdd || false
       });
+      const addDeDoRes = await commitViaRegistry(env, 'admin_add_de', { eventId, joinerIdx, sourceEntryId });
+      if (addDeDoRes) return corsJson(addDeDoRes.body, addDeDoRes.status);
       await kv.put(EVENTS_KEY, JSON.stringify(eventsData));
       return new Response(JSON.stringify({ success: true, event }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
     }
@@ -514,7 +608,10 @@ export async function onRequest(context) {
           { status: 409, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
         );
       }
-      // Remove roster entries only — builds and beyResults rows are never deleted
+      // Remove roster entries only — builds and beyResults rows are never deleted.
+      // Live guard / force decision already enforced above; serialize the removal.
+      const removeDoRes = await commitViaRegistry(env, 'admin_remove', { eventId, joinerIdx, force });
+      if (removeDoRes) return corsJson(removeDoRes.body, removeDoRes.status);
       const removeSet = new Set(toRemove);
       event.joiners = event.joiners.filter(j => !removeSet.has(j));
       await kv.put(EVENTS_KEY, JSON.stringify(eventsData));
@@ -580,6 +677,9 @@ export async function onRequest(context) {
         else event[key] = value;
       }
 
+      const challongeDoRes = await commitViaRegistry(env, 'challonge_update', { eventId, challongeMetadata });
+      if (challongeDoRes) return corsJson(challongeDoRes.body, challongeDoRes.status);
+
       try {
         await kv.put(EVENTS_KEY, JSON.stringify(eventsData));
         return new Response(JSON.stringify({ success: true, event }), {
@@ -616,8 +716,22 @@ export async function onRequest(context) {
           { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
         );
       }
+
+      // Serialize through the registry DO when available.
+      const replaceDoRes = await commitViaRegistry(env, 'replace_events', { events });
+      if (replaceDoRes) return corsJson(replaceDoRes.body, replaceDoRes.status);
+
+      // KV fallback — MERGE rather than wholesale replace, so a stale client
+      // snapshot can no longer wipe joiners/beyResults/builds for events that
+      // still exist (the catastrophic data-loss vector). Uses the same shared
+      // mutation the DO path uses.
       try {
-        await kv.put(EVENTS_KEY, JSON.stringify({ events }));
+        let eventsData;
+        const raw = await kv.get(EVENTS_KEY);
+        eventsData = raw ? JSON.parse(raw) : { events: [] };
+        const result = applyEventsAction(eventsData, 'replace_events', { events });
+        if (result.status !== 200) return corsJson(result.body, result.status);
+        await kv.put(EVENTS_KEY, JSON.stringify(eventsData));
         return new Response(JSON.stringify({ success: true }), {
           status: 200,
           headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }

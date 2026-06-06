@@ -30,8 +30,10 @@ import {
   computeSidsForEntries,
   stripTombstonesForResponse
 } from './merge.js';
+import { applyEventsAction } from './events-ops.js';
 
 const STORAGE_STATE_KEY = 'state';
+const EVENTS_KEY = 'events';
 
 // Mirror index.html's _playerNamesMatch exactly:
 //   const norm = s => String(s || '').toLowerCase().replace(/\s+/g, '');
@@ -95,6 +97,38 @@ export class BeyStateDO {
     const url = new URL(request.url);
     const segments = url.pathname.split('/').filter(Boolean); // ['event', <id>, <action>]
     const action = segments[2] || '';
+
+    // ── Events registry: serialized read-modify-write of the `events` KV blob ──
+    // All events-roster mutations funnel through ONE instance
+    // (idFromName('__events_registry__')), so concurrent writers can no longer
+    // clobber each other. Auth + live-result guards are performed by the Pages
+    // function BEFORE this is called; here we only apply the validated mutation
+    // against the freshest blob and persist it atomically.
+    if (segments[0] === 'registry' && segments[1] === 'events') {
+      if (request.method !== 'PUT' || segments[2] !== 'mutate') {
+        return jsonResponse({ error: 'Method not allowed' }, 405);
+      }
+      const kv = this.env && this.env.BEYBLADE_KV;
+      if (!kv) return jsonResponse({ error: 'KV namespace not bound in DO.' }, 500);
+      let body;
+      try { body = await request.json(); } catch (e) {
+        return jsonResponse({ error: 'Invalid JSON: ' + e.message }, 400);
+      }
+      const { op, params, ctx } = body || {};
+      let eventsData;
+      try {
+        const raw = await kv.get(EVENTS_KEY);
+        eventsData = raw ? JSON.parse(raw) : { events: [] };
+      } catch (e) {
+        return jsonResponse({ error: 'Could not load events.' }, 502);
+      }
+      const result = applyEventsAction(eventsData, op, params || {}, ctx || {});
+      if (result.status === 200) {
+        try { await kv.put(EVENTS_KEY, JSON.stringify(eventsData)); }
+        catch (e) { return jsonResponse({ error: e.message }, 502); }
+      }
+      return jsonResponse(result.body, result.status);
+    }
 
     if (request.method === 'GET' && action === 'get') {
       const cur = await this.loadState();

@@ -11,6 +11,13 @@ compatibility_date = "2024-09-02"
 name       = "BEY_STATE_DO"
 class_name = "BeyStateDO"
 
+# KV binding so the single registry DO instance (idFromName('__events_registry__'))
+# can serialize read-modify-write of the `events` blob. Same namespace the Pages
+# project binds as BEYBLADE_KV.
+[[kv_namespaces]]
+binding = "BEYBLADE_KV"
+id      = "cb6f3ae6f2cd4c07b9815af5d3e31d30"
+
 [[migrations]]
 tag         = "v1"
 new_sqlite_classes = ["BeyStateDO"]
