@@ -604,6 +604,62 @@ test('client: pending deletions from event A do not appear in event-B PUT body',
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Tombstone revive — a Challonge re-import of a previously-deleted pairing must
+// tell the server to un-tombstone the recreated sid, or the 24h tombstone keeps
+// silently dropping the re-imported match. revivedSids is the explicit channel.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('client: buildMergePutBody carries event-scoped revivedSids', () => {
+  const context = createContext([]);
+  context.currentEvent = { id: 'evt-A' };
+  loadQueueHelpers(context);
+
+  vm.runInContext("getEventRevivedSids('evt-A').add('R1|X|Y|0')", context);
+
+  const result = vm.runInContext("buildMergePutBody('evt-A', {}, [])", context);
+  assert.deepEqual(
+    result.body.revivedSids, ['R1|X|Y|0'],
+    'a recreated sid must be carried as revivedSids in the PUT body'
+  );
+  assert.deepEqual(result.revivedSnapshot, ['R1|X|Y|0']);
+});
+
+test('client: revivedSids from event A do not leak into an event-B PUT body', () => {
+  const context = createContext([]);
+  context.currentEvent = { id: 'evt-A' };
+  loadQueueHelpers(context);
+
+  vm.runInContext("getEventRevivedSids('evt-A').add('R1|X|Y|0')", context);
+
+  const result = vm.runInContext("buildMergePutBody('evt-B', {}, [])", context);
+  assert.deepEqual(
+    result.body.revivedSids, [],
+    'event-B revivedSids must be empty when no event-B revives exist'
+  );
+});
+
+test('client: clearAckedRevivedSids removes only snapshot sids observed on the server', () => {
+  const context = createContext([]);
+  context.currentEvent = { id: 'evt-A' };
+  loadQueueHelpers(context);
+
+  vm.runInContext("getEventRevivedSids('evt-A').add('R1|X|Y|0')", context);
+  vm.runInContext("getEventRevivedSids('evt-A').add('R1|P|Q|0')", context);
+  vm.runInContext(
+    "clearAckedRevivedSids('evt-A', ['R1|X|Y|0', 'R1|P|Q|0'], new Set(['R1|X|Y|0']))",
+    context
+  );
+
+  const remaining = vm.runInContext(
+    "Array.from(getEventRevivedSids('evt-A'))", context);
+  assert.deepEqual(
+    remaining,
+    ['R1|P|Q|0'],
+    'a 200 response must not clear revive intent for a sid the server did not echo'
+  );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Auto-submit on winner detection. When a local scoring action leaves a match
 // with one decisive winner, a short cancelable countdown arms and then fires
 // the existing submitMatch(). It must NOT arm without a winner, when the toggle
@@ -782,6 +838,27 @@ test('buildMatchPatchBody emits only the target match rows in merge mode', () =>
   const sids = new Set(body.beyResults.map(r => r._matchSid));
   assert.deepEqual([...sids], ['R1|a|b|0']);
   assert.equal(body.beyResults.length, 2); // p1 + p2 of matchA only
+});
+
+test('buildMatchPatchBody carries revive intent so an outbox retry can cross a tombstone', () => {
+  const match = { id: 1, _sid: 'R1|a|b|0', round: 'R1',
+    p1: { player: 'a', entryId: 'a', builds: [], win: false },
+    p2: { player: 'b', entryId: 'b', builds: [], win: false } };
+  const context = createContext([match]);
+  context.getEventRevivedSids = eventId =>
+    eventId === 'evt-test' ? new Set([match._sid]) : new Set();
+  context.calcPoints = () => 0;
+  context.autoCheckWin = () => {};
+  context.autoCheckTeamWin = () => {};
+  loadPatchHelpers(context);
+
+  const { body } = context.buildMatchPatchBody('evt-test', match);
+
+  assert.deepEqual(
+    Array.from(body.revivedSids),
+    [match._sid],
+    'automatic outbox retries must retain the explicit revive channel'
+  );
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1102,6 +1179,8 @@ test('closeLiveMode schedules a live push for partially-scored state', () => {
 
 test('flushOutbox pushes every queued op and clears acked ones', async () => {
   const sent = [];
+  const revivedAcks = [];
+  const pendingAcks = [];
   const ls = makeLocalStorage();
   const context = vm.createContext({
     setTimeout, clearTimeout,
@@ -1113,6 +1192,9 @@ test('flushOutbox pushes every queued op and clears acked ones', async () => {
     Promise,
     crypto: { randomUUID: (() => { let n = 0; return () => 'op-' + (++n); })() },
     sidsFromServerPayload: (rows) => new Set((rows || []).map(r => r._matchSid)),
+    clearAckedRevivedSids: (eventId, snapshot, observed) =>
+      revivedAcks.push({ eventId, snapshot: [...snapshot], observed: [...observed] }),
+    confirmPendingMatchesSaved: observed => pendingAcks.push([...observed]),
     fetch: async (url, init) => {
       const body = JSON.parse(init.body);
       sent.push(body.beyResults[0]._matchSid);
@@ -1123,12 +1205,26 @@ test('flushOutbox pushes every queued op and clears acked ones', async () => {
   loadOutboxHelpers(context);
   loadLivePush(context);
 
-  context.enqueueOutboxOp('R1|a|b|0', { eventId: 'evt-1', beyResults: [{ _matchSid: 'R1|a|b|0' }] });
+  context.enqueueOutboxOp('R1|a|b|0', {
+    eventId: 'evt-1',
+    beyResults: [{ _matchSid: 'R1|a|b|0' }],
+    revivedSids: ['R1|a|b|0']
+  });
   context.enqueueOutboxOp('R1|c|d|0', { eventId: 'evt-1', beyResults: [{ _matchSid: 'R1|c|d|0' }] });
 
   await context.flushOutbox();
   assert.deepEqual(sent.sort(), ['R1|a|b|0', 'R1|c|d|0']);
   assert.equal(context.loadOutbox('evt-1').length, 0, 'acked ops cleared');
+  assert.deepEqual(
+    revivedAcks,
+    [{ eventId: 'evt-1', snapshot: ['R1|a|b|0'], observed: ['R1|a|b|0'] }],
+    'an acknowledged retry clears only the revive intent carried by that op'
+  );
+  assert.deepEqual(
+    pendingAcks,
+    [['R1|a|b|0'], ['R1|c|d|0']],
+    'acknowledged retries also clear pending-match protection'
+  );
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

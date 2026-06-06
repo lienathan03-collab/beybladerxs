@@ -2126,3 +2126,152 @@ test('match-level patch PUT preserves other matches (non-submitted live push)', 
   const aRow = data.beyResults.find(r => r._matchSid === 'R1|a|b|0' && r.player === 'a');
   assert.deepEqual(aRow.builds, [{ finishes: ['O'] }], 'patch applied to match A');
 });
+
+// ─── Test: revivedSids lets a Challonge re-import through an active tombstone ──
+//
+// Root cause this guards against: a match deleted within the 24h tombstone TTL
+// keeps a server tombstone. When the organizer re-imports the SAME pairing from
+// Challonge, the recreated match carries the SAME deterministic _matchSid, so
+// mergeBeyResults silently drops it — the re-import never persists. The fix lets
+// the Challonge sync explicitly REVIVE only the sids it just recreated.
+
+test('revivedSids lets a re-imported match through an active tombstone (DO path)', async () => {
+  const doInst = await makeDO();
+
+  // Seed Alice vs Bob.
+  await doPut(doInst, 'evt-revive', {
+    beyResults: [
+      { player: 'Alice', round: 'R1', _matchSid: 'R1|Alice|Bob|0', builds: [] },
+      { player: 'Bob',   round: 'R1', _matchSid: 'R1|Alice|Bob|0', builds: [] }
+    ],
+    mergeMode: true
+  });
+
+  // Delete it — DO now holds an active tombstone for the sid.
+  await doPut(doInst, 'evt-revive', { deletedSids: ['R1|Alice|Bob|0'], mergeMode: true });
+  const { data: afterDelete } = await doGet(doInst, 'evt-revive');
+  assert.ok(
+    !(afterDelete.beyResults || []).some(e => e.player === 'Alice'),
+    'precondition: deleted match is gone'
+  );
+
+  // Without revive, a plain merge PUT must STILL be blocked (tombstone holds).
+  await doPut(doInst, 'evt-revive', {
+    beyResults: [
+      { player: 'Alice', round: 'R1', _matchSid: 'R1|Alice|Bob|0', builds: [] },
+      { player: 'Bob',   round: 'R1', _matchSid: 'R1|Alice|Bob|0', builds: [] }
+    ],
+    mergeMode: true, deletedSids: []
+  });
+  const { data: stillBlocked } = await doGet(doInst, 'evt-revive');
+  assert.ok(
+    !(stillBlocked.beyResults || []).some(e => e.player === 'Alice'),
+    'plain re-PUT must remain blocked by the tombstone (stale-device protection)'
+  );
+
+  // Challonge re-import declares the sid it just recreated via revivedSids.
+  await doPut(doInst, 'evt-revive', {
+    beyResults: [
+      { player: 'Alice', round: 'R1', _matchSid: 'R1|Alice|Bob|0', builds: [] },
+      { player: 'Bob',   round: 'R1', _matchSid: 'R1|Alice|Bob|0', builds: [] }
+    ],
+    mergeMode: true, deletedSids: [], revivedSids: ['R1|Alice|Bob|0']
+  });
+  const { data: revived } = await doGet(doInst, 'evt-revive');
+  assert.ok(
+    (revived.beyResults || []).some(e => e.player === 'Alice'),
+    'revivedSids must let the intentional re-import persist'
+  );
+  // The tombstone for that sid is cleared (revived), so it is not re-emitted.
+  assert.ok(
+    !(revived.beyResults || []).some(e => e._tombstone === true && e._matchSid === 'R1|Alice|Bob|0'),
+    'reviving a sid must clear its tombstone'
+  );
+});
+
+test('revivedSids is scoped — other tombstones survive a revive (DO path)', async () => {
+  const doInst = await makeDO();
+
+  // Seed two matches.
+  await doPut(doInst, 'evt-revive-scope', {
+    beyResults: [
+      { player: 'Alice', round: 'R1', _matchSid: 'R1|Alice|Bob|0', builds: [] },
+      { player: 'Bob',   round: 'R1', _matchSid: 'R1|Alice|Bob|0', builds: [] },
+      { player: 'Carol', round: 'R1', _matchSid: 'R1|Carol|Dave|0', builds: [] },
+      { player: 'Dave',  round: 'R1', _matchSid: 'R1|Carol|Dave|0', builds: [] }
+    ],
+    mergeMode: true
+  });
+
+  // Delete BOTH — two active tombstones.
+  await doPut(doInst, 'evt-revive-scope', {
+    deletedSids: ['R1|Alice|Bob|0', 'R1|Carol|Dave|0'], mergeMode: true
+  });
+
+  // Revive ONLY Alice/Bob; a stale device re-pushes Carol/Dave in the same PUT.
+  await doPut(doInst, 'evt-revive-scope', {
+    beyResults: [
+      { player: 'Alice', round: 'R1', _matchSid: 'R1|Alice|Bob|0', builds: [] },
+      { player: 'Bob',   round: 'R1', _matchSid: 'R1|Alice|Bob|0', builds: [] },
+      { player: 'Carol', round: 'R1', _matchSid: 'R1|Carol|Dave|0', builds: [] },
+      { player: 'Dave',  round: 'R1', _matchSid: 'R1|Carol|Dave|0', builds: [] }
+    ],
+    mergeMode: true, deletedSids: [], revivedSids: ['R1|Alice|Bob|0']
+  });
+
+  const { data } = await doGet(doInst, 'evt-revive-scope');
+  assert.ok(
+    (data.beyResults || []).some(e => e.player === 'Alice'),
+    'revived match (Alice/Bob) must be present'
+  );
+  assert.ok(
+    !(data.beyResults || []).some(e => e.player === 'Carol'),
+    'non-revived tombstone (Carol/Dave) must STILL block the stale re-push'
+  );
+});
+
+test('revivedSids lets a re-imported match through an active tombstone (KV path)', async () => {
+  const { onRequest } = await import('../../functions/api/beyresults.js');
+
+  // KV-only world (no DO binding) with an active tombstone for Alice/Bob.
+  const kv = makeKV({
+    events: JSON.stringify({ events: [{
+      id: 'evt-revive-kv', title: 'Revive KV',
+      beyResults: [
+        { _matchSid: 'R1|Alice|Bob|0', _tombstone: true, _deletedAt: Date.now() }
+      ],
+      builds: {}
+    }] })
+  });
+  const env = { BEYBLADE_KV: kv, ADMIN_USERNAME: 'admin', ADMIN_PASSWORD: 'secret' };
+
+  // Plain re-PUT stays blocked.
+  let res = await onRequest(makePagesCtx(env, 'PUT', 'https://x/api/beyresults', {
+    adminUsername: 'admin', adminPassword: 'secret', eventId: 'evt-revive-kv',
+    beyResults: [
+      { player: 'Alice', round: 'R1', _matchSid: 'R1|Alice|Bob|0', builds: [] },
+      { player: 'Bob',   round: 'R1', _matchSid: 'R1|Alice|Bob|0', builds: [] }
+    ],
+    mergeMode: true, deletedSids: []
+  }));
+  let body = await res.json();
+  assert.ok(
+    !(body.beyResults || []).some(e => e.player === 'Alice'),
+    'KV: plain re-PUT must stay blocked by the tombstone'
+  );
+
+  // Re-import with revivedSids gets through.
+  res = await onRequest(makePagesCtx(env, 'PUT', 'https://x/api/beyresults', {
+    adminUsername: 'admin', adminPassword: 'secret', eventId: 'evt-revive-kv',
+    beyResults: [
+      { player: 'Alice', round: 'R1', _matchSid: 'R1|Alice|Bob|0', builds: [] },
+      { player: 'Bob',   round: 'R1', _matchSid: 'R1|Alice|Bob|0', builds: [] }
+    ],
+    mergeMode: true, deletedSids: [], revivedSids: ['R1|Alice|Bob|0']
+  }));
+  body = await res.json();
+  assert.ok(
+    (body.beyResults || []).some(e => e.player === 'Alice'),
+    'KV: revivedSids must let the intentional re-import persist'
+  );
+});

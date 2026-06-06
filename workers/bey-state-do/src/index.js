@@ -121,6 +121,7 @@ export class BeyStateDO {
       }
       const {
         builds, beyResults, mergeMode, deletedSids,
+        revivedSids,    // string[] — sids to un-tombstone (intentional re-import, e.g. Challonge)
         purgePlayers,   // string[] — player names to tombstone (deletePlayer admin op)
         renamePlayer,   // { from: string, to: string } — player rename (accounts.js)
         __hydrateFromLegacy
@@ -193,10 +194,11 @@ export class BeyStateDO {
 
       let nextBeyResults;
       let nextBuilds;
+      const mergeOpts = Array.isArray(revivedSids) ? { revivedSids } : undefined;
       if (effectiveMergeMode) {
         nextBeyResults = Array.isArray(beyResults)
-          ? mergeBeyResults(workingBeyResults, beyResults, effectiveDeletedSids)
-          : mergeBeyResults(workingBeyResults, [], effectiveDeletedSids);
+          ? mergeBeyResults(workingBeyResults, beyResults, effectiveDeletedSids, mergeOpts)
+          : mergeBeyResults(workingBeyResults, [], effectiveDeletedSids, mergeOpts);
         nextBuilds = (builds && typeof builds === 'object')
           ? mergeBuilds(workingBuilds, builds)
           : workingBuilds;

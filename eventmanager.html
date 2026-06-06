@@ -3087,7 +3087,7 @@ async function submitBuilds() {
     }
 
     const savedSids = getMatchSidSnapshot();
-    const { body: putBody, deletedSnapshot } = buildMergePutBody(currentEvent.id, buildsState, resultsState);
+    const { body: putBody, deletedSnapshot, revivedSnapshot } = buildMergePutBody(currentEvent.id, buildsState, resultsState);
     const res = await fetch('/api/beyresults', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -3097,9 +3097,11 @@ async function submitBuilds() {
     if (!res.ok) throw new Error(data.error || 'Submit builds failed');
 
     clearAckedDeletedSids(currentEvent.id, deletedSnapshot);
+    const observedSids = sidsFromServerPayload(data.beyResults);
+    clearAckedRevivedSids(currentEvent.id, revivedSnapshot, observedSids);
     // Server-observed acknowledgement only — pending matches stay protected
     // until the server echoes the sid back (Finding 1).
-    confirmPendingMatchesSaved(sidsFromServerPayload(data.beyResults));
+    confirmPendingMatchesSaved(observedSids);
     _lastSyncHash = syncFingerprint(buildsState, resultsState);
     // Snapshot the submitted build names so "renamed" indicators reset
     _submittedBuilds = {};
@@ -3328,6 +3330,11 @@ function flattenSingleMatch(match) {
 // deletions go through removeMatch's own immediate push, never the live-push.
 function buildMatchPatchBody(eventId, match) {
   const beyResults = flattenSingleMatch(match);
+  const revivedSids = (
+    match && match._sid &&
+    typeof getEventRevivedSids === 'function' &&
+    getEventRevivedSids(eventId).has(match._sid)
+  ) ? [match._sid] : [];
   // Include only builds keys this match's players reference (shallow-merged server-side).
   const builds = {};
   for (const row of beyResults) {
@@ -3336,7 +3343,10 @@ function buildMatchPatchBody(eventId, match) {
     }
   }
   return {
-    body: { adminUsername: adminUser, adminPassword: adminPass, eventId, builds, beyResults, mergeMode: true }
+    body: {
+      adminUsername: adminUser, adminPassword: adminPass, eventId,
+      builds, beyResults, mergeMode: true, revivedSids
+    }
   };
 }
 // LIVE-PUSH PATCH HELPERS (end)
@@ -3997,9 +4007,11 @@ async function challongeImportOpenMatches() {
         ).length;
         const mt1 = challongeJoinerTeamToMatchTeam(t1);
         const mt2 = challongeJoinerTeamToMatchTeam(t2);
+        const teamMatchSid = _teamSid(item.round, t1.teamName, t2.teamName, teamPairCount);
+        markChallongeImportRevived(teamMatchSid);
         matchesState.push({
           id: _matchIdCounter++,
-          _sid: _teamSid(item.round, t1.teamName, t2.teamName, teamPairCount),
+          _sid: teamMatchSid,
           _pendingServerSave: true,
           _challongeMatchId: item.challongeMatchId,
           division: currentEvent.challongeGroupMap?.[item.groupId] ?? null,
@@ -4020,9 +4032,11 @@ async function challongeImportOpenMatches() {
           (e1.entryId ? m.p1?.entryId === e1.entryId : m.p1?.player === e1.player) &&
           (e2.entryId ? m.p2?.entryId === e2.entryId : m.p2?.player === e2.player)
         ).length;
+        const soloMatchSid = _soloSid(item.round, e1, e2, soloPairCount);
+        markChallongeImportRevived(soloMatchSid);
         matchesState.push({
           id: _matchIdCounter++,
-          _sid: _soloSid(item.round, e1, e2, soloPairCount),
+          _sid: soloMatchSid,
           _pendingServerSave: true,
           _challongeMatchId: item.challongeMatchId,
           _deSelfMatch: item.deSelfMatch || undefined,
@@ -4186,7 +4200,7 @@ async function persistPublishState() {
   if (!currentEvent) return;
   try {
     flattenMatchesToResults();
-    const { body: putBody, deletedSnapshot } =
+    const { body: putBody, deletedSnapshot, revivedSnapshot } =
       buildMergePutBody(currentEvent.id, buildsState, resultsState);
     const res = await fetch('/api/beyresults', {
       method: 'PUT',
@@ -4196,7 +4210,9 @@ async function persistPublishState() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'persist failed');
     clearAckedDeletedSids(currentEvent.id, deletedSnapshot);
-    confirmPendingMatchesSaved(sidsFromServerPayload(data.beyResults));
+    const observedSids = sidsFromServerPayload(data.beyResults);
+    clearAckedRevivedSids(currentEvent.id, revivedSnapshot, observedSids);
+    confirmPendingMatchesSaved(observedSids);
     _lastSyncHash = syncFingerprint(buildsState, resultsState);
   } catch (e) {
     showToast('⚠ Publish saved to Challonge but Cloudflare sync failed: ' + e.message, '');
@@ -5237,7 +5253,17 @@ async function pushMatchLive(match) {
     let data = {}; try { data = await res.json(); } catch (e) {}
     if (!res.ok) throw new Error((data && data.error) || 'live push failed');
     const acked = sidsFromServerPayload(data.beyResults);
-    if (acked && acked.has(match._sid)) { if (op) dropOutboxOp(eventId, op.opId); }
+    if (acked && acked.has(match._sid)) {
+      if (op) dropOutboxOp(eventId, op.opId);
+      if (body.revivedSids && body.revivedSids.length &&
+          typeof clearAckedRevivedSids === 'function') {
+        clearAckedRevivedSids(eventId, body.revivedSids, acked);
+      }
+      if (currentEvent && currentEvent.id === eventId &&
+          typeof confirmPendingMatchesSaved === 'function') {
+        confirmPendingMatchesSaved(acked);
+      }
+    }
   });
   try { await _livePushQueue; } catch (e) { /* op stays in outbox for retry */ }
 }
@@ -5258,7 +5284,17 @@ async function flushOutbox() {
       let data = {}; try { data = await res.json(); } catch (e) {}
       if (!res.ok) continue; // leave queued for next attempt
       const acked = sidsFromServerPayload(data.beyResults);
-      if (acked && acked.has(op.matchSid)) dropOutboxOp(eventId, op.opId);
+      if (acked && acked.has(op.matchSid)) {
+        dropOutboxOp(eventId, op.opId);
+        if (op.payload.revivedSids && op.payload.revivedSids.length &&
+            typeof clearAckedRevivedSids === 'function') {
+          clearAckedRevivedSids(eventId, op.payload.revivedSids, acked);
+        }
+        if (currentEvent && currentEvent.id === eventId &&
+            typeof confirmPendingMatchesSaved === 'function') {
+          confirmPendingMatchesSaved(acked);
+        }
+      }
     } catch (e) { /* leave queued */ }
   }
 }
@@ -5832,7 +5868,12 @@ async function removeMatch(mid, options = {}) {
   // Tombstone the deletion BEFORE removing it locally so concurrent writers
   // who still hold this match in their state can't merge it back in on the
   // server. The sid stays in the event-scoped set until the server acks it.
-  if (match._sid && currentEvent) getEventDeletedSids(currentEvent.id).add(match._sid);
+  if (match._sid && currentEvent) {
+    getEventDeletedSids(currentEvent.id).add(match._sid);
+    // An explicit delete supersedes any pending Challonge-import revive for the
+    // same sid, so we don't both tombstone and un-tombstone it on the next PUT.
+    getEventRevivedSids(currentEvent.id).delete(match._sid);
+  }
 
   matchesState = matchesState.filter(m => m.id !== mid);
   flattenMatchesToResults();
@@ -5843,7 +5884,7 @@ async function removeMatch(mid, options = {}) {
   _syncPaused = true;
   try {
     const savedSids = getMatchSidSnapshot();
-    const { body: putBody, deletedSnapshot } = buildMergePutBody(currentEvent.id, buildsState, resultsState);
+    const { body: putBody, deletedSnapshot, revivedSnapshot } = buildMergePutBody(currentEvent.id, buildsState, resultsState);
     const res = await fetch('/api/beyresults', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -5854,6 +5895,7 @@ async function removeMatch(mid, options = {}) {
     if (res.ok) {
       clearAckedDeletedSids(currentEvent.id, deletedSnapshot);
       const observed = sidsFromServerPayload(data.beyResults);
+      clearAckedRevivedSids(currentEvent.id, revivedSnapshot, observed);
       // Server-observed acknowledgement only — no optimistic fallback (Finding 1).
       confirmPendingMatchesSaved(observed);
       // Clear dirty so other clients' sync sees the deletion instead of being blocked by the dirty-branch merge
@@ -7895,6 +7937,29 @@ function getEventDeletedSids(eventId) {
   return _pendingDeletedSids.get(eventId);
 }
 
+// Sids the client intentionally RE-CREATED since the last successful PUT and so
+// must un-tombstone on the server. Populated only by the Challonge re-import
+// path: a re-imported pairing carries the SAME deterministic _matchSid it had
+// when it was deleted, and a server tombstone (24h TTL) would otherwise silently
+// drop it. Sending the sid in `revivedSids` clears ONLY that tombstone, so every
+// other deletion stays protected against stale-device resurrection. Keyed by
+// eventId for the same cross-event isolation reason as the deletion set.
+let _pendingRevivedSids = new Map(); // Map<eventId, Set<sid>>
+
+function getEventRevivedSids(eventId) {
+  if (!_pendingRevivedSids.has(eventId)) _pendingRevivedSids.set(eventId, new Set());
+  return _pendingRevivedSids.get(eventId);
+}
+
+// Record that the Challonge import just (re)created this sid: it must be revived
+// on the next PUT, and any pending deletion for it is superseded by the explicit
+// re-import (keeps the delete/revive sets mutually exclusive for one sid).
+function markChallongeImportRevived(sid) {
+  if (!sid || !currentEvent) return;
+  getEventRevivedSids(currentEvent.id).add(sid);
+  getEventDeletedSids(currentEvent.id).delete(sid);
+}
+
 // LIVE OUTBOX (start)
 // Idempotent per-device queue of un-acked match patches. Keyed by eventId in
 // localStorage. Each op: { eventId, matchSid, clientId, opId, payload, createdAt }.
@@ -7980,6 +8045,7 @@ function confirmPendingMatchesSaved(observedSids) {
 // can clear them only after a successful response.
 function buildMergePutBody(eventId, builds, beyResults) {
   const deletedSnapshot = Array.from(getEventDeletedSids(eventId));
+  const revivedSnapshot = Array.from(getEventRevivedSids(eventId));
   return {
     body: {
       adminUsername: adminUser,
@@ -7988,9 +8054,11 @@ function buildMergePutBody(eventId, builds, beyResults) {
       builds,
       beyResults,
       mergeMode: true,
-      deletedSids: deletedSnapshot
+      deletedSids: deletedSnapshot,
+      revivedSids: revivedSnapshot
     },
-    deletedSnapshot
+    deletedSnapshot,
+    revivedSnapshot
   };
 }
 
@@ -7998,6 +8066,14 @@ function clearAckedDeletedSids(eventId, deletedSnapshot) {
   if (!eventId || !Array.isArray(deletedSnapshot)) return;
   const set = getEventDeletedSids(eventId);
   for (const sid of deletedSnapshot) set.delete(sid);
+}
+
+function clearAckedRevivedSids(eventId, revivedSnapshot, observedSids) {
+  if (!eventId || !Array.isArray(revivedSnapshot) || !observedSids) return;
+  const set = getEventRevivedSids(eventId);
+  for (const sid of revivedSnapshot) {
+    if (observedSids.has(sid)) set.delete(sid);
+  }
 }
 
 async function queueCreatedMatchSave() {
@@ -8012,7 +8088,7 @@ async function queueCreatedMatchSave() {
   const savedSids = getMatchSidSnapshot();
   const savedResults = JSON.parse(JSON.stringify(resultsState));
   const savedBuilds = JSON.parse(JSON.stringify(buildsState));
-  const { body: savedBody, deletedSnapshot } = buildMergePutBody(eventId, savedBuilds, savedResults);
+  const { body: savedBody, deletedSnapshot, revivedSnapshot } = buildMergePutBody(eventId, savedBuilds, savedResults);
   const retryOps = [];
   for (const match of matchesState) {
     if (!match || !match._pendingServerSave || !match._sid) continue;
@@ -8042,6 +8118,7 @@ async function queueCreatedMatchSave() {
     if (!res.ok) throw new Error(data.error || 'Automatic match save failed.');
     clearAckedDeletedSids(eventId, deletedSnapshot);
     const observedSids = sidsFromServerPayload(data.beyResults);
+    clearAckedRevivedSids(eventId, revivedSnapshot, observedSids);
     for (const op of retryOps) {
       if (observedSids.has(op.matchSid)) dropOutboxOp(eventId, op.opId);
     }
@@ -8502,7 +8579,7 @@ async function submitMatch(mid) {
     flattenMatchesToResults();
 
     const savedSids = getMatchSidSnapshot();
-    const { body: putBody, deletedSnapshot } = buildMergePutBody(currentEvent.id, buildsState, resultsState);
+    const { body: putBody, deletedSnapshot, revivedSnapshot } = buildMergePutBody(currentEvent.id, buildsState, resultsState);
     const res = await fetch('/api/beyresults', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -8512,9 +8589,11 @@ async function submitMatch(mid) {
     if (!res.ok) throw new Error(data.error || 'Submit failed');
 
     clearAckedDeletedSids(currentEvent.id, deletedSnapshot);
+    const observedSids = sidsFromServerPayload(data.beyResults);
+    clearAckedRevivedSids(currentEvent.id, revivedSnapshot, observedSids);
     // Server-observed acknowledgement only — pending matches stay protected
     // until the server echoes the sid back (Finding 1).
-    confirmPendingMatchesSaved(sidsFromServerPayload(data.beyResults));
+    confirmPendingMatchesSaved(observedSids);
     _lastSyncHash = syncFingerprint(buildsState, resultsState);
     markDirty(); // still dirty until Finalize runs archive+stats
     renderResults();
@@ -8610,7 +8689,7 @@ async function unsubmitMatch(mid) {
     flattenMatchesToResults();
 
     const savedSids = getMatchSidSnapshot();
-    const { body: putBody, deletedSnapshot } = buildMergePutBody(currentEvent.id, buildsState, resultsState);
+    const { body: putBody, deletedSnapshot, revivedSnapshot } = buildMergePutBody(currentEvent.id, buildsState, resultsState);
     const res = await fetch('/api/beyresults', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -8620,9 +8699,11 @@ async function unsubmitMatch(mid) {
     if (!res.ok) throw new Error(data.error || 'Unsubmit failed');
 
     clearAckedDeletedSids(currentEvent.id, deletedSnapshot);
+    const observedSids = sidsFromServerPayload(data.beyResults);
+    clearAckedRevivedSids(currentEvent.id, revivedSnapshot, observedSids);
     // Server-observed acknowledgement only — pending matches stay protected
     // until the server echoes the sid back (Finding 1).
-    confirmPendingMatchesSaved(sidsFromServerPayload(data.beyResults));
+    confirmPendingMatchesSaved(observedSids);
     _lastSyncHash = syncFingerprint(buildsState, resultsState);
     markDirty();
     renderResults();

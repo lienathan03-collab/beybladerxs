@@ -189,6 +189,17 @@ export function mergeBeyResults(existing, incoming, deletedSidsArr, opts = {}) {
     }
   }
 
+  // Explicit REVIVE: drop tombstones for sids the caller declares it just
+  // intentionally recreated (e.g. a Challonge re-import of a previously-deleted
+  // pairing — same deterministic _matchSid). This clears ONLY the named sids, so
+  // every other tombstone keeps blocking stale-device resurrection. Revive runs
+  // AFTER deletions so an explicit re-import wins a same-PUT delete/revive clash.
+  if (opts && Array.isArray(opts.revivedSids)) {
+    for (const sid of opts.revivedSids) {
+      if (typeof sid === 'string' && sid.length) tombAt.delete(sid);
+    }
+  }
+
   // Drop any incoming data entries the tombstone set forbids.
   const incomingData = incomingWithSids.filter(e => !isTombstone(e) && !tombAt.has(e._matchSid));
 

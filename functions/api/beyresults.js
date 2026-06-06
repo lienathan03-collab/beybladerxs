@@ -192,6 +192,17 @@ export function mergeBeyResults(existing, incoming, deletedSidsArr, opts = {}) {
     }
   }
 
+  // Explicit REVIVE: drop tombstones for sids the caller declares it just
+  // intentionally recreated (e.g. a Challonge re-import of a previously-deleted
+  // pairing — same deterministic _matchSid). This clears ONLY the named sids, so
+  // every other tombstone keeps blocking stale-device resurrection. Revive runs
+  // AFTER deletions so an explicit re-import wins a same-PUT delete/revive clash.
+  if (opts && Array.isArray(opts.revivedSids)) {
+    for (const sid of opts.revivedSids) {
+      if (typeof sid === 'string' && sid.length) tombAt.delete(sid);
+    }
+  }
+
   // Drop any incoming data entries the tombstone set forbids.
   const incomingData = incomingWithSids.filter(e => !isTombstone(e) && !tombAt.has(e._matchSid));
 
@@ -381,6 +392,7 @@ export async function onRequest(context) {
     const {
       adminUsername, adminPassword, eventId,
       builds, beyResults, mergeMode, deletedSids,
+      revivedSids,    // string[] — sids to un-tombstone (intentional re-import), passed through to DO
       purgePlayers,   // passed through to DO unchanged
       renamePlayer,   // passed through to DO unchanged
       __syncToKV,     // admin-only: read DO state and write directly to KV (pre-rollback export)
@@ -501,7 +513,7 @@ export async function onRequest(context) {
         }
 
         const doRes = await handleViaDurableObject(env, eventId, 'put', {
-          builds, beyResults, mergeMode, deletedSids,
+          builds, beyResults, mergeMode, deletedSids, revivedSids,
           purgePlayers, renamePlayer,
           __hydrateFromLegacy: hydrateHint
         });
@@ -591,9 +603,10 @@ export async function onRequest(context) {
       if (mergeMode === true || purgePlayers || renamePlayer || kvHasProtectedState) {
         // Always use merge path when any targeted operation is requested, or when
         // protection state (tombstones / purgedOwners) must be upheld.
+        const kvMergeOpts = Array.isArray(revivedSids) ? { revivedSids } : undefined;
         finalBeyResults = Array.isArray(beyResults)
-          ? mergeBeyResults(kvWorkingResults, beyResults, kvDeletedSids)
-          : mergeBeyResults(kvWorkingResults, [], kvDeletedSids);
+          ? mergeBeyResults(kvWorkingResults, beyResults, kvDeletedSids, kvMergeOpts)
+          : mergeBeyResults(kvWorkingResults, [], kvDeletedSids, kvMergeOpts);
         finalBuilds = (builds && typeof builds === 'object')
           ? mergeBuilds(kvWorkingBuilds, builds)
           : kvWorkingBuilds;
