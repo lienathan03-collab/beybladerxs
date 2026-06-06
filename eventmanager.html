@@ -7873,6 +7873,13 @@ function syncFingerprint(builds, results) {
 }
 // === SYNC-FINGERPRINT END ===
 let _lastSyncHash   = '';    // fingerprint of last known server state
+// Set by mergeIncomingMatches when it KEPT a protected local match (un-acked
+// outbox write / active live match) over a DIFFERING server snapshot — i.e. a
+// real server update was deferred, not applied. doLiveSync must then NOT advance
+// _lastSyncHash, so the next poll re-runs the merge and lands the update once the
+// protection clears. Advancing the fingerprint here drops the update forever when
+// the server snapshot doesn't change again (the cross-device winner-not-showing bug).
+let _syncMergeDeferred = false;
 let _syncErrorCount = 0;
 let _createMatchSaveQueue = Promise.resolve();
 let _queuedCreateMatchSaves = 0;
@@ -8136,10 +8143,14 @@ async function doLiveSync() {
     const incoming = data.beyResults || [];
     const hash = syncFingerprint(data.builds || {}, incoming);
     if (hash === _lastSyncHash) { setLiveIndicator('live'); _syncErrorCount = 0; return; }
-    _lastSyncHash = hash;
 
-    // Merge: bring in any matches from server that we don't have locally
+    // Merge BEFORE advancing the fingerprint: a protected local match (un-acked
+    // outbox write / active live match) can defer applying this server snapshot.
+    // Only record the fingerprint once nothing was deferred — otherwise the next
+    // poll must be allowed to re-run the merge against the same server state and
+    // land the update when the protection clears (Finding 3).
     const merged = mergeIncomingMatches(data.builds || {}, incoming);
+    if (!_syncMergeDeferred) _lastSyncHash = hash;
     _syncErrorCount = 0;
 
     if (merged) {
@@ -8159,6 +8170,10 @@ async function doLiveSync() {
 }
 
 function mergeIncomingMatches(serverBuilds, serverResults) {
+  // Reset the deferral signal for this merge pass. Set true below whenever a
+  // protected local match keeps us from applying a DIFFERING server snapshot, so
+  // doLiveSync leaves _lastSyncHash unchanged and retries on the next poll.
+  _syncMergeDeferred = false;
   // Convert server beyResults → matchesState format
   const serverMatches = [];
   const rounds = [...new Set(serverResults.map(r => r.round))];
@@ -8273,9 +8288,15 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
           if (local._pendingServerSave) delete local._pendingServerSave;
           const isActive = (_activeLiveMatchSid && sm._sid === _activeLiveMatchSid)
             || _pendingOutboxSids.has(sm._sid);
-          if (!isActive && (sm.submitted || local.submitted ||
-              JSON.stringify({ p1: sm.p1, p2: sm.p2, team1: sm.team1, team2: sm.team2 }) !==
-              JSON.stringify({ p1: local.p1, p2: local.p2, team1: local.team1, team2: local.team2 }))) {
+          const payloadDiffers =
+            JSON.stringify({ p1: sm.p1, p2: sm.p2, team1: sm.team1, team2: sm.team2 }) !==
+            JSON.stringify({ p1: local.p1, p2: local.p2, team1: local.team1, team2: local.team2 });
+          // Protected match hiding a real server change → defer, so doLiveSync
+          // leaves the fingerprint stale and retries next poll (Finding 3).
+          if (isActive && (!!sm.submitted !== !!local.submitted || payloadDiffers)) {
+            _syncMergeDeferred = true;
+          }
+          if (!isActive && (sm.submitted || local.submitted || payloadDiffers)) {
             const snap = JSON.stringify({ p1: local.p1, p2: local.p2, submitted: local.submitted,
               team1: local.team1, team2: local.team2, _playOrder: local._playOrder });
             local.submitted = sm.submitted;
@@ -8356,6 +8377,14 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
     // server snapshot is stale and would erase the just-entered score (same rule
     // as the dirty-path guard above).
     if (existing && sm._sid && _pendingOutboxSids.has(sm._sid)) {
+      // Protected: keep the local match. If the server snapshot actually differs,
+      // flag the merge as deferred so doLiveSync doesn't advance the fingerprint
+      // and retries once the outbox write is acked (Finding 3).
+      const diff =
+        !!sm.submitted !== !!existing.submitted ||
+        JSON.stringify({ p1: sm.p1, p2: sm.p2, team1: sm.team1, team2: sm.team2 }) !==
+        JSON.stringify({ p1: existing.p1, p2: existing.p2, team1: existing.team1, team2: existing.team2 });
+      if (diff) _syncMergeDeferred = true;
       return existing;
     }
     sm.id        = existing ? existing.id        : _matchIdCounter++;

@@ -1933,3 +1933,87 @@ test('dedupeChallongeImports: one approval removes duplicates without per-match 
   assert.equal(confirmCalls, 1);
   assert.equal(ctx.matchesState.length, 1);
 });
+
+// Finding 3 — doLiveSync must NOT advance _lastSyncHash when mergeIncomingMatches
+// deferred a server update because a local match was still protected by an
+// un-acked outbox write. If it advances the fingerprint, the next poll sees an
+// unchanged server snapshot, short-circuits on the equal hash, and the server's
+// winner is never applied — the cross-device "winner doesn't show up" bug.
+function loadLiveSyncContext(localMatchesState, serverPayload, outboxSids) {
+  const ctx = {
+    currentEvent: { id: 'evt-b' },
+    _syncPaused: false,
+    _syncErrorCount: 0,
+    _lastSyncHash: '',
+    _activeLiveMatchSid: null,
+    _matchIdCounter: 50,
+    dirty: false,
+    buildsState: {},
+    matchesState: localMatchesState,
+    resultsState: [],
+    // A simple deterministic fingerprint is enough to expose the ordering bug.
+    syncFingerprint: (builds, results) => JSON.stringify([results, builds]),
+    document: { getElementById: () => null },
+    setLiveIndicator() {},
+    applyConcurrencyHeader() {},
+    fetch: async () => ({ ok: true, json: async () => serverPayload }),
+    // Outbox membership = protection. We mutate the returned set between polls.
+    loadOutbox: () => [...outboxSids].map(sid => ({ matchSid: sid })),
+    showToast() {},
+    renderBuilds() {}, renderResults() {}, renderRoundFilter() {},
+    playerKey: p => p,
+    slotKey: s => (s && (s.entryId || s.player)),
+    isDeSelfMatch: () => false,
+    flattenMatchesToResults() {
+      ctx.resultsState = ctx.matchesState.flatMap(m => [
+        { ...m.p1, round: m.round, _matchSid: m._sid },
+        { ...m.p2, round: m.round, _matchSid: m._sid },
+      ]);
+    },
+    Date, JSON, Set, Array, Object, Promise, console,
+  };
+  ctx._soloSid = (round, p1, p2, idx) =>
+    `${round}|${p1.entryId || p1.player}|${p2.entryId || p2.player}|${idx}`;
+  ctx._teamSid = (round, t1, t2, idx) => `${round}|T|${t1}|${t2}|${idx}`;
+  vm.createContext(ctx);
+  vm.runInContext(
+    extractBetween('async function doLiveSync()', 'function mergeIncomingMatches'),
+    ctx
+  );
+  loadMergeHelper(ctx);
+  return ctx;
+}
+
+test('Finding 3: a deferred (protected) server winner is applied once protection clears', async () => {
+  const sid = 'R1|a|b|0';
+  const localMatchesState = [{
+    id: 1, _sid: sid, round: 'R1', submitted: false,
+    p1: { player: 'a', entryId: 'a', win: false, builds: [] },
+    p2: { player: 'b', entryId: 'b', win: false, builds: [] },
+  }];
+  // Server already has the declared winner (synced from Challonge on device A).
+  const serverPayload = {
+    builds: {},
+    beyResults: [
+      { player: 'a', entryId: 'a', round: 'R1', _matchSid: sid, win: true,  _submitted: true, builds: [] },
+      { player: 'b', entryId: 'b', round: 'R1', _matchSid: sid, win: false, _submitted: true, builds: [] },
+    ],
+  };
+  const outboxSids = new Set([sid]); // local write still un-acked → protected
+  const ctx = loadLiveSyncContext(localMatchesState, serverPayload, outboxSids);
+
+  // Poll 1: protection holds, the server winner is correctly NOT applied yet.
+  await vm.runInContext('doLiveSync()', ctx);
+  assert.equal(ctx.matchesState[0].submitted, false,
+    'poll 1 must not overwrite a protected local match');
+
+  // Protection clears (the local write was acked and drained from the outbox).
+  outboxSids.clear();
+
+  // Poll 2: the server snapshot is UNCHANGED. The winner must still land now.
+  await vm.runInContext('doLiveSync()', ctx);
+  assert.equal(ctx.matchesState[0].submitted, true,
+    'poll 2 must apply the server winner once protection clears');
+  assert.equal(ctx.matchesState[0].p1.win, true,
+    'the declared winner must propagate to this device');
+});
