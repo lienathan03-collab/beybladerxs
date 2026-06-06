@@ -2,9 +2,10 @@
 // Caches the app shell so judges can run tournaments with no signal.
 // Bump CACHE_VERSION whenever you ship a new version of the HTML.
 
-const CACHE_VERSION = 'rxs-em-v15';
+const CACHE_VERSION = 'rxs-em-v16';
 const APP_SHELL = [
   '/eventmanager.html',
+  '/index.html',
   '/manifest.webmanifest',
   '/icon-192.png',
   '/icon-512.png',
@@ -79,8 +80,18 @@ self.addEventListener('fetch', event => {
       }
       return res;
     }).catch(() =>
-      // Offline: serve from cache
-      caches.match(req).then(cached => cached || caches.match('/eventmanager.html'))
+      // Offline: serve the exact request from cache, falling back to the
+      // correct app shell for navigations. Public pages must NOT fall back to
+      // the admin Event Manager shell, so pick the shell by request path.
+      caches.match(req).then(cached => {
+        if (cached) return cached;
+        if (req.mode === 'navigate') {
+          const isEventManager = url.pathname.startsWith('/eventmanager');
+          return caches.match(isEventManager ? '/eventmanager.html' : '/index.html')
+            .then(shell => shell || caches.match('/eventmanager.html'));
+        }
+        return undefined;
+      })
     )
   );
 });

@@ -3552,7 +3552,7 @@ function getPlayerTop3Beys(playerName, allEventData) {
   }
   return Object.entries(buildMap)
     .filter(([,s]) => s.played > 0)
-    .map(([build, s]) => ({ build, ...s, winRate: s.wins / s.played * 100 }))
+    .map(([build, s]) => ({ build, ...s, winRate: s.played > 0 ? s.wins / s.played * 100 : 0 }))
     .sort((a, b) => b.winRate - a.winRate || b.wins - a.wins)
     .slice(0, 3);
 }
@@ -3573,6 +3573,17 @@ function escJs(s) {
     .replace(/\r/g, '\\r')
     .replace(/</g, '\\x3c')
     .replace(/>/g, '\\x3e');
+}
+
+// Return a URL only if it is a safe http(s) or image data URL with no
+// characters that could break out of an HTML attribute or a CSS url(). Anything
+// else (javascript:, quotes, angle brackets, whitespace) yields '' so callers
+// fall back to a default. Use this for every interpolated image src / bg URL.
+function safeUrl(u) {
+  u = String(u == null ? '' : u).trim();
+  if (!/^(https?:|data:image\/)/i.test(u)) return '';
+  if (/["'<>\s]/.test(u)) return '';
+  return u;
 }
 
 // Space-insensitive player name match
@@ -4040,7 +4051,7 @@ function renderRulersCup() {
     const rankClass = t.rank===1 ? 'rc-gold' : t.rank===2 ? 'rc-silver' : t.rank===3 ? 'rc-bronze' : '';
     const rankIcon = t.rank===1 ? '👑' : t.rank===2 ? '🥈' : t.rank===3 ? '🥉' : `#${t.rank}`;
     const logo = t.photo
-      ? `<img class="rc-logo" src="${t.photo}" onerror="this.style.display='none'" />`
+      ? `<img class="rc-logo" src="${safeUrl(t.photo)}" onerror="this.style.display='none'" />`
       : `<div class="rc-logo-placeholder">🛡️</div>`;
     return `<div class="rc-card">
       <div class="rc-rank-num ${rankClass}">${rankIcon}</div>
@@ -4426,7 +4437,7 @@ function renderWeekly() {
       return `<td style="text-align:center"><span${cls}>${s}</span></td>`;
     }).join('');
     const rd=i===0?'\uD83E\uDD47':i===1?'\uD83E\uDD48':i===2?'\uD83E\uDD49':`#${i+1}`;
-    return `<tr><td><span style="color:var(--muted);font-size:12px;margin-right:8px">${rd}</span><span class="blader-name">${p.name}</span>${getTagHtml(p.name)}</td>${cells}<td><span class="score${i===0?' champ':''}" style="display:block;text-align:right">${p.total}</span></td></tr>`;
+    return `<tr><td><span style="color:var(--muted);font-size:12px;margin-right:8px">${rd}</span><span class="blader-name">${escHtml(p.name)}</span>${getTagHtml(p.name)}</td>${cells}<td><span class="score${i===0?' champ':''}" style="display:block;text-align:right">${p.total}</span></td></tr>`;
   }).join('');
 }
 
@@ -4473,10 +4484,10 @@ function renderTeamTotals() {
   document.getElementById('team-totals').innerHTML = Object.keys(totals).sort((a,b)=>totals[b]-totals[a]).map(key => {
     const cfg = teamConfig[key] || {name:key, color:'#888', icon:'⚔️', logo:'', fbUrl:''};
     const logoHtml = cfg.logo
-      ? `<img src="${cfg.logo}" alt="${cfg.name}" onerror="this.style.display='none';this.nextSibling.style.display='block'"><span style="display:none">${cfg.icon}</span>`
-      : `<span>${cfg.icon}</span>`;
+      ? `<img src="${safeUrl(cfg.logo)}" alt="${escHtml(cfg.name)}" onerror="this.style.display='none';this.nextSibling.style.display='block'"><span style="display:none">${escHtml(cfg.icon)}</span>`
+      : `<span>${escHtml(cfg.icon)}</span>`;
     const logoEl = cfg.fbUrl
-      ? `<a class="team-card-logo-wrap" href="${cfg.fbUrl}" target="_blank" rel="noopener" title="Visit ${cfg.name} on Facebook" style="text-decoration:none">${logoHtml}</a>`
+      ? `<a class="team-card-logo-wrap" href="${safeUrl(cfg.fbUrl)}" target="_blank" rel="noopener" title="Visit ${escHtml(cfg.name)} on Facebook" style="text-decoration:none">${logoHtml}</a>`
       : `<div class="team-card-logo-wrap">${logoHtml}</div>`;
     const canDelete = key !== 'Independent';
     const deleteBtn = canDelete ? `<button class="team-card-delete-btn admin-only-btn" style="display:none" onclick="confirmDeleteTeam('${key}')" title="Delete team">🗑</button>` : '';
@@ -4484,7 +4495,7 @@ function renderTeamTotals() {
       ${logoEl}
       <div class="team-card-info">
         <div class="team-card-pts" style="color:${cfg.color}">${totals[key]}</div>
-        <div class="team-card-name">${cfg.name}</div>
+        <div class="team-card-name">${escHtml(cfg.name)}</div>
       </div>
       <button class="team-card-edit-btn admin-only-btn" style="display:none" onclick="openTeamEditModal('${key}')">✏️ Edit</button>
       ${deleteBtn}
@@ -4634,7 +4645,7 @@ function renderAchievements() {
       if (matchedPlayer) autoPhoto = getBladerStats(matchedPlayer.name).photo || '';
     }
     const photoHtml = autoPhoto
-      ? `<img src="${autoPhoto}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--border2)" onerror="this.style.display='none';this.nextSibling.style.display='flex'" /><div class="ach-icon" style="display:none">${a.icon||'🏆'}</div>`
+      ? `<img src="${safeUrl(autoPhoto)}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--border2)" onerror="this.style.display='none';this.nextSibling.style.display='flex'" /><div class="ach-icon" style="display:none">${escHtml(a.icon||'🏆')}</div>`
       : `<div class="ach-icon">${a.icon||'🏆'}</div>`;
     const safeKey = JSON.stringify(a._manual ? null : (a._autoKey || '')).replace(/"/g, '&quot;');
     const editBtn = a._manual
@@ -4868,12 +4879,12 @@ function openBladerProfile(name) {
   const DEFAULT_HERO_BG = 'https://i.imgur.com/ixgnPf6.jpeg';
   const heroBgSrc = st0.bgPhoto || DEFAULT_HERO_BG;
   const heroBgEl = modal.querySelector('.profile-hero-bg');
-  heroBgEl.innerHTML = `<img src="${heroBgSrc}" crossorigin="anonymous" />`;
+  heroBgEl.innerHTML = `<img src="${safeUrl(heroBgSrc) || DEFAULT_HERO_BG}" crossorigin="anonymous" />`;
   heroBgEl.style.background = '';
 
   const av = modal.querySelector('.profile-avatar');
   const DEFAULT_AVATAR = 'https://i.imgur.com/0KtgsFq.png';
-  av.innerHTML = `<img src="${profile.photo || DEFAULT_AVATAR}" alt="${name}" onerror="this.src='${DEFAULT_AVATAR}'" />`;
+  av.innerHTML = `<img src="${safeUrl(profile.photo) || DEFAULT_AVATAR}" alt="${escHtml(name)}" onerror="this.src='${DEFAULT_AVATAR}'" />`;
 
   modal.querySelector('.profile-pname').textContent = name;
   modal.querySelector('.profile-tags').innerHTML =
@@ -4910,12 +4921,12 @@ function openBladerProfile(name) {
   // update photo preview thumbnail
   const photoPrev = modal.querySelector('#pe-photo-preview');
   photoPrev.innerHTML = st.photo
-    ? `<img src="${st.photo}" style="width:100%;height:100%;object-fit:cover" />`
+    ? `<img src="${safeUrl(st.photo)}" style="width:100%;height:100%;object-fit:cover" />`
     : '👤';
   // update bg photo preview thumbnail
   const bgPrev = modal.querySelector('#pe-bgphoto-preview');
   if (st.bgPhoto) {
-    bgPrev.style.backgroundImage = `url("${st.bgPhoto}")`;
+    bgPrev.style.backgroundImage = `url("${safeUrl(st.bgPhoto)}")`;
     bgPrev.style.backgroundSize = 'cover';
     bgPrev.style.backgroundPosition = 'center';
   } else {
@@ -5758,9 +5769,9 @@ function renderCarousel() {
         </svg>
       </a>` : '';
     const imgEl = p.img
-      ? `<img src="${p.img}" alt="${p.caption||''}"
+      ? `<img src="${safeUrl(p.img)}" alt="${escHtml(p.caption||'')}"
             style="width:100%;height:auto;display:block;max-height:600px;object-fit:contain;cursor:zoom-in;"
-            onclick="openLightbox('${p.img.replace(/'/g,"\\'")}')"
+            onclick="openLightbox('${safeUrl(p.img)}')"
             onerror="this.style.display='none'" />`
       : noImg;
     return `<div style="min-width:100%;position:relative;flex-shrink:0;background:#000;">
@@ -5842,9 +5853,9 @@ function renderCarousel2() {
         </svg>
       </a>` : '';
     const imgEl = p.img
-      ? `<img src="${p.img}" alt="${p.caption||''}"
+      ? `<img src="${safeUrl(p.img)}" alt="${escHtml(p.caption||'')}"
             style="width:100%;height:auto;display:block;max-height:600px;object-fit:contain;cursor:zoom-in;"
-            onclick="openLightbox('${p.img.replace(/'/g,"\\'")}')"
+            onclick="openLightbox('${safeUrl(p.img)}')"
             onerror="this.style.display='none'" />`
       : noImg;
     return `<div style="min-width:100%;position:relative;flex-shrink:0;background:#000;">
@@ -6220,7 +6231,7 @@ function previewBulkAdd() {
       ? `<span style="font-size:10px;color:var(--gold);margin-left:6px">⚠ already exists</span>`
       : `<span style="font-size:10px;color:var(--green);margin-left:6px">✓ new</span>`;
     return `<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);font-size:13px;font-family:'Share Tech Mono',monospace">
-      <span style="color:var(--text)">${name}</span>${tagHtml}${badge}
+      <span style="color:var(--text)">${escHtml(name)}</span>${tagHtml}${badge}
     </div>`;
   }).join('');
 }
@@ -6338,7 +6349,7 @@ function applyPlayerUI() {
   // Show profile photo in nav badge if available
   const st = getBladerStats(displayName);
   const avatarHtml = st.photo
-    ? `<img src="${st.photo}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0" onerror="this.replaceWith(document.createTextNode('👤'))" />`
+    ? `<img src="${safeUrl(st.photo)}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0" onerror="this.replaceWith(document.createTextNode('👤'))" />`
     : '👤';
   badge.innerHTML = avatarHtml + ' <span id="nav-player-name">' + escHtml(displayName) + '</span> <span style="font-size:10px;opacity:0.6">▾</span>';
   // Mobile
@@ -6517,12 +6528,12 @@ async function openPlayerMenuModal() {
   // Avatar + hero bg from current active season bladerStats
   const st = getBladerStats(displayName);
   document.getElementById('pm-avatar').innerHTML = st.photo
-    ? `<img src="${st.photo}" style="width:100%;height:100%;object-fit:cover;object-position:center top" />`
+    ? `<img src="${safeUrl(st.photo)}" style="width:100%;height:100%;object-fit:cover;object-position:center top" />`
     : '👤';
   const heroBg = document.getElementById('pm-hero-bg');
   const DEFAULT_HERO_BG = 'https://i.imgur.com/ixgnPf6.jpeg';
   const heroBgSrc = st.bgPhoto || DEFAULT_HERO_BG;
-  heroBg.style.backgroundImage = `url("${heroBgSrc}")`;
+  heroBg.style.backgroundImage = `url("${safeUrl(heroBgSrc)}")`;
 
   // Reset to overall tab
   switchProfileTab('overall', document.getElementById('pm-tab-overall'));
@@ -6816,7 +6827,7 @@ function renderAccountsList() {
     const aliases     = (acc.aliases || []).join(', ') || '—';
     const st          = getBladerStats(displayName);
     const avatarHtml  = st.photo
-      ? `<img src="${st.photo}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1px solid var(--border2)" />`
+      ? `<img src="${safeUrl(st.photo)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1px solid var(--border2)" />`
       : `<div style="width:36px;height:36px;border-radius:50%;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">👤</div>`;
     // find this player in current season's leaderboard
     const lbPlayer = players.find(p => p.name.toLowerCase() === displayName.toLowerCase());
@@ -7869,12 +7880,12 @@ function evdInlineInput(val) {
     const cfg = (teamConfig||{})[team];
     const color = cfg ? cfg.color : '#888';
     const tagHtml = team ? `<span style="font-size:10px;padding:1px 5px;border-radius:3px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${color};background:${color}22;border:0.5px solid ${color}55;margin-left:6px">${team}</span>` : '';
-    return `<div class="evd-dd-opt" data-idx="${i}" data-name="${p.name}"
+    return `<div class="evd-dd-opt" data-idx="${i}" data-name="${escHtml(p.name)}"
       style="padding:9px 13px;font-size:13px;color:var(--text);cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:.5px;display:flex;align-items:center;gap:4px;border-bottom:1px solid rgba(255,255,255,0.05);transition:background .12s"
       onmouseenter="evdDDHover(this)"
       onmouseleave="evdDDUnhover(this)"
-      onmousedown="evdDDSelect('${p.name.replace(/'/g,"\\'")}')">
-      <span>${p.name}</span>${tagHtml}
+      onmousedown="evdDDSelect(this.dataset.name)">
+      <span>${escHtml(p.name)}</span>${tagHtml}
       <span style="font-size:10px;color:var(--gold);margin-left:auto">on leaderboard</span>
     </div>`;
   }).join('');
@@ -7977,12 +7988,12 @@ function previewEventBulkAdd() {
       badge = `<span style="font-size:10px;color:var(--muted2);margin-left:auto">⚠ already joined</span>`;
       nameDisplay = `<span style="color:var(--muted2)">${displayName}</span>`;
     } else if (match) {
-      const corrected = match.name !== rawName ? `<span style="font-size:10px;color:var(--muted);margin-left:4px">← "${rawName}"</span>` : '';
+      const corrected = match.name !== rawName ? `<span style="font-size:10px;color:var(--muted);margin-left:4px">← "${escHtml(rawName)}"</span>` : '';
       badge = `<span style="font-size:10px;color:var(--gold);margin-left:auto">★ on leaderboard</span>`;
-      nameDisplay = `<span style="color:#fff;font-weight:700">${match.name}</span>${corrected}`;
+      nameDisplay = `<span style="color:#fff;font-weight:700">${escHtml(match.name)}</span>${corrected}`;
     } else {
       badge = `<span style="font-size:10px;color:#4ade80;margin-left:auto">+ new player</span>`;
-      nameDisplay = `<span style="color:#4ade80">${displayName}</span>`;
+      nameDisplay = `<span style="color:#4ade80">${escHtml(displayName)}</span>`;
     }
 
     return `<div style="display:flex;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;font-family:'Share Tech Mono',monospace;gap:4px">

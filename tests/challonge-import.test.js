@@ -180,6 +180,56 @@ test('alreadyImported detects existing challonge match id', () => {
   assert.equal(alreadyImported(state, 999), false);
 });
 
+test('onRequest: report WITHOUT admin credentials is rejected (401)', async () => {
+  const { onRequest } = await importChallongeApi();
+  const origFetch = global.fetch;
+  let challongeHit = false;
+  global.fetch = async () => { challongeHit = true; return new Response('{}', { status: 200 }); };
+  try {
+    const request = new Request(
+      'https://example.com/api/challonge?action=report&tournament_id=t1&match_id=m1&customKey=MYKEY',
+      { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scores_csv: '3-0', winner_id: 1 }) }
+    );
+    const res = await onRequest({ request, env: { ADMIN_USERNAME: 'admin', ADMIN_PASSWORD: 'secret' } });
+    assert.equal(res.status, 401);
+    assert.equal(challongeHit, false, 'must not reach Challonge without auth');
+  } finally {
+    global.fetch = origFetch;
+  }
+});
+
+test('onRequest: report WITH admin credentials writes to Challonge', async () => {
+  const { onRequest } = await importChallongeApi();
+  const origFetch = global.fetch;
+  let calledUrl = '', method = '';
+  global.fetch = async (u, init) => { calledUrl = String(u); method = init && init.method; return new Response('{"match":{"id":1}}', { status: 200 }); };
+  try {
+    const request = new Request(
+      'https://example.com/api/challonge?action=report&tournament_id=t1&match_id=m1&customKey=MYKEY',
+      { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scores_csv: '3-0', winner_id: 1, adminUsername: 'admin', adminPassword: 'secret' }) }
+    );
+    const res = await onRequest({ request, env: { ADMIN_USERNAME: 'admin', ADMIN_PASSWORD: 'secret' } });
+    assert.equal(res.status, 200);
+    assert.match(calledUrl, /api\.challonge\.com\/v1\/tournaments\/t1\/matches\/m1\.json/);
+    assert.equal(method, 'PUT');
+  } finally {
+    global.fetch = origFetch;
+  }
+});
+
+test('onRequest: report with WRONG admin password is rejected (401)', async () => {
+  const { onRequest } = await importChallongeApi();
+  const request = new Request(
+    'https://example.com/api/challonge?action=report&tournament_id=t1&match_id=m1&customKey=MYKEY',
+    { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scores_csv: '3-0', winner_id: 1, adminUsername: 'admin', adminPassword: 'WRONG' }) }
+  );
+  const res = await onRequest({ request, env: { ADMIN_USERNAME: 'admin', ADMIN_PASSWORD: 'secret' } });
+  assert.equal(res.status, 401);
+});
+
 test('challongeMatchSid is stable across devices and independent of legacy player-pair ids', () => {
   const { challongeMatchSid } = loadChallongeHelpers();
 

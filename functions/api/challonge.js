@@ -64,7 +64,20 @@ export async function onRequest(context) {
 
     let body = {};
     try { body = await request.json(); } catch (e) { body = {}; }
-    const { scores_csv, winner_id } = body;
+    const { scores_csv, winner_id, adminUsername, adminPassword } = body;
+
+    // Writing a result back to Challonge uses the server's API key, so it MUST
+    // require admin credentials. Without this gate any anonymous caller could
+    // overwrite bracket results using the configured account's key.
+    const isAdmin =
+      (adminUsername === env.ADMIN_USERNAME && adminPassword === env.ADMIN_PASSWORD) ||
+      (env.ADMIN2_USERNAME && adminUsername === env.ADMIN2_USERNAME && adminPassword === env.ADMIN2_PASSWORD);
+    if (!isAdmin) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized. Admin credentials required.' }),
+        { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      );
+    }
 
     if (!scores_csv) {
       return new Response(
