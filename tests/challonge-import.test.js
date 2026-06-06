@@ -180,6 +180,18 @@ test('alreadyImported detects existing challonge match id', () => {
   assert.equal(alreadyImported(state, 999), false);
 });
 
+test('challongeMatchSid is stable across devices and independent of legacy player-pair ids', () => {
+  const { challongeMatchSid } = loadChallongeHelpers();
+
+  assert.equal(challongeMatchSid(459446168), 'CHALLONGE|459446168');
+  assert.equal(challongeMatchSid('459446168'), 'CHALLONGE|459446168');
+  assert.notEqual(
+    challongeMatchSid(459446168),
+    'R1|entry-a|entry-b|0',
+    'a re-import must not reuse the legacy sid that may still be tombstoned'
+  );
+});
+
 test('buildImportPlan: imports open matches, skips non-open and duplicates; DE self-match imports as de-self', () => {
   const { buildImportPlan } = loadChallongeHelpers();
   const pidMap = {

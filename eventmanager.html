@@ -2213,7 +2213,7 @@
 let adminUser = '';
 let adminPass = '';
 let allEvents = [];
-const APP_VERSION = 'rxs-em-v14';
+const APP_VERSION = 'rxs-em-v15';
 
 let currentEvent = null;
 
@@ -3499,6 +3499,15 @@ function alreadyImported(matchesState, challongeMatchId) {
   return (matchesState || []).some(m => m._challongeMatchId === challongeMatchId);
 }
 
+// Challonge's match id is the cross-device identity for imported pairings.
+// It is stable for every device but intentionally different from the legacy
+// round/player SID, which may still have an active server tombstone after a
+// match was removed and then re-imported.
+function challongeMatchSid(challongeMatchId) {
+  const id = String(challongeMatchId == null ? '' : challongeMatchId).trim();
+  return id ? `CHALLONGE|${id}` : '';
+}
+
 function challongeImportSignature(round, ref1, ref2, isTeam) {
   const a = isTeam ? (ref1 && ref1.teamName) : (ref1 && ref1.entryId);
   const b = isTeam ? (ref2 && ref2.teamName) : (ref2 && ref2.entryId);
@@ -3971,10 +3980,45 @@ function challongeJoinerTeamToMatchTeam(joiner) {
 
 let _challongeImportSaveDeferred = false;
 
+// CHALLONGE-SID-MIGRATION START
+// Migrate only unconfirmed imports created by older clients. Acknowledged
+// historical matches keep their original SID so this compatibility repair
+// cannot duplicate matches that already exist on the server.
+function migratePendingChallongeMatchSids(eventId) {
+  if (!eventId) return 0;
+  let migrated = 0;
+  for (const match of (matchesState || [])) {
+    if (!match || !match._pendingServerSave || !match._challongeMatchId) continue;
+    const nextSid = challongeMatchSid(match._challongeMatchId);
+    if (!nextSid || match._sid === nextSid) continue;
+    const oldSid = match._sid;
+    match._sid = nextSid;
+    migrated++;
+
+    // Drop retries that can never cross the legacy tombstone. queueCreatedMatchSave
+    // will immediately enqueue a fresh patch under nextSid.
+    if (oldSid && typeof loadOutbox === 'function' && typeof saveOutbox === 'function') {
+      saveOutbox(eventId, loadOutbox(eventId).filter(op => op && op.matchSid !== oldSid));
+    }
+    if (typeof getEventDeletedSids === 'function') {
+      if (oldSid) getEventDeletedSids(eventId).delete(oldSid);
+      getEventDeletedSids(eventId).delete(nextSid);
+    }
+    if (typeof getEventRevivedSids === 'function') {
+      if (oldSid) getEventRevivedSids(eventId).delete(oldSid);
+      getEventRevivedSids(eventId).add(nextSid);
+    }
+  }
+  if (migrated) flattenMatchesToResults();
+  return migrated;
+}
+// CHALLONGE-SID-MIGRATION END
+
 async function challongeImportOpenMatches() {
   _challongeImportSaveDeferred = false;
   if (!currentEvent || !currentEvent.challongeTournamentId) return 0;
   if (currentEvent.challongeMissing) return 0;
+  migratePendingChallongeMatchSids(currentEvent.id);
   const isTeam = currentEvent.type === '3v3';
   if (!isTeam && hasDuplicateSoloParticipantMappings(currentEvent.challongeParticipantMap)) {
     showToast('⚠ Some Challonge participants share the same roster slot — fix the participant mapping before importing.', 'error');
@@ -4001,13 +4045,9 @@ async function challongeImportOpenMatches() {
         const t1 = (currentEvent.joiners || []).find(j => j.type === 'team' && j.teamName === item.side1Ref?.teamName);
         const t2 = (currentEvent.joiners || []).find(j => j.type === 'team' && j.teamName === item.side2Ref?.teamName);
         if (!t1 || !t2) continue;
-        const teamPairCount = matchesState.filter(m =>
-          m.isTeamMatch && m.round === item.round &&
-          m.team1?.teamName === t1.teamName && m.team2?.teamName === t2.teamName
-        ).length;
         const mt1 = challongeJoinerTeamToMatchTeam(t1);
         const mt2 = challongeJoinerTeamToMatchTeam(t2);
-        const teamMatchSid = _teamSid(item.round, t1.teamName, t2.teamName, teamPairCount);
+        const teamMatchSid = challongeMatchSid(item.challongeMatchId);
         markChallongeImportRevived(teamMatchSid);
         matchesState.push({
           id: _matchIdCounter++,
@@ -4027,12 +4067,7 @@ async function challongeImportOpenMatches() {
         const e1 = challongeEntryToMatchSlot(item.side1Ref);
         const e2 = challongeEntryToMatchSlot(item.side2Ref);
         if (!e1 || !e2) continue;
-        const soloPairCount = matchesState.filter(m =>
-          !m.isTeamMatch && m.round === item.round &&
-          (e1.entryId ? m.p1?.entryId === e1.entryId : m.p1?.player === e1.player) &&
-          (e2.entryId ? m.p2?.entryId === e2.entryId : m.p2?.player === e2.player)
-        ).length;
-        const soloMatchSid = _soloSid(item.round, e1, e2, soloPairCount);
+        const soloMatchSid = challongeMatchSid(item.challongeMatchId);
         markChallongeImportRevived(soloMatchSid);
         matchesState.push({
           id: _matchIdCounter++,

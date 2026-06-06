@@ -281,6 +281,7 @@ test('challongeImportOpenMatches: persisted duplicate solo mapping blocks import
       fetchCalled = true;
       throw new Error('fetch must not run for duplicate mappings');
     },
+    migratePendingChallongeMatchSids: () => 0,
     showToast: (message, type) => toasts.push({ message, type }),
   };
   vm.createContext(ctx);

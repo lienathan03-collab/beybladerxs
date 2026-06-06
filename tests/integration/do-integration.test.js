@@ -2275,3 +2275,52 @@ test('revivedSids lets a re-imported match through an active tombstone (KV path)
     'KV: revivedSids must let the intentional re-import persist'
   );
 });
+
+test('stable Challonge sid persists and updates even when a legacy DO ignores revivedSids', async () => {
+  const { mergeBeyResults } = await import('../../workers/bey-state-do/src/merge.js');
+  const legacySid = 'R1|entry-a|entry-b|0';
+  const challongeSid = 'CHALLONGE|459446168';
+  const tombstoned = [{
+    _matchSid: legacySid,
+    _tombstone: true,
+    _deletedAt: Date.now()
+  }];
+
+  // Device 1 imports the open Challonge match. A legacy worker ignores the
+  // revivedSids field, but the stable Challonge identity does not collide with
+  // the old player-pair tombstone and therefore persists.
+  const imported = mergeBeyResults(tombstoned, [
+    { player: 'Alice', entryId: 'entry-a', round: 'R1', _matchSid: challongeSid, builds: [], win: false },
+    { player: 'Bob', entryId: 'entry-b', round: 'R1', _matchSid: challongeSid, builds: [], win: false }
+  ], []);
+  assert.ok(
+    imported.some(row => row._matchSid === challongeSid && row.player === 'Alice'),
+    'device 2 can receive the imported match from authoritative state'
+  );
+
+  // Device 2 scores the same stable identity 5-0. The patch replaces the
+  // imported rows instead of creating a duplicate or being blocked.
+  const scored = mergeBeyResults(imported, [
+    {
+      player: 'Alice', entryId: 'entry-a', round: 'R1', _matchSid: challongeSid,
+      builds: [{ finishes: ['O', 'O', 'S'] }], pointsTotal: 5, win: true, _submitted: true
+    },
+    {
+      player: 'Bob', entryId: 'entry-b', round: 'R1', _matchSid: challongeSid,
+      builds: [{ finishes: ['L', 'L', 'L'] }], pointsTotal: 0, win: false, _submitted: true
+    }
+  ], []);
+
+  const alice = scored.find(row => row._matchSid === challongeSid && row.player === 'Alice');
+  assert.equal(alice.pointsTotal, 5);
+  assert.equal(alice.win, true);
+  assert.equal(
+    scored.filter(row => row._matchSid === challongeSid).length,
+    2,
+    'both devices converge on one match identity'
+  );
+  assert.ok(
+    scored.some(row => row._matchSid === legacySid && row._tombstone === true),
+    'the unrelated legacy tombstone remains intact'
+  );
+});

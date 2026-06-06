@@ -44,6 +44,13 @@ function loadMergeHelper(context) {
   );
 }
 
+function loadChallongeSidMigration(context) {
+  vm.runInContext(
+    extractBetween('// CHALLONGE-SID-MIGRATION START', '// CHALLONGE-SID-MIGRATION END'),
+    context
+  );
+}
+
 function loadMatchesHelper(context) {
   const start = html.indexOf('function loadMatchesFromResults()');
   const end   = html.indexOf('function flattenMatchesToResults()', start);
@@ -656,6 +663,45 @@ test('client: clearAckedRevivedSids removes only snapshot sids observed on the s
     remaining,
     ['R1|P|Q|0'],
     'a 200 response must not clear revive intent for a sid the server did not echo'
+  );
+});
+
+test('client: pending legacy Challonge matches migrate to stable ids without renaming acknowledged matches', () => {
+  const pending = makePendingMatch(1, '1');
+  pending._challongeMatchId = 459446168;
+  const oldPendingSid = pending._sid;
+  const acknowledged = makePendingMatch(2, '2');
+  acknowledged._challongeMatchId = 459446169;
+  delete acknowledged._pendingServerSave;
+  const oldAcknowledgedSid = acknowledged._sid;
+
+  const context = createContext([pending, acknowledged]);
+  loadQueueHelpers(context);
+  context.challongeMatchSid = id => `CHALLONGE|${id}`;
+  loadChallongeSidMigration(context);
+  context.enqueueOutboxOp(oldPendingSid, {
+    eventId: 'evt-test',
+    beyResults: [{ _matchSid: oldPendingSid }]
+  });
+
+  const migrated = context.migratePendingChallongeMatchSids('evt-test');
+
+  assert.equal(migrated, 1);
+  assert.equal(pending._sid, 'CHALLONGE|459446168');
+  assert.equal(
+    acknowledged._sid,
+    oldAcknowledgedSid,
+    'server-acknowledged historical matches keep their existing identity'
+  );
+  assert.equal(
+    context.loadOutbox('evt-test').some(op => op.matchSid === oldPendingSid),
+    false,
+    'the permanently blocked legacy retry must be removed'
+  );
+  assert.deepEqual(
+    Array.from(context.getEventRevivedSids('evt-test')),
+    ['CHALLONGE|459446168'],
+    'the migrated identity is included in normal revive-capable writes'
   );
 });
 
