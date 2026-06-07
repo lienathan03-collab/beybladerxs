@@ -3581,9 +3581,24 @@ function escJs(s) {
 // fall back to a default. Use this for every interpolated image src / bg URL.
 function safeUrl(u) {
   u = String(u == null ? '' : u).trim();
-  if (!/^(https?:|data:image\/)/i.test(u)) return '';
   if (/["'<>\s]/.test(u)) return '';
-  return u;
+  if (/^(https?:|data:image\/)/i.test(u)) return u;     // absolute http(s) or image data URL
+  if (/^\/[^/]/.test(u)) return u;                       // same-origin rooted path e.g. /api/photo?id=…
+  return '';
+}
+
+// Upload an image data URL to R2-backed (currently KV-backed) storage and return
+// a same-origin /api/photo?id=… URL to store instead of a giant data URL. Admin
+// only (photo editing happens in admin contexts).
+async function uploadImage(dataUrl) {
+  const res = await fetch('/api/upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ adminUsername: _acAdminUsername, adminPassword: _acAdminPassword, dataUrl })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || ('Upload failed (' + res.status + ')'));
+  return data.url;
 }
 
 // GET /api/accounts now requires authentication (anti-enumeration). Admin views
@@ -4085,12 +4100,18 @@ function handleRCPhotoUpload(input) {
   const file = input.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = function(e) {
+  reader.onload = async function(e) {
+    const dataUrl = e.target.result;
     document.getElementById('rc-photo-input').value = '';
-    document.getElementById('rc-photo-preview-img').src = e.target.result;
+    document.getElementById('rc-photo-preview-img').src = dataUrl; // instant local preview
     document.getElementById('rc-photo-preview').style.display = 'block';
-    // store base64 in a temp variable
-    window._rcPhotoBase64 = e.target.result;
+    try {
+      // Upload and store a compact URL instead of the giant data URL.
+      window._rcPhotoBase64 = await uploadImage(dataUrl);
+    } catch (err) {
+      window._rcPhotoBase64 = '';
+      showToast('⚠ Photo upload failed: ' + err.message, 'error');
+    }
   };
   reader.readAsDataURL(file);
 }
@@ -5156,16 +5177,22 @@ function handleProfilePhotoUpload(input) {
   const file = input.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = function(e) {
+  reader.onload = async function(e) {
     const dataUrl = e.target.result;
-    document.getElementById('pe-photo').value = dataUrl;
     document.getElementById('pe-photo-url').value = '';
     const prev = document.getElementById('pe-photo-preview');
-    prev.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover" />`;
-    const bgHidden = document.getElementById('pe-bgphoto').value;
-    if (!bgHidden) {
-      const heroBgEl = document.querySelector('#blader-profile-modal .profile-hero-bg');
-      heroBgEl.innerHTML = `<img src="${dataUrl}" crossorigin="anonymous" />`;
+    prev.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover" />`; // instant preview
+    try {
+      const url = await uploadImage(dataUrl);
+      document.getElementById('pe-photo').value = url; // store compact URL, not the data URL
+      const bgHidden = document.getElementById('pe-bgphoto').value;
+      if (!bgHidden) {
+        const heroBgEl = document.querySelector('#blader-profile-modal .profile-hero-bg');
+        heroBgEl.innerHTML = `<img src="${url}" crossorigin="anonymous" />`;
+      }
+    } catch (err) {
+      document.getElementById('pe-photo').value = '';
+      showToast('⚠ Photo upload failed: ' + err.message, 'error');
     }
   };
   reader.readAsDataURL(file);
@@ -5188,16 +5215,22 @@ function handleBgPhotoUpload(input) {
   const file = input.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = function(e) {
+  reader.onload = async function(e) {
     const dataUrl = e.target.result;
-    document.getElementById('pe-bgphoto').value = dataUrl;
     document.getElementById('pe-bgphoto-url').value = '';
     const prev = document.getElementById('pe-bgphoto-preview');
-    prev.style.backgroundImage = `url("${dataUrl}")`;
+    prev.style.backgroundImage = `url("${dataUrl}")`; // instant preview
     prev.style.backgroundSize = 'cover';
     prev.style.backgroundPosition = 'center';
-    const heroBgEl = document.querySelector('#blader-profile-modal .profile-hero-bg');
-    heroBgEl.innerHTML = `<img src="${dataUrl}" crossorigin="anonymous" />`;
+    try {
+      const url = await uploadImage(dataUrl);
+      document.getElementById('pe-bgphoto').value = url; // store compact URL
+      const heroBgEl = document.querySelector('#blader-profile-modal .profile-hero-bg');
+      heroBgEl.innerHTML = `<img src="${url}" crossorigin="anonymous" />`;
+    } catch (err) {
+      document.getElementById('pe-bgphoto').value = '';
+      showToast('⚠ Photo upload failed: ' + err.message, 'error');
+    }
   };
   reader.readAsDataURL(file);
 }
