@@ -1,4 +1,5 @@
 import { checkRateLimit, clientIp } from './_shared/ratelimit.js';
+import { verifyPassword, needsUpgrade, hashPassword } from './_shared/password.js';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -141,11 +142,23 @@ export async function onRequest(context) {
   }
 
   const account = accounts[username];
-  if (!account || account.password !== passwordHash) {
+  if (!account || !(await verifyPassword(account.password, passwordHash))) {
     return new Response(
       JSON.stringify({ error: 'Incorrect username or password.' }),
       { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
     );
+  }
+
+  // Transparent migration: upgrade a legacy bare-sha256 password to PBKDF2 on
+  // successful login. Same password, so tokenVersion is NOT bumped (sessions
+  // stay valid). Best-effort — a failed upgrade just retries next login.
+  if (needsUpgrade(account.password)) {
+    try {
+      const upgraded = { ...accounts[username], password: await hashPassword(passwordHash) };
+      accounts[username] = upgraded;
+      account.password = upgraded.password;
+      await kv.put('accounts', JSON.stringify(accounts));
+    } catch (_) { /* non-fatal */ }
   }
 
   // Issue a session token embedding the current tokenVersion

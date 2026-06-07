@@ -1,4 +1,5 @@
 import { doRenamePlayerInEvent } from './_shared/do-client.js';
+import { verifyPassword, hashPassword } from './_shared/password.js';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -139,7 +140,7 @@ export async function onRequest(context) {
         );
       }
 
-      if (account.password !== currentPasswordHash) {
+      if (!(await verifyPassword(account.password, currentPasswordHash))) {
         return new Response(
           JSON.stringify({ error: 'Current password is incorrect.' }),
           { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
@@ -147,7 +148,7 @@ export async function onRequest(context) {
       }
 
       const newTokenVersion = (account.tokenVersion || 0) + 1;
-      accounts[selfUsername] = { ...account, password: newPasswordHash, tokenVersion: newTokenVersion };
+      accounts[selfUsername] = { ...account, password: await hashPassword(newPasswordHash), tokenVersion: newTokenVersion };
 
       try {
         await kv.put(KEY, JSON.stringify(accounts));
@@ -714,17 +715,23 @@ export async function onRequest(context) {
       for (const [username, acc] of Object.entries(accounts)) {
         const existingAcc = existing[username] || {};
 
-        if (acc.password && acc.password !== existingAcc.password) {
-          // Password is new or changed — increment tokenVersion to revoke all existing sessions
+        if (acc.password) {
+          // A password was explicitly provided (account create or admin reset).
+          // The client sends sha256(password); stretch it with PBKDF2 before
+          // storing, and bump tokenVersion to revoke all existing sessions.
+          // (GET strips password, so the admin UI only sends it when deliberately
+          // set — unchanged accounts take the else branch and are untouched.)
           merged[username] = {
             ...acc,
+            password: await hashPassword(acc.password),
             tokenVersion: (existingAcc.tokenVersion || 0) + 1
           };
         } else {
-          // No password change — preserve existing password (if payload omits it) and tokenVersion
+          // No password provided — preserve the existing (already-hashed) password
+          // and tokenVersion.
           merged[username] = {
             ...acc,
-            password: acc.password || existingAcc.password,
+            password: existingAcc.password,
             tokenVersion: existingAcc.tokenVersion || 0
           };
         }
