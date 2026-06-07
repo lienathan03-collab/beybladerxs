@@ -5405,6 +5405,8 @@ async function pushMatchLive(match) {
     const acked = sidsFromServerPayload(data.beyResults);
     if (acked && acked.has(match._sid)) {
       if (op) dropOutboxOp(eventId, op.opId);
+      // Server now holds this score: protect it from any GET issued earlier.
+      if (typeof markSidCommitted === 'function') markSidCommitted(match._sid);
       if (body.revivedSids && body.revivedSids.length &&
           typeof clearAckedRevivedSids === 'function') {
         clearAckedRevivedSids(eventId, body.revivedSids, acked);
@@ -5436,6 +5438,7 @@ async function flushOutbox() {
       const acked = sidsFromServerPayload(data.beyResults);
       if (acked && acked.has(op.matchSid)) {
         dropOutboxOp(eventId, op.opId);
+        if (typeof markSidCommitted === 'function') markSidCommitted(op.matchSid);
         if (op.payload.revivedSids && op.payload.revivedSids.length &&
             typeof clearAckedRevivedSids === 'function') {
           clearAckedRevivedSids(eventId, op.payload.revivedSids, acked);
@@ -7538,10 +7541,23 @@ function lmCommitAndClose() {
   flattenMatchesToResults();
   markDirty();
   renderResults();
-  // Arm auto-submit on the REAL match (solo proxy writes back to _soloRef).
   const _tid = (match._isSolo && match._soloRef) ? match._soloRef.id : match.id;
-  evaluateAutoSubmit(_tid);
+  // closeLiveMode() synchronously enqueues the protective live-push outbox op for
+  // _tid, so the score is guarded before anything else runs.
   closeLiveMode();
+  const realMatch = matchesState.find(m => m.id === _tid);
+  // Explicit Done on a DECIDED match submits the final score immediately rather
+  // than arming the 4s auto-submit countdown — that window let a stale sync
+  // response overwrite the score and surface "This match has no winner yet."
+  // submitMatch is dedup-guarded, so it can't double-fire with a pending
+  // countdown. A partial/undecided close just live-pushes and lets the normal
+  // auto-submit engine handle it.
+  if (realMatch && !realMatch.submitted && typeof matchHasDecisiveWinner === 'function'
+      && matchHasDecisiveWinner(realMatch)) {
+    submitMatch(_tid);
+  } else {
+    evaluateAutoSubmit(_tid);
+  }
   showToast('⚡ Live scoring committed!', 'success');
 }
 
@@ -8073,6 +8089,22 @@ let _lastSyncHash   = '';    // fingerprint of last known server state
 // the server snapshot doesn't change again (the cross-device winner-not-showing bug).
 let _syncMergeDeferred = false;
 let _syncErrorCount = 0;
+// Sids whose submitMatch() is in flight. A submitting match must never be
+// overwritten by a sync/poll response (it would un-submit or wipe the winner),
+// and a second Done/Submit for the same sid must be ignored (no double submit).
+let _submittingSids = new Set();
+// Per-sid wall-clock time (ms) of our last server-confirmed local write — set
+// when a live-push or submit is acked. A sync GET issued BEFORE that commit can
+// still resolve AFTER the protecting outbox op was dropped, carrying a pre-write
+// snapshot that would erase the just-saved score. doLiveSync/submitMatch record
+// when they issued their fetch in _syncFetchStartedAt (just before calling the
+// merge); the merge refuses any sid whose commit is newer than that fetch. This
+// is condition-based (compares real event timestamps), never a fixed delay.
+let _sidLastCommitAt = {};
+let _syncFetchStartedAt = 0;
+function markSidCommitted(sid) {
+  if (sid && typeof _sidLastCommitAt !== 'undefined') _sidLastCommitAt[sid] = Date.now();
+}
 let _createMatchSaveQueue = Promise.resolve();
 let _queuedCreateMatchSaves = 0;
 // Sids the user explicitly deleted since the last successful PUT. Keyed by
@@ -8359,6 +8391,9 @@ async function doLiveSync() {
   if (modal && modal.style.display !== 'none') return;
 
   setLiveIndicator('syncing');
+  // Stamp when THIS read leaves the device. The merge refuses any sid we
+  // committed after this instant — that snapshot predates our write.
+  const _fetchedAt = Date.now();
   try {
     const res = await fetch(`/api/beyresults?eventId=${currentEvent.id}&_t=${Date.now()}`);
     applyConcurrencyHeader(res);
@@ -8376,6 +8411,7 @@ async function doLiveSync() {
     // Only record the fingerprint once nothing was deferred — otherwise the next
     // poll must be allowed to re-run the merge against the same server state and
     // land the update when the protection clears (Finding 3).
+    _syncFetchStartedAt = _fetchedAt; // read by the merge's read-your-writes guard
     const merged = mergeIncomingMatches(data.builds || {}, incoming);
     if (!_syncMergeDeferred) _lastSyncHash = hash;
     _syncErrorCount = 0;
@@ -8489,6 +8525,23 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
     }
   } catch (e) { /* outbox unavailable — fall back to active-match guard only */ }
 
+  // A sid is protected from this (necessarily stale) server snapshot when it is:
+  //   • the actively-scored live match, or
+  //   • a match with an un-acked outbox write still pending, or
+  //   • currently being submitted (submitMatch in flight), or
+  //   • newer on this device than the read that produced this snapshot — i.e. our
+  //     last confirmed commit for the sid happened AFTER this response's GET was
+  //     issued, so the response cannot reflect it (read-your-writes guard).
+  const _sidIsProtected = (sid) => {
+    if (!sid) return false;
+    if (_activeLiveMatchSid && sid === _activeLiveMatchSid) return true;
+    if (_pendingOutboxSids.has(sid)) return true;
+    if (typeof _submittingSids !== 'undefined' && _submittingSids && _submittingSids.has(sid)) return true;
+    if (typeof _sidLastCommitAt !== 'undefined' && typeof _syncFetchStartedAt !== 'undefined'
+        && _syncFetchStartedAt && _sidLastCommitAt[sid] && _sidLastCommitAt[sid] > _syncFetchStartedAt) return true;
+    return false;
+  };
+
   // If user has unsaved dirty changes, add NEW matches from server and remove deleted ones,
   // but don't overwrite local edits to existing matches
   if (dirty) {
@@ -8513,8 +8566,7 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
         const local = matchesState.find(m => m._sid === sm._sid);
         if (local) {
           if (local._pendingServerSave) delete local._pendingServerSave;
-          const isActive = (_activeLiveMatchSid && sm._sid === _activeLiveMatchSid)
-            || _pendingOutboxSids.has(sm._sid);
+          const isActive = _sidIsProtected(sm._sid);
           const payloadDiffers =
             JSON.stringify({ p1: sm.p1, p2: sm.p2, team1: sm.team1, team2: sm.team2 }) !==
             JSON.stringify({ p1: local.p1, p2: local.p2, team1: local.team1, team2: local.team2 });
@@ -8600,10 +8652,11 @@ function mergeIncomingMatches(serverBuilds, serverResults) {
   // (preserve local match IDs, collapse state, and submitted flag to avoid flicker)
   const newState = serverMatches.map(sm => {
     const existing = matchesState.find(m => m._sid === sm._sid);
-    // Keep the local match intact if its live-push hasn't been acked yet — the
+    // Keep the local match intact if it is still protected (un-acked live-push,
+    // actively scored, being submitted, or committed-after-this-read) — the
     // server snapshot is stale and would erase the just-entered score (same rule
     // as the dirty-path guard above).
-    if (existing && sm._sid && _pendingOutboxSids.has(sm._sid)) {
+    if (existing && sm._sid && _sidIsProtected(sm._sid)) {
       // Protected: keep the local match. If the server snapshot actually differs,
       // flag the merge as deferred so doLiveSync doesn't advance the fingerprint
       // and retries once the outbox write is acked (Finding 3).
@@ -8662,6 +8715,10 @@ async function submitMatch(mid) {
   if (!currentEvent) return;
   const match = matchesState.find(m => m.id === mid);
   if (!match) return;
+  // Prevent duplicate submissions: a fast double-tap of Done, or Done racing the
+  // auto-submit countdown, must not fire two concurrent submits for one match.
+  if (match.submitted) return;
+  if (match._sid && typeof _submittingSids !== 'undefined' && _submittingSids.has(match._sid)) return;
   _clearAutoSubmitTimer(mid); // this submit supersedes any running countdown
 
   // Check match has a result
@@ -8677,11 +8734,17 @@ async function submitMatch(mid) {
   const btn = card ? card.querySelector('.btn.success') : null;
   if (btn) { btn.textContent = '⏳ Submitting…'; btn.disabled = true; }
 
+  // Claim the sid AFTER the optional confirm bail-out so a cancelled confirm
+  // doesn't leave the match falsely flagged as submitting. The merge treats a
+  // submitting sid as protected, so a stale poll can't wipe it mid-submit.
+  if (match._sid && typeof _submittingSids !== 'undefined') _submittingSids.add(match._sid);
+
   // Pause sync so it can't run between merge and push
   _syncPaused = true;
 
   try {
     // 1. Fetch latest server state
+    _syncFetchStartedAt = Date.now(); // read by the internal merge's read-your-writes guard
     const latestRes = await fetch(`/api/beyresults?eventId=${currentEvent.id}&_t=${Date.now()}`);
     if (!latestRes.ok) throw new Error('Could not reach server');
     const latestData = await latestRes.json();
@@ -8730,6 +8793,12 @@ async function submitMatch(mid) {
 
     const savedSids = getMatchSidSnapshot();
     const { body: putBody, deletedSnapshot, revivedSnapshot } = buildMergePutBody(currentEvent.id, buildsState, resultsState);
+    // Snapshot only the exact queued op represented by this PUT. A different
+    // match (or a newer op for this sid) may be scored while the request is in
+    // flight and must not be cleared by this response.
+    const submittedOutboxOp = (toSubmit._sid && typeof loadOutbox === 'function')
+      ? loadOutbox(currentEvent.id).find(op => op.matchSid === toSubmit._sid)
+      : null;
     const res = await fetch('/api/beyresults', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -8744,6 +8813,15 @@ async function submitMatch(mid) {
     // Server-observed acknowledgement only — pending matches stay protected
     // until the server echoes the sid back (Finding 1).
     confirmPendingMatchesSaved(observedSids);
+    // This submit superseded any queued live-push for the same sid and the server
+    // now holds the final score: drop the redundant outbox op and record the
+    // commit so a poll whose GET predates it can't overwrite the submitted result.
+    if (submittedOutboxOp && observedSids && observedSids.has(toSubmit._sid) &&
+        typeof dropOutboxOp === 'function') {
+      dropOutboxOp(currentEvent.id, submittedOutboxOp.opId);
+    }
+    if (toSubmit._sid && observedSids && observedSids.has(toSubmit._sid) &&
+        typeof markSidCommitted === 'function') markSidCommitted(toSubmit._sid);
     _lastSyncHash = syncFingerprint(buildsState, resultsState);
     markDirty(); // still dirty until Finalize runs archive+stats
     renderResults();
@@ -8754,8 +8832,12 @@ async function submitMatch(mid) {
   } catch (e) {
     showToast('❌ Submit failed: ' + e.message, 'error');
     if (btn) { btn.textContent = '⬆ Submit'; btn.disabled = false; }
+    // Keep the locally scored result — only the save failed. The outbox op (and
+    // the protections above) keep it from being wiped by a later poll, and the
+    // user can retry Submit.
     match.submitted = false;
   } finally {
+    if (match._sid && typeof _submittingSids !== 'undefined') _submittingSids.delete(match._sid);
     _syncPaused = false;
   }
 }

@@ -2159,3 +2159,269 @@ test('Finding 3: a deferred (protected) server winner is applied once protection
   assert.equal(ctx.matchesState[0].p1.win, true,
     'the declared winner must propagate to this device');
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FAST-DONE / STALE-RESPONSE — the live-match "score lost, no winner yet" bug.
+//
+// Repro: a judge scores quickly and taps Done. The per-match live push commits
+// the score to the server and its protecting outbox op is dropped on ack. But a
+// sync GET that was ALREADY IN FLIGHT (issued before that commit) then resolves
+// carrying the pre-score snapshot — after both _activeLiveMatchSid and the outbox
+// op have cleared — and overwrites the fresh local winner with "no winner".
+//
+// Fix: a sid is also protected from a sync/poll response when (a) it is being
+// submitted (_submittingSids), or (b) our last confirmed local commit for that
+// sid (_sidLastCommitAt) is NEWER than the time that response's GET was issued
+// (_syncFetchStartedAt). Condition-based (compares real event times), no delay.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('stale poll issued BEFORE our commit must not wipe a freshly-scored winner', () => {
+  const local = { id: 1, _sid: 'R1|a|b|0', round: 'R1', submitted: false,
+    p1: { player: 'a', entryId: 'a', builds: [{ finishes: ['O', 'O', 'S'] }], win: true },
+    p2: { player: 'b', entryId: 'b', builds: [], win: false } };
+  const context = createContext([local]);
+  context._activeLiveMatchSid = null;     // Done already closed live mode
+  context._submittingSids = new Set();
+  context._sidLastCommitAt = { 'R1|a|b|0': 2000 }; // our push/submit committed at t=2000
+  context._syncFetchStartedAt = 1000;     // this poll's GET was issued at t=1000 (stale)
+  loadMergeHelper(context);
+
+  context.mergeIncomingMatches({}, [
+    { player: 'a', entryId: 'a', round: 'R1', builds: [], win: false, _matchSid: 'R1|a|b|0' },
+    { player: 'b', entryId: 'b', round: 'R1', builds: [], win: false, _matchSid: 'R1|a|b|0' },
+  ]);
+
+  const m = context.matchesState.find(x => x._sid === 'R1|a|b|0');
+  assert.equal(m.p1.win, true, 'a response fetched before our commit must not erase the winner');
+  assert.deepEqual(m.p1.builds, [{ finishes: ['O', 'O', 'S'] }], 'the just-entered finishes survive');
+});
+
+test('a match currently being submitted is never overwritten by a stale snapshot', () => {
+  const local = { id: 1, _sid: 'R1|a|b|0', round: 'R1', submitted: true,
+    p1: { player: 'a', entryId: 'a', builds: [{ finishes: ['O', 'O', 'S'] }], win: true },
+    p2: { player: 'b', entryId: 'b', builds: [], win: false } };
+  const context = createContext([local]);
+  context._activeLiveMatchSid = null;
+  context._submittingSids = new Set(['R1|a|b|0']); // submitMatch in flight for this sid
+  context._sidLastCommitAt = {};
+  context._syncFetchStartedAt = 0;
+  loadMergeHelper(context);
+
+  context.mergeIncomingMatches({}, [
+    { player: 'a', entryId: 'a', round: 'R1', builds: [], win: false, _matchSid: 'R1|a|b|0' },
+    { player: 'b', entryId: 'b', round: 'R1', builds: [], win: false, _matchSid: 'R1|a|b|0' },
+  ]);
+
+  const m = context.matchesState.find(x => x._sid === 'R1|a|b|0');
+  assert.equal(m.submitted, true, 'a submitting match must not be un-submitted by a stale poll');
+  assert.equal(m.p1.win, true, 'a submitting match must not lose its winner to a stale poll');
+});
+
+test('multiple devices: submitting match X is protected while device B\'s new match Y still merges in', () => {
+  const X = { id: 1, _sid: 'R1|a|b|0', round: 'R1', submitted: false,
+    p1: { player: 'a', entryId: 'a', builds: [{ finishes: ['O', 'O'] }], win: true },
+    p2: { player: 'b', entryId: 'b', builds: [], win: false } };
+  const context = createContext([X]);
+  context._activeLiveMatchSid = null;
+  context._submittingSids = new Set(['R1|a|b|0']); // this device is submitting X
+  context._sidLastCommitAt = {};
+  context._syncFetchStartedAt = 0;
+  loadMergeHelper(context);
+
+  // Server snapshot: a STALE X (no score, our submit hasn't echoed back yet) plus
+  // a brand-new match Y that device B just submitted.
+  context.mergeIncomingMatches({}, [
+    { player: 'a', entryId: 'a', round: 'R1', builds: [], win: false, _matchSid: 'R1|a|b|0' },
+    { player: 'b', entryId: 'b', round: 'R1', builds: [], win: false, _matchSid: 'R1|a|b|0' },
+    { player: 'c', entryId: 'c', round: 'R1', builds: [], win: true,  _matchSid: 'R1|c|d|0' },
+    { player: 'd', entryId: 'd', round: 'R1', builds: [], win: false, _matchSid: 'R1|c|d|0' },
+  ]);
+
+  const x = context.matchesState.find(m => m._sid === 'R1|a|b|0');
+  const y = context.matchesState.find(m => m._sid === 'R1|c|d|0');
+  assert.equal(x.p1.win, true, 'our submitting match X keeps its local winner');
+  assert.ok(y, 'device B\'s new match Y is added');
+  assert.equal(y.p1.win, true, 'device B\'s winner is adopted for the new match');
+});
+
+test('full-replace doLiveSync: a stale poll after our commit does not erase a submitted winner', async () => {
+  const sid = 'R1|a|b|0';
+  const local = [{ id: 1, _sid: sid, round: 'R1', submitted: true,
+    p1: { player: 'a', entryId: 'a', win: true,  builds: [{ finishes: ['O', 'O', 'S'] }] },
+    p2: { player: 'b', entryId: 'b', win: false, builds: [] } }];
+  const stalePayload = { builds: {}, beyResults: [
+    { player: 'a', entryId: 'a', round: 'R1', _matchSid: sid, win: false, builds: [] },
+    { player: 'b', entryId: 'b', round: 'R1', _matchSid: sid, win: false, builds: [] },
+  ] };
+  // Outbox already drained (the live-push op was acked and dropped). The only
+  // thing standing between the stale GET and the fresh local winner is the
+  // commit-time guard.
+  const ctx = loadLiveSyncContext(local, stalePayload, new Set());
+  ctx._submittingSids = new Set();
+  ctx._sidLastCommitAt = { [sid]: Number.MAX_SAFE_INTEGER }; // commit newer than this poll's GET
+  ctx._syncFetchStartedAt = 0;
+
+  await vm.runInContext('doLiveSync()', ctx);
+
+  assert.equal(ctx.matchesState[0].p1.win, true,
+    'a poll whose GET predates our commit must not overwrite the submitted winner');
+  assert.equal(ctx.matchesState[0].submitted, true, 'and must not un-submit it');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FAST-DONE — Done submits the decided match immediately and only once.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function loadSubmitMatch(ctx) {
+  vm.runInContext(
+    extractBetween('async function submitMatch', 'async function unsubmitMatch'),
+    ctx
+  );
+}
+
+function loadLmCommitAndClose(ctx) {
+  vm.runInContext(
+    extractBetween('function lmCommitAndClose()', 'function lmStartEditBey'),
+    ctx
+  );
+}
+
+test('lmCommitAndClose submits a decided match immediately instead of arming the countdown', () => {
+  const realMatch = { id: 1, _sid: 'R1|a|b|0', submitted: false,
+    p1: { win: true }, p2: { win: false } };
+  const ctx = {
+    lmState: { match: realMatch },
+    matchesState: [realMatch],
+    flattenMatchesToResults() {}, markDirty() {}, renderResults() {},
+    closeLiveMode() { ctx.lmState = null; },
+    matchHasDecisiveWinner: (m) => !!(m.p1 && m.p1.win) !== !!(m.p2 && m.p2.win),
+    submitMatch(mid) { (ctx._submitted = ctx._submitted || []).push(mid); },
+    evaluateAutoSubmit(mid) { (ctx._armed = ctx._armed || []).push(mid); },
+    scheduleLivePush() {},
+    showToast() {},
+    JSON, console
+  };
+  vm.createContext(ctx);
+  loadLmCommitAndClose(ctx);
+
+  ctx.lmCommitAndClose();
+
+  assert.deepEqual(ctx._submitted, [1], 'Done on a decided match must submit it immediately, exactly once');
+  assert.equal(ctx._armed, undefined, 'Done on a decided match must NOT arm the 4s auto-submit countdown');
+});
+
+test('lmCommitAndClose still defers an undecided/partial close to the auto-submit engine', () => {
+  const realMatch = { id: 1, _sid: 'R1|a|b|0', submitted: false,
+    p1: { win: false }, p2: { win: false } };
+  const ctx = {
+    lmState: { match: realMatch },
+    matchesState: [realMatch],
+    flattenMatchesToResults() {}, markDirty() {}, renderResults() {},
+    closeLiveMode() { ctx.lmState = null; },
+    matchHasDecisiveWinner: (m) => !!(m.p1 && m.p1.win) !== !!(m.p2 && m.p2.win),
+    submitMatch(mid) { (ctx._submitted = ctx._submitted || []).push(mid); },
+    evaluateAutoSubmit(mid) { (ctx._armed = ctx._armed || []).push(mid); },
+    scheduleLivePush() {},
+    showToast() {},
+    JSON, console
+  };
+  vm.createContext(ctx);
+  loadLmCommitAndClose(ctx);
+
+  ctx.lmCommitAndClose();
+
+  assert.equal(ctx._submitted, undefined, 'an undecided close must not auto-submit');
+  assert.deepEqual(ctx._armed, [1], 'an undecided close still routes through evaluateAutoSubmit (live-push)');
+});
+
+test('submitMatch ignores a duplicate call while the first submission is in flight (no double Done)', async () => {
+  let fetches = 0;
+  let release;
+  const match = { id: 1, _sid: 'R1|a|b|0', round: 'R1', submitted: false,
+    p1: { player: 'a', win: true, builds: [] }, p2: { player: 'b', win: false, builds: [] } };
+  const ctx = {
+    currentEvent: { id: 'evt-1' }, matchesState: [match], buildsState: {}, resultsState: [],
+    adminUser: 'admin', adminPass: 'secret',
+    _submittingSids: new Set(), _sidLastCommitAt: {}, _syncFetchStartedAt: 0,
+    _syncPaused: false, _lastSyncHash: '',
+    _clearAutoSubmitTimer() {}, confirm: () => true,
+    document: { getElementById: () => null },
+    // Only the first call (the in-flight GET) blocks; later calls (the PUT)
+    // resolve immediately so a single submit can complete once released.
+    fetch: async () => {
+      fetches++;
+      if (fetches === 1) await new Promise(r => { release = r; });
+      return { ok: true, json: async () => ({ beyResults: [{ _matchSid: 'R1|a|b|0' }] }) };
+    },
+    mergeIncomingMatches() {}, flattenMatchesToResults() {}, renderResults() {}, markDirty() {}, showToast() {},
+    getMatchSidSnapshot: () => new Set(['R1|a|b|0']),
+    buildMergePutBody: () => ({ body: {}, deletedSnapshot: [], revivedSnapshot: [] }),
+    clearAckedDeletedSids() {}, sidsFromServerPayload: (r) => new Set((r || []).map(x => x._matchSid)),
+    clearAckedRevivedSids() {}, confirmPendingMatchesSaved() {}, confirmOutboxAcked() {},
+    syncFingerprint: () => 'fp',
+    Date, JSON, Set, Array, Object, Promise, console
+  };
+  vm.createContext(ctx);
+  loadSubmitMatch(ctx);
+
+  const first = ctx.submitMatch(1);
+  await new Promise(r => setImmediate(r));   // let the first call reach its (blocked) GET
+  const second = ctx.submitMatch(1);         // duplicate while first is in flight
+  await new Promise(r => setImmediate(r));    // give the duplicate a chance to (not) fetch
+
+  // First call is parked on its GET; the duplicate must have bailed before fetching.
+  assert.equal(fetches, 1, 'the duplicate Done must not start a second submission');
+
+  release();
+  await Promise.allSettled([first, second]);
+  // One real submit = one GET + one PUT. The duplicate contributed nothing.
+  assert.equal(fetches, 2, 'exactly one submission (GET+PUT) ran; the duplicate added none');
+  assert.equal(match.submitted, true, 'the match ends up submitted');
+});
+
+test('submitMatch ack does not clear a newer outbox score for another match', async () => {
+  const sidX = 'R1|a|b|0';
+  const sidY = 'R1|c|d|0';
+  const match = { id: 1, _sid: sidX, round: 'R1', submitted: false,
+    p1: { player: 'a', win: true, builds: [] }, p2: { player: 'b', win: false, builds: [] } };
+  const ctx = {
+    currentEvent: { id: 'evt-1' }, matchesState: [match], buildsState: {}, resultsState: [],
+    adminUser: 'admin', adminPass: 'secret',
+    _submittingSids: new Set(), _sidLastCommitAt: {}, _syncFetchStartedAt: 0,
+    _syncPaused: false, _lastSyncHash: '',
+    _clearAutoSubmitTimer() {}, confirm: () => true,
+    document: { getElementById: () => null },
+    localStorage: makeLocalStorage(),
+    crypto: { randomUUID: (() => { let n = 0; return () => 'op-' + (++n); })() },
+    mergeIncomingMatches() {}, flattenMatchesToResults() {}, renderResults() {}, markDirty() {}, showToast() {},
+    getMatchSidSnapshot: () => new Set([sidX]),
+    buildMergePutBody: () => ({ body: {}, deletedSnapshot: [], revivedSnapshot: [] }),
+    clearAckedDeletedSids() {}, sidsFromServerPayload: (r) => new Set((r || []).map(x => x._matchSid)),
+    clearAckedRevivedSids() {}, confirmPendingMatchesSaved() {},
+    syncFingerprint: () => 'fp',
+    Date, JSON, Set, Array, Object, Promise, console
+  };
+  vm.createContext(ctx);
+  loadOutboxHelpers(ctx);
+  loadSubmitMatch(ctx);
+
+  ctx.enqueueOutboxOp(sidX, { eventId: 'evt-1', beyResults: [{ _matchSid: sidX, win: true }] });
+  let fetches = 0;
+  ctx.fetch = async () => {
+    fetches++;
+    if (fetches === 2) {
+      // This score happened after X's PUT body was built, so X's response cannot
+      // acknowledge it even though the response echoes Y's existing server row.
+      ctx.enqueueOutboxOp(sidY, { eventId: 'evt-1', beyResults: [{ _matchSid: sidY, win: true }] });
+    }
+    return { ok: true, json: async () => ({ beyResults: [
+      { _matchSid: sidX }, { _matchSid: sidY }
+    ] }) };
+  };
+
+  await ctx.submitMatch(1);
+
+  const remaining = ctx.loadOutbox('evt-1');
+  assert.equal(remaining.length, 1, 'only the newer, unacknowledged Y operation remains');
+  assert.equal(remaining[0].matchSid, sidY, 'submitting X must not discard Y\'s newer score');
+});
