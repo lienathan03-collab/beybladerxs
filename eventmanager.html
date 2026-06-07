@@ -4205,6 +4205,26 @@ async function challongeReportMatch(match) {
       isTeam ? pmap[pid].teamName === key : pmap[pid].entryId === key
     ) || null;
   }
+  // Solo resolver: prefer the precise entryId, then fall back to NAME.
+  // Why the name fallback: roster names are bulk-pasted into Challonge as plain
+  // text, so the two sides share an identical (Challonge-unique) name but no
+  // common entryId — walk-ins/legacy joiners can even have entryId null. Without
+  // this, a winner whose name matches exactly still fails "isn't mapped". Reuses
+  // the same case/space-insensitive tolerance as matchSoloParticipant.
+  function findPidSolo(player) {
+    if (!player) return null;
+    if (player.entryId) {
+      const byId = Object.keys(pmap).find(pid => pmap[pid].entryId === player.entryId);
+      if (byId) return byId;
+    }
+    const norm = s => String(s || '').toLowerCase().replace(/\s+/g, '');
+    const want = [player.displayLabel, player.player, player.name].map(norm).filter(Boolean);
+    if (!want.length) return null;
+    return Object.keys(pmap).find(pid => {
+      const r = pmap[pid];
+      return [r.displayLabel, r.name].map(norm).some(rn => rn && want.includes(rn));
+    }) || null;
+  }
 
   let p1pts, p2pts, p1Id, p2Id, winnerId;
   if (match.isTeamMatch) {
@@ -4219,8 +4239,8 @@ async function challongeReportMatch(match) {
     // DE self-match: use coin-toss dePoints; normal match: use Beyblade finish points.
     p1pts = match._deSelfMatch ? (match.p1?.dePoints || 0) : calcPoints((match.p1?.builds) || []);
     p2pts = match._deSelfMatch ? (match.p2?.dePoints || 0) : calcPoints((match.p2?.builds) || []);
-    p1Id = match.p1 ? findPid(match.p1.entryId, false) : null;
-    p2Id = match.p2 ? findPid(match.p2.entryId, false) : null;
+    p1Id = match.p1 ? findPidSolo(match.p1) : null;
+    p2Id = match.p2 ? findPidSolo(match.p2) : null;
     winnerId = match.p1?.win ? p1Id : (match.p2?.win ? p2Id : null);
   }
   // The match is decisive (checked above) yet we could not resolve the WINNING
