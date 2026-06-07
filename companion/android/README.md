@@ -9,8 +9,9 @@ device comparison on real Beyblade battles.
 - **Runtime capability query** (Camera2): supported video sizes + true per-size max FPS
   (from min frame duration), AE FPS ranges, HDR10 flag, stabilization modes, and
   high-speed/slow-motion modes **listed separately** (never used for normal recording).
-- **Honest profile selection:** 4K/60 → 1080p/60 → 1080p/30 → largest-available. Tap the
-  **CAPS** chip (bottom-left) to see the full capability dump for the test report.
+- **Honest profile selection:** 4K/60 → 1080p/60 → 1080p/30 → largest-available.
+- **Review last clip:** after Stop, **▶ REVIEW LAST** opens the clip with play/scrub +
+  **frame-by-frame** stepping (ExoPlayer EXACT seek), then Close back to the camera.
 - **Records** via CameraX `Recorder`/`VideoCapture` with the chosen profile, AE FPS pinned.
 - **Saves clean MP4** to `MediaStore` → **Gallery → Movies/RXS** (normally shareable to
   TikTok/IG/YouTube; the saved file is the camera stream only — overlay is never burned in).
@@ -44,4 +45,4 @@ Record a real battle and compare against the stock Camera app:
 - Exposure lock + stabilization toggle not yet exposed in UI (capabilities are queried;
   controls land with the scoring build). Tap-focus + pinch-zoom only for now.
 - "Actual FPS" is set from the requested AE range; ground truth comes from the file in Phase 4.
-- No in-app gallery / frame-step review yet (Phase 8).
+- Review covers the **last** clip; a full multi-clip in-app gallery is still later (Phase 8).

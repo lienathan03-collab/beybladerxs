@@ -2,6 +2,7 @@ package com.rxs.recorder.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.view.PreviewView
@@ -102,7 +103,7 @@ private fun RecorderSurface() {
     LaunchedEffect(Unit) { controller.bind(lifecycleOwner, previewView) }
     DisposableEffect(Unit) { onDispose { controller.release() } }
 
-    var showCaps by remember { mutableStateOf(false) }
+    var reviewing by remember { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(
@@ -187,29 +188,20 @@ private fun RecorderSurface() {
             )
         }
 
-        // ── Capabilities dump (for Phase 3–5 report) ──
-        Pill(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(12.dp)
-                .pointerInput(Unit) { detectTapGestures { showCaps = !showCaps } }
-        ) { Mono(if (showCaps) "CAPS ▲" else "CAPS ▼") }
-
-        if (showCaps) {
-            Box(
-                Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 12.dp, bottom = 52.dp)
-                    .background(Color(0xCC000000), RoundedCornerShape(10.dp))
+        // ── Review the clip you just recorded ──
+        if (state.lastUri != null && !state.isRecording) {
+            Pill(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
                     .padding(12.dp)
-            ) {
-                Mono(controller.capsDescription(), size = 10)
-            }
+                    .pointerInput(Unit) { detectTapGestures { reviewing = true } }
+            ) { Mono("▶ REVIEW LAST", color = Color(0xFF7FF0A6)) }
         }
 
-        if (state.lastUri != null && !state.isRecording) {
-            Pill(modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp)) {
-                Mono("Saved → Gallery/Movies/RXS", color = Color(0xFF7FF0A6))
+        // ── Full-screen frame-by-frame review overlay ──
+        if (reviewing) {
+            state.lastUri?.let { uri ->
+                ReviewOverlay(uri = Uri.parse(uri), onClose = { reviewing = false })
             }
         }
     }
