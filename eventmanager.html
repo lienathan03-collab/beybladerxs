@@ -3470,6 +3470,16 @@ function matchSoloParticipant(rawName, players) {
   const lc = name.toLowerCase();
   hit = players.find(p => (p.displayLabel || '').toLowerCase() === lc || (p.name || '').toLowerCase() === lc);
   if (hit) return hit;
+  // space-insensitive — Challonge "VG.TETSUYA" vs roster "VG. TETSUYA" (same
+  // dotted-prefix tolerance _resolveBladerKey already applies to stat keys).
+  // Without this, a participant whose name differs only by spacing never maps,
+  // and publishing the round fails with "winner isn't mapped to a participant".
+  const noSpace = lc.replace(/\s+/g, '');
+  hit = players.find(p =>
+    (p.displayLabel || '').toLowerCase().replace(/\s+/g, '') === noSpace ||
+    (p.name || '').toLowerCase().replace(/\s+/g, '') === noSpace
+  );
+  if (hit) return hit;
   // DE trailing-number rule
   const { base, num } = challongeBaseName(name);
   if (num != null) {
@@ -3489,7 +3499,11 @@ function matchTeamParticipant(rawName, teams) {
   let hit = teams.find(t => t.teamName === name);
   if (hit) return hit;
   const lc = name.toLowerCase();
-  return teams.find(t => (t.teamName || '').toLowerCase() === lc) || null;
+  hit = teams.find(t => (t.teamName || '').toLowerCase() === lc);
+  if (hit) return hit;
+  // space-insensitive — same dotted-prefix tolerance as matchSoloParticipant.
+  const noSpace = lc.replace(/\s+/g, '');
+  return teams.find(t => (t.teamName || '').toLowerCase().replace(/\s+/g, '') === noSpace) || null;
 }
 
 function challongeRoundLabel(n) {

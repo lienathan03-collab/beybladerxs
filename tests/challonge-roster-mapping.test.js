@@ -65,6 +65,68 @@ test('matchSoloParticipant: fresh main and DE entries map "Cheyanne 1" and "Chey
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// matchSoloParticipant: space-insensitive fallback ("VG.TETSUYA" vs "VG. TETSUYA")
+// Regression for the "Winner isn't mapped to a Challonge participant" publish
+// error: a Challonge participant whose name differs from the roster entry only
+// by spacing around a dotted prefix must still auto-map (same rule already used
+// by _resolveBladerKey tier 3).
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('matchSoloParticipant: Challonge "VG.TETSUYA" maps to roster "VG. TETSUYA"', () => {
+  const { matchSoloParticipant } = loadChallongeHelpers();
+  const players = [
+    { name: 'VG. TETSUYA', displayLabel: 'VG. TETSUYA', entryId: 'e-tetsuya', entryType: 'main' },
+  ];
+  assert.equal(
+    matchSoloParticipant('VG.TETSUYA', players)?.entryId,
+    'e-tetsuya',
+    'spacing-only difference around the dot must still resolve'
+  );
+});
+
+test('matchSoloParticipant: Challonge "VG. GAV X" maps to roster "VG.GAV X"', () => {
+  const { matchSoloParticipant } = loadChallongeHelpers();
+  const players = [
+    { name: 'VG.GAV X', displayLabel: 'VG.GAV X', entryId: 'e-gav', entryType: 'main' },
+  ];
+  assert.equal(
+    matchSoloParticipant('VG. GAV X', players)?.entryId,
+    'e-gav',
+    'reverse spacing difference must also resolve'
+  );
+});
+
+test('matchSoloParticipant: space-insensitive does NOT collapse genuinely different names', () => {
+  const { matchSoloParticipant } = loadChallongeHelpers();
+  const players = [
+    { name: 'VG.TETSU', displayLabel: 'VG.TETSU', entryId: 'e-tetsu', entryType: 'main' },
+  ];
+  assert.equal(
+    matchSoloParticipant('VG.TETSUYA', players),
+    null,
+    'different names must remain unmatched'
+  );
+});
+
+test('buildParticipantMapCore: spacing-only mismatch auto-maps instead of going unmatched', () => {
+  const { buildParticipantMapCore } = loadChallongeHelpers();
+  const players = [
+    { name: 'VG. TETSUYA', displayLabel: 'VG. TETSUYA', entryId: 'e-tetsuya', entryType: 'main' },
+    { name: 'BOSS X',      displayLabel: 'BOSS X',      entryId: 'e-bossx',   entryType: 'main' },
+  ];
+  const participants = [
+    { id: 5,  display_name: 'VG.TETSUYA' }, // spacing differs from roster
+    { id: 19, display_name: 'BOSS X' },     // exact
+  ];
+  const { map, unmatched } = buildParticipantMapCore({
+    participants, players, teams: null, existingMap: {}, isTeam: false,
+  });
+  assert.equal(map[5]?.entryId, 'e-tetsuya', 'spacing-mismatched participant auto-maps');
+  assert.equal(map[19]?.entryId, 'e-bossx', 'exact participant still maps');
+  assert.equal(unmatched.length, 0, 'nothing left unmatched');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // buildParticipantMapCore — stale map repair, manual preservation, duplicates
 // ─────────────────────────────────────────────────────────────────────────────
 
