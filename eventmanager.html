@@ -3591,19 +3591,31 @@ function eventPointsToScoresCsv(p1pts, p2pts, winnerId, p1Id, p2Id) {
   // scores by winner would make Challonge map the winner's score onto the
   // losing slot (and vice-versa) whenever player 2 won — so the order here
   // must stay tied to participant position, never to the result.
-  const scores_csv = `${p1pts}-${p2pts}`;
+  //
+  // CRITICAL: Challonge derives the set winner from scores_csv and REJECTS the
+  // update (HTTP 422 — score is kept, winner dropped) when the winner_id we
+  // send is not the higher-scored side. That happens whenever a match is
+  // decided on something other than a strictly-higher point total (a tie on
+  // points, a coin-toss/forfeit, or a manual override). To stay consistent we
+  // keep the slot order fixed but lift the winner's own score component so it
+  // strictly leads — the winner still won, we just never report them trailing.
+  let s1 = Number(p1pts); if (!Number.isFinite(s1)) s1 = 0;
+  let s2 = Number(p2pts); if (!Number.isFinite(s2)) s2 = 0;
 
   let winner_id;
-  if (winnerId === p1Id) {
+  if (winnerId != null && winnerId === p1Id) {
     winner_id = p1Id;
-  } else if (winnerId === p2Id) {
+    if (s1 <= s2) s1 = s2 + 1; // player 1 is the winner — make their score lead
+  } else if (winnerId != null && winnerId === p2Id) {
     winner_id = p2Id;
+    if (s2 <= s1) s2 = s1 + 1; // player 2 is the winner — make their score lead
   } else {
-    // No explicit winner (e.g. unresolved tie)
+    // No resolvable winner (genuine tie, or the winner could not be mapped to a
+    // Challonge participant). Report it as a tie rather than a blank/invalid id.
     winner_id = winnerId != null ? winnerId : 'tie';
   }
 
-  return { scores_csv, winner_id };
+  return { scores_csv: `${s1}-${s2}`, winner_id };
 }
 
 function hasDuplicateSoloParticipantMappings(map) {
@@ -4197,7 +4209,32 @@ async function challongeReportMatch(match) {
     p2Id = match.p2 ? findPid(match.p2.entryId, false) : null;
     winnerId = match.p1?.win ? p1Id : (match.p2?.win ? p2Id : null);
   }
-  if (!p1Id && !p2Id) return;
+  // The match is decisive (checked above) yet we could not resolve the WINNING
+  // side to a Challonge participant. Reporting now would push a blank/"tie"
+  // winner that Challonge keeps the score for but rejects the winner on — the
+  // exact "score shows, no winner, request fails" symptom. Stop and surface a
+  // clear, actionable reason instead of silently pushing a bad result.
+  if (winnerId == null) {
+    const who = match.isTeamMatch
+      ? ((match.team1?.members || []).filter(m => m.win).length >=
+         (match.team2?.members || []).filter(m => m.win).length
+           ? match.team1?.teamName : match.team2?.teamName)
+      : (match.p1?.win ? (match.p1.displayLabel || match.p1.player)
+                       : (match.p2?.displayLabel || match.p2?.player));
+    match._challongeLastError =
+      `Winner ${who ? '"' + who + '" ' : ''}isn't mapped to a Challonge participant — open the Challonge tab and rebuild the participant mapping, then retry.`;
+    match._challongePushState = 'error';
+    console.error('challongeReportMatch:', match._challongeLastError, match);
+    if (typeof renderResults === 'function') renderResults();
+    return;
+  }
+  if (!p1Id && !p2Id) {
+    match._challongeLastError =
+      'Neither player in this match is mapped to a Challonge participant — rebuild the participant mapping, then retry.';
+    match._challongePushState = 'error';
+    if (typeof renderResults === 'function') renderResults();
+    return;
+  }
 
   const { scores_csv, winner_id } = eventPointsToScoresCsv(p1pts, p2pts, winnerId, p1Id, p2Id);
 
@@ -4220,11 +4257,16 @@ async function challongeReportMatch(match) {
         match._challongePushState = 'error';
         return;
       }
-      throw new Error(`HTTP ${res.status}: ${text.slice(0, 80)}`);
+      // Keep the REAL Challonge rejection so the publish toast can show WHY
+      // (e.g. "Winner is invalid"), instead of an opaque "N failed".
+      match._challongeLastError = `Challonge rejected this result (HTTP ${res.status}): ${text.slice(0, 160)}`;
+      throw new Error(match._challongeLastError);
     }
     match._challongePushState = 'ok';
+    delete match._challongeLastError;
   } catch (e) {
     match._challongePushState = 'error';
+    if (!match._challongeLastError) match._challongeLastError = e.message || String(e);
     console.error('challongeReportMatch error:', e);
   }
   if (typeof markDirty === 'function') markDirty();
@@ -4330,8 +4372,21 @@ async function publishRoundToChallonge(round) {
   if (failed === 0) {
     showToast(`✅ ${round}: ${ok} published. Now press "Sync from Challonge" to import the next round.`, 'success');
   } else {
-    showToast(`${round}: ${ok} published, ${failed} failed — use "Retry ${round} failures".`, 'error');
+    const reason = firstChallongeFailureReason(round);
+    showToast(
+      `${round}: ${ok} published, ${failed} failed — use "Retry ${round} failures".` +
+      (reason ? ` Reason: ${reason}` : ''),
+      'error'
+    );
   }
+}
+
+// The first human-readable reason a match in this round failed to publish, so
+// the toast can explain "N failed" instead of leaving the organizer guessing.
+function firstChallongeFailureReason(round) {
+  const m = (matchesState || []).find(x =>
+    x.round === round && x._challongePushState === 'error' && x._challongeLastError);
+  return m ? m._challongeLastError : '';
 }
 
 // Republish ONLY the failed matches in a round (never the already-ok ones).
@@ -4356,7 +4411,12 @@ async function retryRoundFailures(round) {
     await persistPublishState();
     renderResults(); renderRoundPublishBar();
   }
-  showToast(`${round} retry: ${ok} published, ${failed} still failing.`, failed ? 'error' : 'success');
+  const retryReason = failed ? firstChallongeFailureReason(round) : '';
+  showToast(
+    `${round} retry: ${ok} published, ${failed} still failing.` +
+    (retryReason ? ` Reason: ${retryReason}` : ''),
+    failed ? 'error' : 'success'
+  );
 }
 
 // Recover a round left claimed after a browser/device stopped mid-publish.

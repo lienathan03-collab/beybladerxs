@@ -291,11 +291,32 @@ test('eventPointsToScoresCsv: p2 wins (scores stay in player1-player2 order)', (
   assert.equal(result.winner_id, 11);
 });
 
-test('eventPointsToScoresCsv: equal points, p1 wins', () => {
+test('eventPointsToScoresCsv: equal points but p1 decided winner — score is nudged so the winner leads', () => {
   const { eventPointsToScoresCsv } = loadChallongeHelpers();
+  // Challonge rejects (422) a winner_id that is not the higher-scored side, so
+  // a tie-on-points result with a decided winner must report the winner ahead.
   const result = eventPointsToScoresCsv(4, 4, 10, 10, 11);
-  assert.equal(result.scores_csv, '4-4');
+  assert.equal(result.scores_csv, '5-4');
   assert.equal(result.winner_id, 10);
+});
+
+test('eventPointsToScoresCsv: winner with FEWER points still reported ahead (no Challonge contradiction)', () => {
+  const { eventPointsToScoresCsv } = loadChallongeHelpers();
+  // p1 is the decided winner but trails on raw points — order must stay p1-p2,
+  // and p1's score must be lifted above p2 so winner_id agrees with scores_csv.
+  const r1 = eventPointsToScoresCsv(2, 5, 10, 10, 11);
+  assert.equal(r1.scores_csv, '6-5');
+  assert.equal(r1.winner_id, 10);
+  // Symmetric: p2 is the decided winner but trails.
+  const r2 = eventPointsToScoresCsv(5, 2, 11, 10, 11);
+  assert.equal(r2.scores_csv, '5-6');
+  assert.equal(r2.winner_id, 11);
+});
+
+test('eventPointsToScoresCsv: clear win is left untouched (winner already leads)', () => {
+  const { eventPointsToScoresCsv } = loadChallongeHelpers();
+  assert.equal(eventPointsToScoresCsv(5, 3, 10, 10, 11).scores_csv, '5-3');
+  assert.equal(eventPointsToScoresCsv(2, 7, 11, 10, 11).scores_csv, '2-7');
 });
 
 test('eventPointsToScoresCsv: null winnerId keeps player1-player2 score order', () => {
@@ -305,10 +326,10 @@ test('eventPointsToScoresCsv: null winnerId keeps player1-player2 score order', 
   assert.equal(result.winner_id, 'tie');
 });
 
-test('eventPointsToScoresCsv: zero-zero tie', () => {
+test('eventPointsToScoresCsv: zero-zero with a decided winner reports the winner ahead', () => {
   const { eventPointsToScoresCsv } = loadChallongeHelpers();
   const result = eventPointsToScoresCsv(0, 0, 11, 10, 11);
-  assert.equal(result.scores_csv, '0-0');
+  assert.equal(result.scores_csv, '0-1');
   assert.equal(result.winner_id, 11);
 });
 
