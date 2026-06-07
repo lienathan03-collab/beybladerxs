@@ -3586,6 +3586,23 @@ function safeUrl(u) {
   return u;
 }
 
+// GET /api/accounts now requires authentication (anti-enumeration). Admin views
+// send admin credentials; player views (team-join picker, self-save) send the
+// player session. Both go via headers so they never appear in the URL/logs.
+function acFetchAdmin() {
+  return fetch('/api/accounts', {
+    headers: { 'X-Admin-User': _acAdminUsername || '', 'X-Admin-Pass': _acAdminPassword || '' }
+  });
+}
+function acFetchPlayer() {
+  return fetch('/api/accounts', {
+    headers: {
+      'X-Player-User': (playerSession && playerSession.username) || '',
+      'X-Player-Session': (playerSession && playerSession.sessionToken) || ''
+    }
+  });
+}
+
 // Space-insensitive player name match
 function _playerNamesMatch(a, b) {
   const norm = s => String(s || '').toLowerCase().replace(/\s+/g, '');
@@ -5331,7 +5348,7 @@ async function syncRenameAcrossSeasons(oldName, newName) {
 
   // Sync accounts — update displayName and any alias that exactly matches oldName
   try {
-    const acRes = await fetch('/api/accounts');
+    const acRes = await acFetchAdmin();
     if (acRes.ok) {
       const accounts = await acRes.json();
       let acChanged = false;
@@ -6805,7 +6822,7 @@ async function loadAccountsList() {
   const listEl = document.getElementById('ac-list');
   listEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted2);font-family:\'Share Tech Mono\',monospace;font-size:12px">Loading…</div>';
   try {
-    const res = await fetch('/api/accounts');
+    const res = await acFetchAdmin();
     if (!res.ok) throw new Error('Could not load accounts (' + res.status + ')');
     _acAccounts = await res.json();
     renderAccountsList();
@@ -6985,7 +7002,7 @@ async function adminSaveAccounts() {
 // ═══════════════════════════════════════════════════════
 async function savePlayerAccount() {
   try {
-    const res = await fetch('/api/accounts');
+    const res = await acFetchPlayer();
     if (!res.ok) throw new Error('Could not load accounts.');
     const accounts = await res.json();
     accounts[playerSession.username] = playerSession.account;
@@ -7517,7 +7534,7 @@ async function openTeamJoinModal(eventId) {
 
   // Load accounts to populate member dropdowns
   try {
-    const res = await fetch('/api/accounts');
+    const res = await acFetchPlayer();
     const accs = await res.json();
     _tjAccountsList = Object.entries(accs).map(([username, acc]) => ({
       username,

@@ -57,6 +57,28 @@ export async function onRequest(context) {
 
   // ── GET — return accounts without password fields ──
   if (request.method === 'GET') {
+    // Require authentication to prevent anonymous account enumeration.
+    // Accept EITHER admin credentials OR a valid player session, via headers
+    // (kept out of the URL/query so they don't land in access logs).
+    const adminU = request.headers.get('X-Admin-User');
+    const adminP = request.headers.get('X-Admin-Pass');
+    const isAdmin =
+      (adminU === env.ADMIN_USERNAME && adminP === env.ADMIN_PASSWORD) ||
+      (env.ADMIN2_USERNAME && adminU === env.ADMIN2_USERNAME && adminP === env.ADMIN2_PASSWORD);
+    let authed = isAdmin;
+    if (!authed) {
+      const pu = request.headers.get('X-Player-User');
+      const ps = request.headers.get('X-Player-Session');
+      if (pu && ps) {
+        try { await verifySession(kv, pu, ps); authed = true; } catch (_) { authed = false; }
+      }
+    }
+    if (!authed) {
+      return new Response(
+        JSON.stringify({ error: 'Authentication required.' }),
+        { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      );
+    }
     try {
       const data = await kv.get(KEY);
       const accounts = data ? JSON.parse(data) : {};
