@@ -1,0 +1,65 @@
+name: Android prototype APK
+
+# Builds the RXS Recorder debug APK in the cloud so it can be sideloaded onto a
+# phone without installing Android Studio. Runs on demand, or when the Android
+# app changes on main. The APK is published two ways:
+#   • as a build Artifact (zipped), and
+#   • attached to a rolling "android-prototype" pre-release (direct .apk download,
+#     ideal for installing straight from the phone browser).
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - "companion/android/**"
+      - ".github/workflows/android-prototype.yml"
+
+permissions:
+  contents: write   # needed to publish the pre-release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: companion/android
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages
+        run: yes | sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build debug APK
+        run: gradle assembleDebug --stacktrace
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk rxs-recorder-debug.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rxs-recorder-debug
+          path: companion/android/rxs-recorder-debug.apk
+
+      - name: Publish to prototype pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-prototype
+          name: RXS Recorder — Android prototype (debug)
+          prerelease: true
+          files: companion/android/rxs-recorder-debug.apk

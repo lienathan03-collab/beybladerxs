@@ -1,0 +1,23 @@
+# XcodeGen spec. Run `xcodegen generate` in companion/ios to produce RXSRecorder.xcodeproj.
+# (Or create a new Xcode iOS App project and add the files in Sources/ — see README.)
+name: RXSRecorder
+options:
+  bundleIdPrefix: com.rxs
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+targets:
+  RXSRecorder:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.rxs.recorder
+        INFOPLIST_FILE: Sources/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "0.1-phase2"

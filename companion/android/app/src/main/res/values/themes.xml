@@ -1,0 +1,5 @@
+<resources>
+    <!-- Framework Material theme so we need no AppCompat/Material-Components XML
+         dependency; all real UI is Compose. -->
+    <style name="Theme.RXS" parent="android:Theme.Material.NoActionBar" />
+</resources>
