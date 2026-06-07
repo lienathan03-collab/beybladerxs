@@ -119,11 +119,10 @@ class RecorderController(
         camera = cam
         videoCapture = vc
 
-        val actual = vc.resolutionInfo?.resolution
         val maxZoom = cam.cameraInfo.zoomState.value?.maxZoomRatio ?: 1f
         _state.update {
             it.copy(
-                actualResolution = actual?.let { r -> "${r.width}x${r.height}" },
+                actualResolution = "${caps.chosen.width}x${caps.chosen.height}",
                 maxZoom = maxZoom
             )
         }
