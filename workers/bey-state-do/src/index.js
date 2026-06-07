@@ -31,6 +31,7 @@ import {
   stripTombstonesForResponse
 } from './merge.js';
 import { applyEventsAction } from './events-ops.js';
+import { rateLimitDecision } from './ratelimit.js';
 
 const STORAGE_STATE_KEY = 'state';
 const EVENTS_KEY = 'events';
@@ -97,6 +98,23 @@ export class BeyStateDO {
     const url = new URL(request.url);
     const segments = url.pathname.split('/').filter(Boolean); // ['event', <id>, <action>]
     const action = segments[2] || '';
+
+    // ── Rate limiter: one DO instance per key (idFromName('ratelimit:<key>')) ──
+    // Atomic fixed-window counter for abuse protection on auth endpoints.
+    if (segments[0] === 'ratelimit') {
+      if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
+      let body;
+      try { body = await request.json(); } catch (e) { body = {}; }
+      const limit = Number(body.limit) > 0 ? Number(body.limit) : 10;
+      const windowMs = Number(body.windowMs) > 0 ? Number(body.windowMs) : 300000;
+      const prev = await this.state.storage.get('rl');
+      const d = rateLimitDecision(prev, Date.now(), limit, windowMs);
+      await this.state.storage.put('rl', d.next);
+      return jsonResponse(
+        { allowed: d.allowed, remaining: d.remaining, retryAfterMs: d.retryAfterMs },
+        d.allowed ? 200 : 429
+      );
+    }
 
     // ── Events registry: serialized read-modify-write of the `events` KV blob ──
     // All events-roster mutations funnel through ONE instance

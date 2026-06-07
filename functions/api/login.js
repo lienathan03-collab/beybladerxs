@@ -1,3 +1,5 @@
+import { checkRateLimit, clientIp } from './_shared/ratelimit.js';
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -16,6 +18,15 @@ export async function onRequest(context) {
     return new Response(
       JSON.stringify({ error: 'Method not allowed' }),
       { status: 405, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Rate limit admin login attempts per IP (brute-force protection).
+  const rl = await checkRateLimit(env, 'login:' + clientIp(request), 10, 5 * 60 * 1000);
+  if (!rl.allowed) {
+    return new Response(
+      JSON.stringify({ error: 'Too many login attempts. Please wait a few minutes and try again.' }),
+      { status: 429, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json', 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } }
     );
   }
 

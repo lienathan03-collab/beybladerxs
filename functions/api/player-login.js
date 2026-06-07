@@ -1,3 +1,5 @@
+import { checkRateLimit, clientIp } from './_shared/ratelimit.js';
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -110,6 +112,20 @@ export async function onRequest(context) {
     return new Response(
       JSON.stringify({ error: 'Username and passwordHash required.' }),
       { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Rate limit password-login attempts per IP + username. Keying on the username
+  // (not just IP) stops single-account brute force while NOT locking out other
+  // players who share a venue's public IP (NAT). The verify path above is not
+  // rate limited — session tokens are unguessable UUIDs.
+  const rl = await checkRateLimit(
+    env, 'plogin:' + clientIp(request) + ':' + String(username).toLowerCase(), 10, 5 * 60 * 1000
+  );
+  if (!rl.allowed) {
+    return new Response(
+      JSON.stringify({ error: 'Too many attempts for this account. Please wait a few minutes and try again.' }),
+      { status: 429, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json', 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } }
     );
   }
 
