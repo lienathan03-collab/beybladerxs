@@ -8,7 +8,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.core.view.WindowCompat
-import com.rxs.recorder.ui.CameraScreen
+import com.rxs.recorder.ui.AppRoot
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -19,7 +19,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
-                Surface { CameraScreen() }
+                Surface { AppRoot() }
             }
         }
     }

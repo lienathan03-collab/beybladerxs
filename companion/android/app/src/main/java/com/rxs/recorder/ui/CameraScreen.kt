@@ -54,7 +54,7 @@ private fun hasAll(context: android.content.Context) = REQUIRED.all {
 }
 
 @Composable
-fun CameraScreen() {
+fun CameraScreen(matchLabel: String? = null, onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
     var granted by remember { mutableStateOf(hasAll(context)) }
 
@@ -75,11 +75,11 @@ fun CameraScreen() {
         return
     }
 
-    RecorderSurface()
+    RecorderSurface(matchLabel, onBack)
 }
 
 @Composable
-private fun RecorderSurface() {
+private fun RecorderSurface(matchLabel: String? = null, onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -196,6 +196,20 @@ private fun RecorderSurface() {
                     .padding(12.dp)
                     .pointerInput(Unit) { detectTapGestures { reviewing = true } }
             ) { Mono("▶ REVIEW LAST", color = Color(0xFF7FF0A6)) }
+        }
+
+        // ── Selected match + back to the match list ──
+        if (onBack != null || matchLabel != null) {
+            Row(
+                Modifier.align(Alignment.BottomStart).padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (onBack != null) {
+                    Pill(modifier = Modifier.pointerInput(Unit) { detectTapGestures { onBack() } }) { Mono("‹ Matches") }
+                    Spacer(Modifier.width(8.dp))
+                }
+                if (matchLabel != null) Pill { Mono(matchLabel, color = Color(0xFF8FC7FF)) }
+            }
         }
 
         // ── Full-screen frame-by-frame review overlay ──
