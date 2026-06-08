@@ -68,6 +68,7 @@ fun ReviewOverlay(uri: Uri, onClose: () -> Unit) {
     var playing by remember { mutableStateOf(false) }
     var scrubbing by remember { mutableStateOf(false) }
     var scrubVal by remember { mutableFloatStateOf(0f) }
+    var lastSeek by remember { mutableLongStateOf(0L) }
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
 
@@ -118,8 +119,14 @@ fun ReviewOverlay(uri: Uri, onClose: () -> Unit) {
             MiniBtn("◀|") { player.pause(); player.seekTo((pos - FRAME_MS).coerceAtLeast(0)) }
             Slider(
                 value = if (scrubbing) scrubVal else pos.coerceIn(0L, dur).toFloat(),
-                onValueChange = { scrubbing = true; scrubVal = it; player.pause(); player.seekTo(it.toLong()) },
-                onValueChangeFinished = { pos = scrubVal.toLong(); scrubbing = false },
+                onValueChange = { v ->
+                    scrubbing = true; scrubVal = v; player.pause()
+                    // Throttle seeks so each frame actually renders while dragging
+                    // (live frame-by-frame scrub instead of jumping only on release).
+                    val now = System.currentTimeMillis()
+                    if (now - lastSeek >= 60L) { lastSeek = now; player.seekTo(v.toLong()) }
+                },
+                onValueChangeFinished = { player.seekTo(scrubVal.toLong()); pos = scrubVal.toLong(); scrubbing = false },
                 valueRange = 0f..dur.toFloat().coerceAtLeast(1f),
                 modifier = Modifier.weight(1f)
             )
