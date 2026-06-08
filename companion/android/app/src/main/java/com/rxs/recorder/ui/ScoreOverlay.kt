@@ -8,13 +8,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -139,36 +142,34 @@ fun ScoreOverlay(match: SoloMatch, eventId: String, api: RxsApi) {
             onDeploy = { setDepOf(right, it); tick++ }, onFinish = { apply(right, it) }
         )
 
-        Column(
-            Modifier.align(Alignment.TopCenter).padding(top = 40.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        // Compact top control bar — no duplicate score, keeps the middle clear.
+        Row(
+            Modifier.align(Alignment.TopCenter).padding(top = 36.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(match.round, color = Color(0xFF8893A7), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Text(
-                "${left.points}  -  ${right.points}",
-                color = Color.White, fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold, fontSize = 22.sp
-            )
-            if (decided()) {
-                Text(
-                    "WINNER: ${if (match.p1.win) match.p1.name else match.p2.name}",
-                    color = Color(0xFF7FF0A6), fontWeight = FontWeight.Bold, fontSize = 13.sp
-                )
-            }
-            status?.let { Text(it, color = Color(0xFF8FC7FF), fontSize = 10.sp) }
-            Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Chip("⇄ SIDES") { swapped = !swapped; tick++ }
-                Chip("UNDO", enabled = undo.isNotEmpty()) { undoLast() }
-                Chip("SUBMIT") {
-                    match.submitted = true
-                    scope.launch {
-                        status = "submitting…"
-                        api.putMatch(eventId, match, true)
-                            .onSuccess { status = "submitted" }
-                            .onFailure { status = "submit failed" }
-                    }
+            Chip("⇄") { swapped = !swapped; tick++ }
+            Chip("UNDO", enabled = undo.isNotEmpty()) { undoLast() }
+            Chip("SUBMIT") {
+                match.submitted = true
+                scope.launch {
+                    status = "submitting…"
+                    api.putMatch(eventId, match, true)
+                        .onSuccess { status = "submitted" }
+                        .onFailure { status = "submit failed" }
                 }
             }
+            StatusDot(status)
+        }
+
+        // Winner banner only at match end (center is otherwise kept clear).
+        if (decided()) {
+            Text(
+                "🏆 ${if (match.p1.win) match.p1.name else match.p2.name}",
+                color = Color(0xFF7FF0A6), fontWeight = FontWeight.Bold, fontSize = 20.sp,
+                modifier = Modifier.align(Alignment.Center)
+            )
         }
     }
 }
@@ -237,6 +238,24 @@ private fun RowScope.FinishBtn(text: String, enabled: Boolean, modifier: Modifie
             .padding(vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) { Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
+}
+
+@Composable
+private fun StatusDot(status: String?) {
+    val color = when {
+        status == null -> Color(0x55FFFFFF)
+        status.startsWith("synced") || status.startsWith("submitted") -> Color(0xFF7FF0A6)
+        status.startsWith("offline") || status.contains("failed") -> Color(0xFFFFC857)
+        else -> Color(0xFF8FC7FF) // syncing / submitting
+    }
+    val showText = status != null && (status.startsWith("offline") || status.contains("failed"))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(8.dp).background(color, CircleShape))
+        if (showText) {
+            Spacer(Modifier.width(4.dp))
+            Text(status!!, color = color, fontSize = 9.sp)
+        }
+    }
 }
 
 @Composable

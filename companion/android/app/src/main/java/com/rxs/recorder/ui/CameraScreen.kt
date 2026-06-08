@@ -151,10 +151,13 @@ private fun RecorderSurface(
                 }
                 Mono(formatTimer(state.elapsedMs))
             }
-            Pill {
-                val req = state.profile.label
-                val actual = state.actualResolution?.let { " • $it" } ?: ""
-                Mono("$req$actual")
+            // Resolution is just confirmation — hide it during scoring to keep the middle clear.
+            if (match == null) {
+                Pill {
+                    val req = state.profile.label
+                    val actual = state.actualResolution?.let { " • $it" } ?: ""
+                    Mono("$req$actual")
+                }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Pill {
