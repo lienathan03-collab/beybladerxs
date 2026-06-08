@@ -66,12 +66,14 @@ fun ReviewOverlay(uri: Uri, onClose: () -> Unit) {
     var pos by remember { mutableLongStateOf(0L) }
     var dur by remember { mutableLongStateOf(1L) }
     var playing by remember { mutableStateOf(false) }
+    var scrubbing by remember { mutableStateOf(false) }
+    var scrubVal by remember { mutableFloatStateOf(0f) }
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
 
     LaunchedEffect(Unit) {
         while (true) {
-            pos = player.currentPosition
+            if (!scrubbing) pos = player.currentPosition
             val d = player.duration
             if (d > 0) dur = d
             playing = player.isPlaying
@@ -115,8 +117,9 @@ fun ReviewOverlay(uri: Uri, onClose: () -> Unit) {
             MiniBtn(if (playing) "❚❚" else "▶") { if (playing) player.pause() else player.play() }
             MiniBtn("◀|") { player.pause(); player.seekTo((pos - FRAME_MS).coerceAtLeast(0)) }
             Slider(
-                value = pos.coerceIn(0L, dur).toFloat(),
-                onValueChange = { player.pause(); player.seekTo(it.toLong()) },
+                value = if (scrubbing) scrubVal else pos.coerceIn(0L, dur).toFloat(),
+                onValueChange = { scrubbing = true; scrubVal = it; player.pause(); player.seekTo(it.toLong()) },
+                onValueChangeFinished = { pos = scrubVal.toLong(); scrubbing = false },
                 valueRange = 0f..dur.toFloat().coerceAtLeast(1f),
                 modifier = Modifier.weight(1f)
             )

@@ -182,52 +182,37 @@ private fun RecorderSurface(
             }
         }
 
-        // ── Record button ──
-        Box(
-            Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 24.dp)
-                .size(78.dp)
-                .background(Color(0x55000000), CircleShape)
-                .pointerInput(Unit) { detectTapGestures { controller.toggleRecording() } },
-            contentAlignment = Alignment.Center
-        ) {
-            val inner = if (state.isRecording) RoundedCornerShape(8.dp) else CircleShape
-            Box(
-                Modifier
-                    .size(if (state.isRecording) 34.dp else 60.dp)
-                    .background(Color(0xFFFF3B49), inner)
-                    .border(3.dp, Color.White, inner)
-            )
-        }
-
-        // ── Review the clip you just recorded ──
-        if (state.lastUri != null && !state.isRecording) {
-            Pill(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(12.dp)
-                    .pointerInput(Unit) { detectTapGestures { reviewing = true } }
-            ) { Mono("▶ REVIEW LAST", color = Color(0xFF7FF0A6)) }
-        }
-
         // ── Scoring overlay (shown whenever a match is selected, including while
         // recording — it's drawn on the preview only, never in the saved video). ──
         if (match != null && eventId != null && api != null) {
             ScoreOverlay(match, eventId, api)
         }
 
-        // ── Selected match + back to the match list ──
-        if (onBack != null || matchLabel != null) {
-            Row(
-                Modifier.align(Alignment.BottomStart).padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+        // ── Bottom controls: back · record · review, centered → clear of the edge panels ──
+        Row(
+            Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            if (onBack != null) {
+                Pill(modifier = Modifier.pointerInput(Unit) { detectTapGestures { onBack() } }) { Mono("‹ Matches") }
+            }
+            Box(
+                Modifier.size(74.dp).background(Color(0x55000000), CircleShape)
+                    .pointerInput(Unit) { detectTapGestures { controller.toggleRecording() } },
+                contentAlignment = Alignment.Center
             ) {
-                if (onBack != null) {
-                    Pill(modifier = Modifier.pointerInput(Unit) { detectTapGestures { onBack() } }) { Mono("‹ Matches") }
-                    Spacer(Modifier.width(8.dp))
-                }
-                if (matchLabel != null) Pill { Mono(matchLabel, color = Color(0xFF8FC7FF)) }
+                val inner = if (state.isRecording) RoundedCornerShape(8.dp) else CircleShape
+                Box(
+                    Modifier.size(if (state.isRecording) 32.dp else 56.dp)
+                        .background(Color(0xFFFF3B49), inner)
+                        .border(3.dp, Color.White, inner)
+                )
+            }
+            if (state.lastUri != null && !state.isRecording) {
+                Pill(modifier = Modifier.pointerInput(Unit) { detectTapGestures { reviewing = true } }) { Mono("▶ REVIEW", color = Color(0xFF7FF0A6)) }
+            } else {
+                Spacer(Modifier.width(86.dp))
             }
         }
 

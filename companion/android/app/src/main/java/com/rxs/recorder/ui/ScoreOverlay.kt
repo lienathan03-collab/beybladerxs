@@ -54,18 +54,12 @@ private data class Snap(
     val w1: Boolean, val w2: Boolean, val d1: Int, val d2: Int
 )
 
-/**
- * Scoring overlay on the live camera. Mirrors the EM solo engine: a finish on a
- * side = that side won the clash → its deployed bey gets the finish, the opponent's
- * gets 'L'. Beys lock once used this cycle; when a deck is fully used it resets.
- * Auto-win at the round threshold; each tap debounce-pushes to /api/beyresults.
- * Drawn on the preview only — never in the saved video.
- */
 @Composable
 fun ScoreOverlay(match: SoloMatch, eventId: String, api: RxsApi) {
     var tick by remember { mutableIntStateOf(0) }
     var dep1 by remember { mutableIntStateOf(firstAvailBey(match.p1)) }
     var dep2 by remember { mutableIntStateOf(firstAvailBey(match.p2)) }
+    var swapped by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     val undo = remember { mutableStateListOf<Snap>() }
     val scope = rememberCoroutineScope()
@@ -73,6 +67,8 @@ fun ScoreOverlay(match: SoloMatch, eventId: String, api: RxsApi) {
     val thr = Scoring.threshold(match.round)
 
     fun decided() = match.p1.win || match.p2.win
+    fun depOf(s: Side) = if (s === match.p1) dep1 else dep2
+    fun setDepOf(s: Side, i: Int) { if (s === match.p1) dep1 = i else dep2 = i }
 
     fun schedulePush() {
         pushJob?.cancel()
@@ -95,7 +91,7 @@ fun ScoreOverlay(match: SoloMatch, eventId: String, api: RxsApi) {
         }
     }
 
-    fun apply(winnerP1: Boolean, type: String) {
+    fun apply(winner: Side, type: String) {
         if (decided()) return
         undo.add(
             Snap(
@@ -104,13 +100,11 @@ fun ScoreOverlay(match: SoloMatch, eventId: String, api: RxsApi) {
                 match.p1.win, match.p2.win, dep1, dep2
             )
         )
-        val w = if (winnerP1) match.p1 else match.p2
-        val l = if (winnerP1) match.p2 else match.p1
-        val wi = if (winnerP1) dep1 else dep2
-        val li = if (winnerP1) dep2 else dep1
-        ensureBey(w, wi); ensureBey(l, li)
-        w.builds[wi].finishes.add(type); w.builds[wi].deployed = true; w.builds[wi].usedInCycle = true
-        l.builds[li].finishes.add("L"); l.builds[li].deployed = true; l.builds[li].usedInCycle = true
+        val loser = if (winner === match.p1) match.p2 else match.p1
+        val wi = depOf(winner); val li = depOf(loser)
+        ensureBey(winner, wi); ensureBey(loser, li)
+        winner.builds[wi].finishes.add(type); winner.builds[wi].deployed = true; winner.builds[wi].usedInCycle = true
+        loser.builds[li].finishes.add("L"); loser.builds[li].deployed = true; loser.builds[li].usedInCycle = true
         resetCycleIfDone(match.p1); resetCycleIfDone(match.p2)
         if (match.p1.points >= thr) match.p1.win = true
         if (match.p2.points >= thr) match.p2.win = true
@@ -130,24 +124,28 @@ fun ScoreOverlay(match: SoloMatch, eventId: String, api: RxsApi) {
 
     @Suppress("UNUSED_EXPRESSION") tick // subscribe to recomposition
 
+    val left = if (swapped) match.p2 else match.p1
+    val right = if (swapped) match.p1 else match.p2
+
     Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
         SidePanel(
             Modifier.align(Alignment.CenterStart),
-            side = match.p1, deployed = dep1, enabled = !decided(),
-            onDeploy = { dep1 = it; tick++ }, onFinish = { apply(true, it) }
+            side = left, deployed = depOf(left), enabled = !decided(),
+            onDeploy = { setDepOf(left, it); tick++ }, onFinish = { apply(left, it) }
         )
         SidePanel(
             Modifier.align(Alignment.CenterEnd),
-            side = match.p2, deployed = dep2, enabled = !decided(),
-            onDeploy = { dep2 = it; tick++ }, onFinish = { apply(false, it) }
+            side = right, deployed = depOf(right), enabled = !decided(),
+            onDeploy = { setDepOf(right, it); tick++ }, onFinish = { apply(right, it) }
         )
 
         Column(
-            Modifier.align(Alignment.TopCenter).padding(top = 44.dp),
+            Modifier.align(Alignment.TopCenter).padding(top = 40.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Text(match.round, color = Color(0xFF8893A7), fontSize = 11.sp, fontWeight = FontWeight.Bold)
             Text(
-                "${match.p1.points}  -  ${match.p2.points}",
+                "${left.points}  -  ${right.points}",
                 color = Color.White, fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold, fontSize = 22.sp
             )
@@ -159,8 +157,9 @@ fun ScoreOverlay(match: SoloMatch, eventId: String, api: RxsApi) {
             }
             status?.let { Text(it, color = Color(0xFF8FC7FF), fontSize = 10.sp) }
             Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Chip("⇄ SIDES") { swapped = !swapped; tick++ }
                 Chip("UNDO", enabled = undo.isNotEmpty()) { undoLast() }
-                Chip("SUBMIT", enabled = true) {
+                Chip("SUBMIT") {
                     match.submitted = true
                     scope.launch {
                         status = "submitting…"
@@ -216,7 +215,6 @@ private fun SidePanel(
             }
         }
 
-        // 2x2 finish grid so all four (incl. E) always fit and stay big.
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 FinishBtn("S", enabled, Modifier.weight(1f)) { onFinish("S") }
@@ -242,7 +240,7 @@ private fun RowScope.FinishBtn(text: String, enabled: Boolean, modifier: Modifie
 }
 
 @Composable
-private fun Chip(label: String, enabled: Boolean, onClick: () -> Unit) {
+private fun Chip(label: String, enabled: Boolean = true, onClick: () -> Unit) {
     Box(
         Modifier
             .background(Color(0xAA05070C), RoundedCornerShape(10.dp))
