@@ -18,28 +18,30 @@ struct AppRoot: View {
     var body: some View {
         let api = RxsAPI(settings: settings)
         Group {
-            switch route {
-            case .none:
-                Color.black.ignoresSafeArea()
-            case .setup:
-                SetupView(settings: settings, api: api) { route = .events }
-            case .events:
-                EventPickerView(
-                    api: api,
-                    onPick: { route = .matches($0) },
-                    onSettings: { route = .setup }
-                )
-            case .matches(let event):
-                MatchPickerView(
-                    api: api,
-                    event: event,
-                    onPick: { route = .camera(event, $0) },
-                    onBack: { route = .events }
-                )
-            case .camera(let event, let match):
-                ContentView(event: event, match: match, api: api) {
-                    route = .matches(event)
+            if let r = route {
+                switch r {
+                case .setup:
+                    SetupView(settings: settings, api: api) { route = .events }
+                case .events:
+                    EventPickerView(
+                        api: api,
+                        onPick: { route = .matches($0) },
+                        onSettings: { route = .setup }
+                    )
+                case .matches(let event):
+                    MatchPickerView(
+                        api: api,
+                        event: event,
+                        onPick: { route = .camera(event, $0) },
+                        onBack: { route = .events }
+                    )
+                case .camera(let event, let match):
+                    ContentView(event: event, match: match, api: api) {
+                        route = .matches(event)
+                    }
                 }
+            } else {
+                Color.black.ignoresSafeArea()
             }
         }
         .task {

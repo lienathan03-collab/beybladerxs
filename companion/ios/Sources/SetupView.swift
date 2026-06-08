@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Server/admin connection screen. Mirrors Android SetupScreen: default live URL,
 /// Connect disabled while empty/busy, normalize before login, persist only on
