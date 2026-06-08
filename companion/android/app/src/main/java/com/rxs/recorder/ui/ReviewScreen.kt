@@ -68,7 +68,6 @@ fun ReviewOverlay(uri: Uri, onClose: () -> Unit) {
     var playing by remember { mutableStateOf(false) }
     var scrubbing by remember { mutableStateOf(false) }
     var scrubVal by remember { mutableFloatStateOf(0f) }
-    var lastSeek by remember { mutableLongStateOf(0L) }
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
 
@@ -120,13 +119,15 @@ fun ReviewOverlay(uri: Uri, onClose: () -> Unit) {
             Slider(
                 value = if (scrubbing) scrubVal else pos.coerceIn(0L, dur).toFloat(),
                 onValueChange = { v ->
-                    scrubbing = true; scrubVal = v; player.pause()
-                    // Throttle seeks so each frame actually renders while dragging
-                    // (live frame-by-frame scrub instead of jumping only on release).
-                    val now = System.currentTimeMillis()
-                    if (now - lastSeek >= 60L) { lastSeek = now; player.seekTo(v.toLong()) }
+                    // ExoPlayer scrubbing mode = smooth frame-by-frame seeking while dragging.
+                    if (!scrubbing) { scrubbing = true; player.pause(); player.setScrubbingModeEnabled(true) }
+                    scrubVal = v; player.seekTo(v.toLong())
                 },
-                onValueChangeFinished = { player.seekTo(scrubVal.toLong()); pos = scrubVal.toLong(); scrubbing = false },
+                onValueChangeFinished = {
+                    player.seekTo(scrubVal.toLong())
+                    player.setScrubbingModeEnabled(false)
+                    pos = scrubVal.toLong(); scrubbing = false
+                },
                 valueRange = 0f..dur.toFloat().coerceAtLeast(1f),
                 modifier = Modifier.weight(1f)
             )
