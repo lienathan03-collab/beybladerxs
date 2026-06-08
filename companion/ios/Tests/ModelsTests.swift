@@ -86,6 +86,24 @@ final class ModelsTests: XCTestCase {
         let firstRow = (object["beyResults"] as? [[String: Any]])?.first
         XCTAssertNil(firstRow?["_submitted"])
     }
+
+    // MARK: - Server URL normalization (force https, strip path/trailing slash)
+
+    func testNormalizeServerURL() {
+        XCTAssertEqual(
+            AppSettings.normalizeServerURL("beybladerxs.pages.dev/path"),
+            "https://beybladerxs.pages.dev"
+        )
+        XCTAssertEqual(
+            AppSettings.normalizeServerURL("http://example.com/"),
+            "https://example.com"
+        )
+        XCTAssertEqual(
+            AppSettings.normalizeServerURL("  https://example.com  "),
+            "https://example.com"
+        )
+        XCTAssertEqual(AppSettings.normalizeServerURL(""), "")
+    }
 }
 
 // Test-only fixture shared with ScoringStoreTests.
