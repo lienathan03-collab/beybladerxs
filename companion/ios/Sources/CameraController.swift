@@ -28,6 +28,12 @@ final class CameraController: NSObject, ObservableObject, AVCaptureFileOutputRec
     private var device: AVCaptureDevice?
     private var timer: Timer?
 
+    // Lifecycle guards so re-entering the camera screen can't double-add inputs/outputs
+    // or stack duplicate observers (sessionQueue is serial, so these are race-free).
+    private var didConfigure = false
+    private var observersInstalled = false
+    private var observerTokens: [NSObjectProtocol] = []
+
     private let blockBytes: Int64 = 200 * 1024 * 1024
     private let warnBytes: Int64 = 1024 * 1024 * 1024
 
@@ -36,6 +42,10 @@ final class CameraController: NSObject, ObservableObject, AVCaptureFileOutputRec
     func configure() {
         sessionQueue.async { [weak self] in
             guard let self else { return }
+            guard !self.didConfigure else {
+                if !self.session.isRunning { self.session.startRunning() }
+                return
+            }
             self.session.beginConfiguration()
             self.session.sessionPreset = .inputPriority
 
@@ -75,6 +85,7 @@ final class CameraController: NSObject, ObservableObject, AVCaptureFileOutputRec
             }
 
             self.session.startRunning()
+            self.didConfigure = true
 
             let maxZ = min(cam.activeFormat.videoMaxZoomFactor, 8.0)
             self.installObservers()
@@ -233,16 +244,40 @@ final class CameraController: NSObject, ObservableObject, AVCaptureFileOutputRec
     private func stopTimer() { timer?.invalidate(); timer = nil }
 
     private func installObservers() {
+        guard !observersInstalled else { return }
+        observersInstalled = true
         let nc = NotificationCenter.default
-        nc.addObserver(forName: .AVCaptureSessionWasInterrupted, object: session, queue: .main) { [weak self] _ in
-            self?.warning = "Camera interrupted"
+        observerTokens.append(
+            nc.addObserver(forName: .AVCaptureSessionWasInterrupted, object: session, queue: .main) { [weak self] _ in
+                self?.warning = "Camera interrupted"
+            })
+        observerTokens.append(
+            nc.addObserver(forName: .AVCaptureSessionInterruptionEnded, object: session, queue: .main) { [weak self] _ in
+                self?.warning = nil
+            })
+        observerTokens.append(
+            nc.addObserver(forName: .AVCaptureSessionRuntimeError, object: session, queue: .main) { [weak self] note in
+                let err = note.userInfo?[AVCaptureSessionErrorKey] as? Error
+                self?.error = "Session error: \(err?.localizedDescription ?? "unknown")"
+            })
+    }
+
+    /// Tear down on back-navigation: stop recording if needed, stop the session on its
+    /// queue, invalidate the timer, and remove observers. Lets the screen be re-entered
+    /// cleanly without leaking a running session or duplicate observers.
+    func shutdown() {
+        onMain {
+            self.timer?.invalidate()
+            self.timer = nil
         }
-        nc.addObserver(forName: .AVCaptureSessionInterruptionEnded, object: session, queue: .main) { [weak self] _ in
-            self?.warning = nil
-        }
-        nc.addObserver(forName: .AVCaptureSessionRuntimeError, object: session, queue: .main) { [weak self] note in
-            let err = note.userInfo?[AVCaptureSessionErrorKey] as? Error
-            self?.error = "Session error: \(err?.localizedDescription ?? "unknown")"
+        sessionQueue.async { [weak self] in
+            guard let self else { return }
+            if self.movieOutput.isRecording { self.movieOutput.stopRecording() }
+            if self.session.isRunning { self.session.stopRunning() }
+            self.observerTokens.forEach { NotificationCenter.default.removeObserver($0) }
+            self.observerTokens.removeAll()
+            self.observersInstalled = false
+            self.didConfigure = false
         }
     }
 

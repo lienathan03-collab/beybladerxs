@@ -9,8 +9,8 @@ comparison on real Beyblade battles.
 - **Runtime capability query** (`AVCaptureDevice.formats`): resolutions + max FPS per format,
   HDR flag; high-speed/slow-motion formats listed **separately** (never used for normal record).
 - **Explicit format + frame-rate selection:** sets `activeFormat` + `activeVideoMin/MaxFrameDuration`
-  to pin a constant rate. Preference 4K/60 → 1080p/60 → 1080p/30 → largest-available. Tap the
-  **CAPS** chip for the full dump.
+  to pin a constant rate. Preference **1080p/60 → 1080p/30 → largest-available** (4K is
+  intentionally not preferred for the scorer MVP — keeps files/heat sane on iPhone 11-15).
 - **Records** via `AVCaptureMovieFileOutput`; **saves clean** clip to **Photos** via PhotoKit
   (normally shareable to TikTok/IG/YouTube; the file is the camera+mic only — overlay never burned in).
 - **HUD:** REC timer, requested + chosen resolution, mic state, free storage.

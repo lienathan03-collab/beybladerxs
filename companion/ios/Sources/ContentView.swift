@@ -1,11 +1,19 @@
 import SwiftUI
 import AVFoundation
 
+/// Camera route: the existing AVFoundation recorder is responsible for capture; the
+/// scoring overlay (Task 7) is drawn above the preview only, so the saved movie stays
+/// clean. Back navigation is protected while a recording is in progress.
 struct ContentView: View {
+    let event: EventSummary
+    let match: SoloMatch
+    let api: RxsAPI
+    let onBack: () -> Void
+
     @StateObject private var controller = CameraController()
     @State private var camGranted = false
     @State private var asked = false
-    @State private var showCaps = false
+    @State private var showBackConfirm = false
 
     var body: some View {
         ZStack {
@@ -16,15 +24,21 @@ struct ContentView: View {
                 hud
             } else {
                 VStack(spacing: 12) {
-                    Text("Camera + microphone permission required.")
-                        .foregroundColor(.white)
+                    Text("Camera + microphone permission required.").foregroundColor(.white)
                     Button("Grant") { Task { await requestAndConfigure() } }
                         .buttonStyle(.borderedProminent)
+                    Button("‹ Back") { onBack() }.foregroundColor(.white)
                 }
             }
         }
         .task {
             if !asked { asked = true; await requestAndConfigure() }
+        }
+        .alert("Stop recording and leave?", isPresented: $showBackConfirm) {
+            Button("Keep recording", role: .cancel) {}
+            Button("Stop & leave", role: .destructive) { leave() }
+        } message: {
+            Text("Recording is still running. Leaving will stop and save it.")
         }
     }
 
@@ -43,9 +57,7 @@ struct ContentView: View {
                         }
                     }
                     Spacer()
-                    pill {
-                        mono("\(controller.profileLabel) • \(controller.actualResolution)")
-                    }
+                    pill { mono("\(controller.profileLabel) • \(controller.actualResolution)") }
                     Spacer()
                     HStack(spacing: 8) {
                         pill { mono(micLabel) }
@@ -61,52 +73,32 @@ struct ContentView: View {
                     .padding(.top, 52)
             }
             if let e = controller.error {
-                pill { mono(e, color: Color(red: 1, green: 0.53, blue: 0.57)) }
+                VStack { Spacer(); pill { mono(e, color: Color(red: 1, green: 0.53, blue: 0.57)) }.padding(.bottom, 120) }
             }
 
-            // Record button
+            // Bottom controls: Back · Record · Saved indicator
             VStack {
                 Spacer()
-                Button(action: { controller.toggleRecording() }) {
-                    ZStack {
-                        Circle().fill(Color.black.opacity(0.33)).frame(width: 78, height: 78)
-                        RoundedRectangle(cornerRadius: controller.isRecording ? 8 : 30)
-                            .fill(Color(red: 1, green: 0.23, blue: 0.29))
-                            .frame(width: controller.isRecording ? 34 : 60,
-                                   height: controller.isRecording ? 34 : 60)
-                            .overlay(RoundedRectangle(cornerRadius: controller.isRecording ? 8 : 30)
-                                .stroke(Color.white, lineWidth: 3))
+                HStack(alignment: .center, spacing: 18) {
+                    Button(action: handleBack) { pill { mono("‹ Matches") } }
+                    Button(action: { controller.toggleRecording() }) {
+                        ZStack {
+                            Circle().fill(Color.black.opacity(0.33)).frame(width: 78, height: 78)
+                            RoundedRectangle(cornerRadius: controller.isRecording ? 8 : 30)
+                                .fill(Color(red: 1, green: 0.23, blue: 0.29))
+                                .frame(width: controller.isRecording ? 34 : 60,
+                                       height: controller.isRecording ? 34 : 60)
+                                .overlay(RoundedRectangle(cornerRadius: controller.isRecording ? 8 : 30)
+                                    .stroke(Color.white, lineWidth: 3))
+                        }
+                    }
+                    if controller.lastSaved && !controller.isRecording {
+                        pill { mono("Saved → Photos", color: Color(red: 0.5, green: 0.94, blue: 0.65)) }
+                    } else {
+                        Color.clear.frame(width: 86, height: 1)
                     }
                 }
                 .padding(.bottom, 20)
-            }
-
-            // Capabilities dump for the Phase 3–5 report
-            VStack {
-                Spacer()
-                HStack {
-                    Button(action: { showCaps.toggle() }) { pill { mono(showCaps ? "CAPS ▲" : "CAPS ▼") } }
-                    Spacer()
-                    if controller.lastSaved && !controller.isRecording {
-                        pill { mono("Saved → Photos", color: Color(red: 0.5, green: 0.94, blue: 0.65)) }
-                    }
-                }
-            }
-            .padding(12)
-
-            if showCaps {
-                VStack {
-                    Spacer()
-                    HStack {
-                        mono(controller.capsText, color: .white, size: 11)
-                            .padding(12)
-                            .background(Color.black.opacity(0.8))
-                            .cornerRadius(10)
-                        Spacer()
-                    }
-                    .padding(.bottom, 52)
-                    .padding(.horizontal, 12)
-                }
             }
         }
     }
@@ -114,6 +106,17 @@ struct ContentView: View {
     private var micLabel: String {
         if !controller.micAvailable { return "MIC OFF" }
         return controller.micActive ? "MIC ●" : "MIC ○"
+    }
+
+    // MARK: - Back protection
+
+    private func handleBack() {
+        if controller.isRecording { showBackConfirm = true } else { leave() }
+    }
+
+    private func leave() {
+        controller.shutdown()
+        onBack()
     }
 
     // MARK: - Helpers
