@@ -125,6 +125,7 @@ fun ScoreOverlay(match: SoloMatch, eventId: String, api: RxsApi) {
         loser.builds[li].finishes.add("L"); loser.builds[li].deployed = true; loser.builds[li].usedInCycle = true
         resetCycleIfDone(match.p1); resetCycleIfDone(match.p2)
         checkWin()
+        warn1 = 0; warn2 = 0 // warnings are per-clash → reset when the beys change
         dep1 = firstAvailBey(match.p1); dep2 = firstAvailBey(match.p2)
         tick++; schedulePush()
     }
