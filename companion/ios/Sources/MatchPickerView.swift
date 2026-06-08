@@ -63,7 +63,6 @@ struct MatchPickerView: View {
                 }
 
                 content
-                Spacer(minLength: 0)
             }
             .padding(16)
         }
@@ -139,6 +138,6 @@ struct MatchPickerView: View {
 
     @ViewBuilder
     private func centered<C: View>(@ViewBuilder _ content: () -> C) -> some View {
-        VStack { Spacer(); content(); Spacer() }.frame(maxWidth: .infinity)
+        VStack { Spacer(); content(); Spacer() }.frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
