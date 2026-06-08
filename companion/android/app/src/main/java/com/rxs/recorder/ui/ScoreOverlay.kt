@@ -166,11 +166,13 @@ fun ScoreOverlay(match: SoloMatch, eventId: String, api: RxsApi) {
     Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
         SidePanel(
             Modifier.align(Alignment.CenterStart),
+            rev = tick,
             side = left, deployed = depOf(left), warnCount = warnOf(left), enabled = !decided(),
             onDeploy = { setDepOf(left, it); tick++ }, onFinish = { apply(left, it) }, onWarn = { addWarning(left) }
         )
         SidePanel(
             Modifier.align(Alignment.CenterEnd),
+            rev = tick,
             side = right, deployed = depOf(right), warnCount = warnOf(right), enabled = !decided(),
             onDeploy = { setDepOf(right, it); tick++ }, onFinish = { apply(right, it) }, onWarn = { addWarning(right) }
         )
@@ -207,6 +209,7 @@ fun ScoreOverlay(match: SoloMatch, eventId: String, api: RxsApi) {
 @Composable
 private fun SidePanel(
     modifier: Modifier,
+    rev: Int, // change-counter: forces repaint when the (mutable) match state changes
     side: Side,
     deployed: Int,
     warnCount: Int,
@@ -215,6 +218,7 @@ private fun SidePanel(
     onFinish: (String) -> Unit,
     onWarn: () -> Unit
 ) {
+    @Suppress("UNUSED_EXPRESSION") rev
     Column(
         modifier
             .width(128.dp)
