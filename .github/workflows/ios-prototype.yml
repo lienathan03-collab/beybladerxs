@@ -7,6 +7,10 @@ on:
     paths:
       - "companion/ios/**"
       - ".github/workflows/ios-prototype.yml"
+  pull_request:
+    paths:
+      - "companion/ios/**"
+      - ".github/workflows/ios-prototype.yml"
 
 jobs:
   test:
