@@ -7,17 +7,23 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,10 +31,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material3.Text
-import androidx.compose.runtime.rememberCoroutineScope
 import com.rxs.recorder.data.Bey
 import com.rxs.recorder.data.RxsApi
 import com.rxs.recorder.data.Scoring
@@ -42,18 +47,19 @@ import kotlinx.coroutines.launch
 private val FINISH_COLORS = mapOf(
     "S" to Color(0xFF3D86C6), "O" to Color(0xFF2E8B57), "B" to Color(0xFFC98D12), "E" to Color(0xFF8E44AD)
 )
-private val FINISHES = listOf("S", "O", "B", "E")
 
 private data class Snap(
     val p1f: List<List<String>>, val p2f: List<List<String>>,
+    val p1u: List<Boolean>, val p2u: List<Boolean>,
     val w1: Boolean, val w2: Boolean, val d1: Int, val d2: Int
 )
 
 /**
- * Scoring overlay on the live camera. Mirrors the EM solo engine: tapping a
- * finish on a side = that side won the clash → its deployed bey gets the finish,
- * the opponent's deployed bey gets 'L'. Auto-win at the round threshold. Each tap
- * debounce-pushes the match to /api/beyresults. Overlay only — never in the video.
+ * Scoring overlay on the live camera. Mirrors the EM solo engine: a finish on a
+ * side = that side won the clash → its deployed bey gets the finish, the opponent's
+ * gets 'L'. Beys lock once used this cycle; when a deck is fully used it resets.
+ * Auto-win at the round threshold; each tap debounce-pushes to /api/beyresults.
+ * Drawn on the preview only — never in the saved video.
  */
 @Composable
 fun ScoreOverlay(match: SoloMatch, eventId: String, api: RxsApi) {
@@ -83,12 +89,18 @@ fun ScoreOverlay(match: SoloMatch, eventId: String, api: RxsApi) {
         while (side.builds.size <= idx) side.builds.add(Bey("Bey ${side.builds.size + 1}"))
     }
 
+    fun resetCycleIfDone(side: Side) {
+        if (side.builds.isNotEmpty() && side.builds.all { it.usedInCycle }) {
+            side.builds.forEach { it.usedInCycle = false }
+        }
+    }
+
     fun apply(winnerP1: Boolean, type: String) {
         if (decided()) return
         undo.add(
             Snap(
-                match.p1.builds.map { it.finishes.toList() },
-                match.p2.builds.map { it.finishes.toList() },
+                match.p1.builds.map { it.finishes.toList() }, match.p2.builds.map { it.finishes.toList() },
+                match.p1.builds.map { it.usedInCycle }, match.p2.builds.map { it.usedInCycle },
                 match.p1.win, match.p2.win, dep1, dep2
             )
         )
@@ -97,8 +109,9 @@ fun ScoreOverlay(match: SoloMatch, eventId: String, api: RxsApi) {
         val wi = if (winnerP1) dep1 else dep2
         val li = if (winnerP1) dep2 else dep1
         ensureBey(w, wi); ensureBey(l, li)
-        w.builds[wi].finishes.add(type); w.builds[wi].deployed = true
-        l.builds[li].finishes.add("L"); l.builds[li].deployed = true
+        w.builds[wi].finishes.add(type); w.builds[wi].deployed = true; w.builds[wi].usedInCycle = true
+        l.builds[li].finishes.add("L"); l.builds[li].deployed = true; l.builds[li].usedInCycle = true
+        resetCycleIfDone(match.p1); resetCycleIfDone(match.p2)
         if (match.p1.points >= thr) match.p1.win = true
         if (match.p2.points >= thr) match.p2.win = true
         dep1 = firstAvailBey(match.p1); dep2 = firstAvailBey(match.p2)
@@ -107,30 +120,30 @@ fun ScoreOverlay(match: SoloMatch, eventId: String, api: RxsApi) {
 
     fun undoLast() {
         val s = undo.removeLastOrNull() ?: return
-        s.p1f.forEachIndexed { i, f -> if (i < match.p1.builds.size) { match.p1.builds[i].finishes.clear(); match.p1.builds[i].finishes.addAll(f) } }
-        s.p2f.forEachIndexed { i, f -> if (i < match.p2.builds.size) { match.p2.builds[i].finishes.clear(); match.p2.builds[i].finishes.addAll(f) } }
         while (match.p1.builds.size > s.p1f.size) match.p1.builds.removeAt(match.p1.builds.size - 1)
         while (match.p2.builds.size > s.p2f.size) match.p2.builds.removeAt(match.p2.builds.size - 1)
+        s.p1f.forEachIndexed { i, f -> if (i < match.p1.builds.size) { match.p1.builds[i].finishes.clear(); match.p1.builds[i].finishes.addAll(f); match.p1.builds[i].usedInCycle = s.p1u.getOrElse(i) { false } } }
+        s.p2f.forEachIndexed { i, f -> if (i < match.p2.builds.size) { match.p2.builds[i].finishes.clear(); match.p2.builds[i].finishes.addAll(f); match.p2.builds[i].usedInCycle = s.p2u.getOrElse(i) { false } } }
         match.p1.win = s.w1; match.p2.win = s.w2; dep1 = s.d1; dep2 = s.d2
         tick++; schedulePush()
     }
 
     @Suppress("UNUSED_EXPRESSION") tick // subscribe to recomposition
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
         SidePanel(
-            Modifier.align(Alignment.CenterStart).padding(8.dp),
+            Modifier.align(Alignment.CenterStart),
             side = match.p1, deployed = dep1, enabled = !decided(),
             onDeploy = { dep1 = it; tick++ }, onFinish = { apply(true, it) }
         )
         SidePanel(
-            Modifier.align(Alignment.CenterEnd).padding(8.dp),
+            Modifier.align(Alignment.CenterEnd),
             side = match.p2, deployed = dep2, enabled = !decided(),
             onDeploy = { dep2 = it; tick++ }, onFinish = { apply(false, it) }
         )
 
         Column(
-            Modifier.align(Alignment.TopCenter).padding(top = 64.dp),
+            Modifier.align(Alignment.TopCenter).padding(top = 44.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
@@ -172,42 +185,60 @@ private fun SidePanel(
 ) {
     Column(
         modifier
-            .width(124.dp)
+            .width(128.dp)
             .background(Color(0xAA05070C), RoundedCornerShape(14.dp))
             .padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(5.dp)
     ) {
         Text(side.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, textAlign = TextAlign.Center)
-        Text("${side.points}", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+        Text("${side.points}", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
 
         side.builds.forEachIndexed { i, b ->
-            val sel = i == deployed
+            val sel = i == deployed && !b.usedInCycle
+            val used = b.usedInCycle
             val pts = b.finishes.filter { it != "L" }.sumOf { Scoring.FINISH_PTS[it] ?: 0 }
             Box(
                 Modifier.fillMaxWidth()
-                    .background(if (sel) Color(0xFF1E4870) else Color(0x33FFFFFF), RoundedCornerShape(8.dp))
-                    .clickable(enabled = enabled) { onDeploy(i) }
+                    .background(
+                        when { used -> Color(0x22FFFFFF); sel -> Color(0xFF1E4870); else -> Color(0x33FFFFFF) },
+                        RoundedCornerShape(8.dp)
+                    )
+                    .clickable(enabled = enabled && !used) { onDeploy(i) }
                     .padding(vertical = 5.dp, horizontal = 6.dp)
             ) {
                 Text(
                     "${if (sel) "▶ " else ""}${b.build.ifBlank { "Bey ${i + 1}" }}  $pts",
-                    color = Color.White, fontSize = 10.sp, maxLines = 1
+                    color = if (used) Color(0x66FFFFFF) else Color.White,
+                    textDecoration = if (used) TextDecoration.LineThrough else null,
+                    fontSize = 10.sp, maxLines = 1
                 )
             }
         }
 
-        Row(Modifier.padding(top = 3.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            for (t in FINISHES) {
-                Box(
-                    Modifier
-                        .background(FINISH_COLORS[t] ?: Color.DarkGray, RoundedCornerShape(8.dp))
-                        .clickable(enabled = enabled) { onFinish(t) }
-                        .padding(vertical = 8.dp, horizontal = 10.dp)
-                ) { Text(t, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp) }
+        // 2x2 finish grid so all four (incl. E) always fit and stay big.
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                FinishBtn("S", enabled, Modifier.weight(1f)) { onFinish("S") }
+                FinishBtn("O", enabled, Modifier.weight(1f)) { onFinish("O") }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                FinishBtn("B", enabled, Modifier.weight(1f)) { onFinish("B") }
+                FinishBtn("E", enabled, Modifier.weight(1f)) { onFinish("E") }
             }
         }
     }
+}
+
+@Composable
+private fun RowScope.FinishBtn(text: String, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier
+            .background(FINISH_COLORS[text] ?: Color.DarkGray, RoundedCornerShape(8.dp))
+            .clickable(enabled = enabled) { onClick() }
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) { Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
 }
 
 @Composable

@@ -2,6 +2,9 @@ package com.rxs.recorder.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -161,6 +164,8 @@ private fun MatchPickerScreen(api: RxsApi, event: EventSummary, onPick: (SoloMat
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var matches by remember { mutableStateOf<List<SoloMatch>>(emptyList()) }
+    var query by remember { mutableStateOf("") }
+    var round by remember { mutableStateOf<String?>(null) } // null = All
 
     LaunchedEffect(reload) {
         loading = true; error = null
@@ -169,11 +174,31 @@ private fun MatchPickerScreen(api: RxsApi, event: EventSummary, onPick: (SoloMat
             .onFailure { error = it.message; loading = false }
     }
 
+    val rounds = matches.map { it.round }.distinct()
+    val filtered = matches.filter {
+        (round == null || it.round == round) &&
+            (query.isBlank() || it.p1.name.contains(query, true) || it.p2.name.contains(query, true))
+    }
+
     Column(Modifier.fillMaxSize().background(Color.Black).padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onBack) { Text("‹ Events") }
             Text(event.title, color = Color.White, fontSize = 18.sp, modifier = Modifier.weight(1f))
             TextButton(onClick = { reload++ }) { Text("Refresh") }
+        }
+        OutlinedTextField(
+            query, { query = it },
+            label = { Text("Search player") }, singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        if (rounds.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                RoundChip("All", round == null) { round = null }
+                rounds.forEach { r -> RoundChip(r, round == r) { round = r } }
+            }
         }
         when {
             loading -> Center { CircularProgressIndicator(color = Color.White) }
@@ -183,9 +208,9 @@ private fun MatchPickerScreen(api: RxsApi, event: EventSummary, onPick: (SoloMat
                     Button(onClick = { reload++ }) { Text("Retry") }
                 }
             }
-            matches.isEmpty() -> Center { Text("No 1v1 matches yet.\n(Create-at-stadium coming next.)", color = Color.White) }
+            filtered.isEmpty() -> Center { Text("No matches here.\n(Create-at-stadium coming next.)", color = Color.White) }
             else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(matches) { m ->
+                items(filtered) { m ->
                     Row(
                         Modifier.fillMaxWidth().clickable { onPick(m) }
                             .background(Color(0xFF11151C)).padding(14.dp),
@@ -201,6 +226,16 @@ private fun MatchPickerScreen(api: RxsApi, event: EventSummary, onPick: (SoloMat
             }
         }
     }
+}
+
+@Composable
+private fun RoundChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .background(if (selected) Color(0xFF237BE9) else Color(0xFF11151C), RoundedCornerShape(20.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+    ) { Text(label, color = Color.White, fontSize = 13.sp) }
 }
 
 @Composable

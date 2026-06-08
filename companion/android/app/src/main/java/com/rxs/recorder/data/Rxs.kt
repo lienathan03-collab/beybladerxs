@@ -22,7 +22,12 @@ object Scoring {
 // ─────────────────────────────────────────────────────────────────────────────
 // Models (1v1 / solo)
 // ─────────────────────────────────────────────────────────────────────────────
-data class Bey(var build: String, val finishes: MutableList<String> = mutableListOf(), var deployed: Boolean = false)
+data class Bey(
+    var build: String,
+    val finishes: MutableList<String> = mutableListOf(),
+    var deployed: Boolean = false,
+    var usedInCycle: Boolean = false
+)
 
 data class Side(
     val player: String,
@@ -242,9 +247,9 @@ private fun sideFrom(r: JSONObject): Side {
     )
 }
 
-// First bey with no finishes yet (the next fresh deploy); 0 if none/empty.
+// First bey not yet used this cycle (deck rule); 0 if none/empty.
 fun firstAvailBey(side: Side): Int {
-    for (i in side.builds.indices) if (side.builds[i].finishes.isEmpty()) return i
+    for (i in side.builds.indices) if (!side.builds[i].usedInCycle) return i
     return 0
 }
 
