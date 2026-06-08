@@ -54,7 +54,8 @@ private val FINISH_COLORS = mapOf(
 private data class Snap(
     val p1f: List<List<String>>, val p2f: List<List<String>>,
     val p1u: List<Boolean>, val p2u: List<Boolean>,
-    val w1: Boolean, val w2: Boolean, val d1: Int, val d2: Int
+    val w1: Boolean, val w2: Boolean, val d1: Int, val d2: Int,
+    val warn1: Int, val warn2: Int
 )
 
 @Composable
@@ -62,6 +63,8 @@ fun ScoreOverlay(match: SoloMatch, eventId: String, api: RxsApi) {
     var tick by remember { mutableIntStateOf(0) }
     var dep1 by remember { mutableIntStateOf(firstAvailBey(match.p1)) }
     var dep2 by remember { mutableIntStateOf(firstAvailBey(match.p2)) }
+    var warn1 by remember { mutableIntStateOf(0) }
+    var warn2 by remember { mutableIntStateOf(0) }
     var swapped by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     val undo = remember { mutableStateListOf<Snap>() }
@@ -72,6 +75,9 @@ fun ScoreOverlay(match: SoloMatch, eventId: String, api: RxsApi) {
     fun decided() = match.p1.win || match.p2.win
     fun depOf(s: Side) = if (s === match.p1) dep1 else dep2
     fun setDepOf(s: Side, i: Int) { if (s === match.p1) dep1 = i else dep2 = i }
+    fun warnOf(s: Side) = if (s === match.p1) warn1 else warn2
+    fun setWarnOf(s: Side, v: Int) { if (s === match.p1) warn1 = v else warn2 = v }
+    fun other(s: Side) = if (s === match.p1) match.p2 else match.p1
 
     fun schedulePush() {
         pushJob?.cancel()
@@ -84,6 +90,16 @@ fun ScoreOverlay(match: SoloMatch, eventId: String, api: RxsApi) {
         }
     }
 
+    fun pushSnap() {
+        undo.add(
+            Snap(
+                match.p1.builds.map { it.finishes.toList() }, match.p2.builds.map { it.finishes.toList() },
+                match.p1.builds.map { it.usedInCycle }, match.p2.builds.map { it.usedInCycle },
+                match.p1.win, match.p2.win, dep1, dep2, warn1, warn2
+            )
+        )
+    }
+
     fun ensureBey(side: Side, idx: Int) {
         while (side.builds.size <= idx) side.builds.add(Bey("Bey ${side.builds.size + 1}"))
     }
@@ -94,24 +110,41 @@ fun ScoreOverlay(match: SoloMatch, eventId: String, api: RxsApi) {
         }
     }
 
+    fun checkWin() {
+        if (match.p1.points >= thr) match.p1.win = true
+        if (match.p2.points >= thr) match.p2.win = true
+    }
+
     fun apply(winner: Side, type: String) {
         if (decided()) return
-        undo.add(
-            Snap(
-                match.p1.builds.map { it.finishes.toList() }, match.p2.builds.map { it.finishes.toList() },
-                match.p1.builds.map { it.usedInCycle }, match.p2.builds.map { it.usedInCycle },
-                match.p1.win, match.p2.win, dep1, dep2
-            )
-        )
-        val loser = if (winner === match.p1) match.p2 else match.p1
+        pushSnap()
+        val loser = other(winner)
         val wi = depOf(winner); val li = depOf(loser)
         ensureBey(winner, wi); ensureBey(loser, li)
         winner.builds[wi].finishes.add(type); winner.builds[wi].deployed = true; winner.builds[wi].usedInCycle = true
         loser.builds[li].finishes.add("L"); loser.builds[li].deployed = true; loser.builds[li].usedInCycle = true
         resetCycleIfDone(match.p1); resetCycleIfDone(match.p2)
-        if (match.p1.points >= thr) match.p1.win = true
-        if (match.p2.points >= thr) match.p2.win = true
+        checkWin()
         dep1 = firstAvailBey(match.p1); dep2 = firstAvailBey(match.p2)
+        tick++; schedulePush()
+    }
+
+    // Warning goes TO [warned]; at 2 the opponent gets +1 (stored as an 'S' point).
+    // Per the user's rule this does NOT consume the deck — same beys stay deployed.
+    fun addWarning(warned: Side) {
+        if (decided()) return
+        pushSnap()
+        val n = warnOf(warned) + 1
+        if (n >= 2) {
+            val opp = other(warned)
+            val oi = depOf(opp)
+            ensureBey(opp, oi)
+            opp.builds[oi].finishes.add("S") // +1 point, no usedInCycle / no deploy change
+            setWarnOf(warned, 0)
+            checkWin()
+        } else {
+            setWarnOf(warned, n)
+        }
         tick++; schedulePush()
     }
 
@@ -121,7 +154,7 @@ fun ScoreOverlay(match: SoloMatch, eventId: String, api: RxsApi) {
         while (match.p2.builds.size > s.p2f.size) match.p2.builds.removeAt(match.p2.builds.size - 1)
         s.p1f.forEachIndexed { i, f -> if (i < match.p1.builds.size) { match.p1.builds[i].finishes.clear(); match.p1.builds[i].finishes.addAll(f); match.p1.builds[i].usedInCycle = s.p1u.getOrElse(i) { false } } }
         s.p2f.forEachIndexed { i, f -> if (i < match.p2.builds.size) { match.p2.builds[i].finishes.clear(); match.p2.builds[i].finishes.addAll(f); match.p2.builds[i].usedInCycle = s.p2u.getOrElse(i) { false } } }
-        match.p1.win = s.w1; match.p2.win = s.w2; dep1 = s.d1; dep2 = s.d2
+        match.p1.win = s.w1; match.p2.win = s.w2; dep1 = s.d1; dep2 = s.d2; warn1 = s.warn1; warn2 = s.warn2
         tick++; schedulePush()
     }
 
@@ -133,37 +166,34 @@ fun ScoreOverlay(match: SoloMatch, eventId: String, api: RxsApi) {
     Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
         SidePanel(
             Modifier.align(Alignment.CenterStart),
-            side = left, deployed = depOf(left), enabled = !decided(),
-            onDeploy = { setDepOf(left, it); tick++ }, onFinish = { apply(left, it) }
+            side = left, deployed = depOf(left), warnCount = warnOf(left), enabled = !decided(),
+            onDeploy = { setDepOf(left, it); tick++ }, onFinish = { apply(left, it) }, onWarn = { addWarning(left) }
         )
         SidePanel(
             Modifier.align(Alignment.CenterEnd),
-            side = right, deployed = depOf(right), enabled = !decided(),
-            onDeploy = { setDepOf(right, it); tick++ }, onFinish = { apply(right, it) }
+            side = right, deployed = depOf(right), warnCount = warnOf(right), enabled = !decided(),
+            onDeploy = { setDepOf(right, it); tick++ }, onFinish = { apply(right, it) }, onWarn = { addWarning(right) }
         )
 
-        // Compact top control bar — no duplicate score, keeps the middle clear.
+        // Minimal top bar: round + sync dot only.
         Row(
             Modifier.align(Alignment.TopCenter).padding(top = 36.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(match.round, color = Color(0xFF8893A7), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Chip("⇄") { swapped = !swapped; tick++ }
-            Chip("UNDO", enabled = undo.isNotEmpty()) { undoLast() }
-            Chip("SUBMIT") {
-                match.submitted = true
-                scope.launch {
-                    status = "submitting…"
-                    api.putMatch(eventId, match, true)
-                        .onSuccess { status = "submitted" }
-                        .onFailure { status = "submit failed" }
-                }
-            }
             StatusDot(status)
         }
 
-        // Winner banner only at match end (center is otherwise kept clear).
+        // Switch + Undo sit just above the record button.
+        Row(
+            Modifier.align(Alignment.BottomCenter).padding(bottom = 98.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Chip("⇄ SIDES") { swapped = !swapped; tick++ }
+            Chip("UNDO", enabled = undo.isNotEmpty()) { undoLast() }
+        }
+
         if (decided()) {
             Text(
                 "🏆 ${if (match.p1.win) match.p1.name else match.p2.name}",
@@ -179,9 +209,11 @@ private fun SidePanel(
     modifier: Modifier,
     side: Side,
     deployed: Int,
+    warnCount: Int,
     enabled: Boolean,
     onDeploy: (Int) -> Unit,
-    onFinish: (String) -> Unit
+    onFinish: (String) -> Unit,
+    onWarn: () -> Unit
 ) {
     Column(
         modifier
@@ -191,7 +223,17 @@ private fun SidePanel(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(5.dp)
     ) {
-        Text(side.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, textAlign = TextAlign.Center)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(side.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
+            Box(
+                Modifier
+                    .background(if (warnCount > 0) Color(0x55E53935) else Color(0x22FFFFFF), RoundedCornerShape(8.dp))
+                    .clickable(enabled = enabled) { onWarn() }
+                    .padding(horizontal = 6.dp, vertical = 3.dp)
+            ) {
+                Text(if (warnCount > 0) "⚠$warnCount" else "⚠", color = if (warnCount > 0) Color(0xFFFF8891) else Color(0xFFBFC6D4), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        }
         Text("${side.points}", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
 
         side.builds.forEachIndexed { i, b ->
@@ -246,7 +288,7 @@ private fun StatusDot(status: String?) {
         status == null -> Color(0x55FFFFFF)
         status.startsWith("synced") || status.startsWith("submitted") -> Color(0xFF7FF0A6)
         status.startsWith("offline") || status.contains("failed") -> Color(0xFFFFC857)
-        else -> Color(0xFF8FC7FF) // syncing / submitting
+        else -> Color(0xFF8FC7FF)
     }
     val showText = status != null && (status.startsWith("offline") || status.contains("failed"))
     Row(verticalAlignment = Alignment.CenterVertically) {
