@@ -1,0 +1,224 @@
+package com.rxs.recorder.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.material3.Text
+import androidx.compose.runtime.rememberCoroutineScope
+import com.rxs.recorder.data.Bey
+import com.rxs.recorder.data.RxsApi
+import com.rxs.recorder.data.Scoring
+import com.rxs.recorder.data.Side
+import com.rxs.recorder.data.SoloMatch
+import com.rxs.recorder.data.firstAvailBey
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+private val FINISH_COLORS = mapOf(
+    "S" to Color(0xFF3D86C6), "O" to Color(0xFF2E8B57), "B" to Color(0xFFC98D12), "E" to Color(0xFF8E44AD)
+)
+private val FINISHES = listOf("S", "O", "B", "E")
+
+private data class Snap(
+    val p1f: List<List<String>>, val p2f: List<List<String>>,
+    val w1: Boolean, val w2: Boolean, val d1: Int, val d2: Int
+)
+
+/**
+ * Scoring overlay on the live camera. Mirrors the EM solo engine: tapping a
+ * finish on a side = that side won the clash → its deployed bey gets the finish,
+ * the opponent's deployed bey gets 'L'. Auto-win at the round threshold. Each tap
+ * debounce-pushes the match to /api/beyresults. Overlay only — never in the video.
+ */
+@Composable
+fun ScoreOverlay(match: SoloMatch, eventId: String, api: RxsApi) {
+    var tick by remember { mutableIntStateOf(0) }
+    var dep1 by remember { mutableIntStateOf(firstAvailBey(match.p1)) }
+    var dep2 by remember { mutableIntStateOf(firstAvailBey(match.p2)) }
+    var status by remember { mutableStateOf<String?>(null) }
+    val undo = remember { mutableStateListOf<Snap>() }
+    val scope = rememberCoroutineScope()
+    var pushJob by remember { mutableStateOf<Job?>(null) }
+    val thr = Scoring.threshold(match.round)
+
+    fun decided() = match.p1.win || match.p2.win
+
+    fun schedulePush() {
+        pushJob?.cancel()
+        pushJob = scope.launch {
+            delay(600)
+            status = "syncing…"
+            api.putMatch(eventId, match, decided())
+                .onSuccess { status = "synced" }
+                .onFailure { status = "offline — retries on next tap" }
+        }
+    }
+
+    fun ensureBey(side: Side, idx: Int) {
+        while (side.builds.size <= idx) side.builds.add(Bey("Bey ${side.builds.size + 1}"))
+    }
+
+    fun apply(winnerP1: Boolean, type: String) {
+        if (decided()) return
+        undo.add(
+            Snap(
+                match.p1.builds.map { it.finishes.toList() },
+                match.p2.builds.map { it.finishes.toList() },
+                match.p1.win, match.p2.win, dep1, dep2
+            )
+        )
+        val w = if (winnerP1) match.p1 else match.p2
+        val l = if (winnerP1) match.p2 else match.p1
+        val wi = if (winnerP1) dep1 else dep2
+        val li = if (winnerP1) dep2 else dep1
+        ensureBey(w, wi); ensureBey(l, li)
+        w.builds[wi].finishes.add(type); w.builds[wi].deployed = true
+        l.builds[li].finishes.add("L"); l.builds[li].deployed = true
+        if (match.p1.points >= thr) match.p1.win = true
+        if (match.p2.points >= thr) match.p2.win = true
+        dep1 = firstAvailBey(match.p1); dep2 = firstAvailBey(match.p2)
+        tick++; schedulePush()
+    }
+
+    fun undoLast() {
+        val s = undo.removeLastOrNull() ?: return
+        s.p1f.forEachIndexed { i, f -> if (i < match.p1.builds.size) { match.p1.builds[i].finishes.clear(); match.p1.builds[i].finishes.addAll(f) } }
+        s.p2f.forEachIndexed { i, f -> if (i < match.p2.builds.size) { match.p2.builds[i].finishes.clear(); match.p2.builds[i].finishes.addAll(f) } }
+        while (match.p1.builds.size > s.p1f.size) match.p1.builds.removeAt(match.p1.builds.size - 1)
+        while (match.p2.builds.size > s.p2f.size) match.p2.builds.removeAt(match.p2.builds.size - 1)
+        match.p1.win = s.w1; match.p2.win = s.w2; dep1 = s.d1; dep2 = s.d2
+        tick++; schedulePush()
+    }
+
+    @Suppress("UNUSED_EXPRESSION") tick // subscribe to recomposition
+
+    Box(Modifier.fillMaxSize()) {
+        SidePanel(
+            Modifier.align(Alignment.CenterStart).padding(8.dp),
+            side = match.p1, deployed = dep1, enabled = !decided(),
+            onDeploy = { dep1 = it; tick++ }, onFinish = { apply(true, it) }
+        )
+        SidePanel(
+            Modifier.align(Alignment.CenterEnd).padding(8.dp),
+            side = match.p2, deployed = dep2, enabled = !decided(),
+            onDeploy = { dep2 = it; tick++ }, onFinish = { apply(false, it) }
+        )
+
+        Column(
+            Modifier.align(Alignment.TopCenter).padding(top = 64.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                "${match.p1.points}  -  ${match.p2.points}",
+                color = Color.White, fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold, fontSize = 22.sp
+            )
+            if (decided()) {
+                Text(
+                    "WINNER: ${if (match.p1.win) match.p1.name else match.p2.name}",
+                    color = Color(0xFF7FF0A6), fontWeight = FontWeight.Bold, fontSize = 13.sp
+                )
+            }
+            status?.let { Text(it, color = Color(0xFF8FC7FF), fontSize = 10.sp) }
+            Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Chip("UNDO", enabled = undo.isNotEmpty()) { undoLast() }
+                Chip("SUBMIT", enabled = true) {
+                    match.submitted = true
+                    scope.launch {
+                        status = "submitting…"
+                        api.putMatch(eventId, match, true)
+                            .onSuccess { status = "submitted" }
+                            .onFailure { status = "submit failed" }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SidePanel(
+    modifier: Modifier,
+    side: Side,
+    deployed: Int,
+    enabled: Boolean,
+    onDeploy: (Int) -> Unit,
+    onFinish: (String) -> Unit
+) {
+    Column(
+        modifier
+            .width(124.dp)
+            .background(Color(0xAA05070C), RoundedCornerShape(14.dp))
+            .padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        Text(side.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, textAlign = TextAlign.Center)
+        Text("${side.points}", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+
+        side.builds.forEachIndexed { i, b ->
+            val sel = i == deployed
+            val pts = b.finishes.filter { it != "L" }.sumOf { Scoring.FINISH_PTS[it] ?: 0 }
+            Box(
+                Modifier.fillMaxWidth()
+                    .background(if (sel) Color(0xFF1E4870) else Color(0x33FFFFFF), RoundedCornerShape(8.dp))
+                    .clickable(enabled = enabled) { onDeploy(i) }
+                    .padding(vertical = 5.dp, horizontal = 6.dp)
+            ) {
+                Text(
+                    "${if (sel) "▶ " else ""}${b.build.ifBlank { "Bey ${i + 1}" }}  $pts",
+                    color = Color.White, fontSize = 10.sp, maxLines = 1
+                )
+            }
+        }
+
+        Row(Modifier.padding(top = 3.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            for (t in FINISHES) {
+                Box(
+                    Modifier
+                        .background(FINISH_COLORS[t] ?: Color.DarkGray, RoundedCornerShape(8.dp))
+                        .clickable(enabled = enabled) { onFinish(t) }
+                        .padding(vertical = 8.dp, horizontal = 10.dp)
+                ) { Text(t, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Chip(label: String, enabled: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .background(Color(0xAA05070C), RoundedCornerShape(10.dp))
+            .border(1.dp, Color(0x55FFFFFF), RoundedCornerShape(10.dp))
+            .clickable(enabled = enabled) { onClick() }
+            .padding(vertical = 6.dp, horizontal = 12.dp)
+    ) {
+        Text(label, color = if (enabled) Color.White else Color(0x66FFFFFF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    }
+}

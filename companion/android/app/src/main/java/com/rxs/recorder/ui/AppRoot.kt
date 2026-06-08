@@ -43,7 +43,7 @@ private sealed class Route {
     object Setup : Route()
     object Events : Route()
     data class Matches(val event: EventSummary) : Route()
-    data class Record(val matchLabel: String) : Route()
+    data class Record(val event: EventSummary, val match: SoloMatch) : Route()
 }
 
 @Composable
@@ -62,10 +62,13 @@ fun AppRoot() {
         )
         is Route.Matches -> MatchPickerScreen(
             api, r.event,
-            onPick = { route = Route.Record(it.label) },
+            onPick = { route = Route.Record(r.event, it) },
             onBack = { route = Route.Events }
         )
-        is Route.Record -> CameraScreen(matchLabel = r.matchLabel, onBack = { route = Route.Events })
+        is Route.Record -> CameraScreen(
+            match = r.match, eventId = r.event.id, api = api,
+            onBack = { route = Route.Matches(r.event) }
+        )
     }
 }
 

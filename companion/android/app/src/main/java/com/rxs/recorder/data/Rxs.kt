@@ -120,6 +120,16 @@ class RxsApi(private val settings: Settings) {
         }
     }
 
+    /** Push this match's two rows (merge mode). `submitted` marks the result final. */
+    suspend fun putMatch(eventId: String, m: SoloMatch, submitted: Boolean): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val body = buildPutBody(eventId, m, submitted, settings.adminUser, settings.adminPass)
+                val (code, text) = req("${base()}/api/beyresults", "PUT", body)
+                if (code != 200) error(errMsg(text, code))
+            }
+        }
+
     private fun req(urlStr: String, method: String, body: String?): Pair<Int, String> {
         val c = URL(urlStr).openConnection() as HttpURLConnection
         c.requestMethod = method
@@ -230,4 +240,48 @@ private fun sideFrom(r: JSONObject): Side {
         builds = builds,
         win = r.optBoolean("win", false)
     )
+}
+
+// First bey with no finishes yet (the next fresh deploy); 0 if none/empty.
+fun firstAvailBey(side: Side): Int {
+    for (i in side.builds.indices) if (side.builds[i].finishes.isEmpty()) return i
+    return 0
+}
+
+private fun rowJson(side: Side, round: String, sid: String, submitted: Boolean): JSONObject {
+    val builds = JSONArray()
+    for (b in side.builds) {
+        val fa = JSONArray()
+        b.finishes.forEach { fa.put(it) }
+        builds.put(JSONObject().put("build", b.build).put("finishes", fa).put("deployed", b.deployed))
+    }
+    val o = JSONObject()
+        .put("player", side.player)
+        .put("round", round)
+        .put("builds", builds)
+        .put("pointsTotal", side.points)
+        .put("win", side.win)
+        .put("_matchSid", sid)
+    side.entryId?.let { o.put("entryId", it) }
+    side.displayLabel?.let { o.put("displayLabel", it) }
+    if (submitted) o.put("_submitted", true)
+    return o
+}
+
+private fun buildPutBody(eventId: String, m: SoloMatch, submitted: Boolean, user: String, pass: String): String {
+    val rows = JSONArray()
+        .put(rowJson(m.p1, m.round, m.sid, submitted))
+        .put(rowJson(m.p2, m.round, m.sid, submitted))
+    val builds = JSONObject()
+        .put(m.p1.player, JSONArray().also { arr -> m.p1.builds.forEach { arr.put(it.build) } })
+        .put(m.p2.player, JSONArray().also { arr -> m.p2.builds.forEach { arr.put(it.build) } })
+    return JSONObject()
+        .put("adminUsername", user)
+        .put("adminPassword", pass)
+        .put("eventId", eventId)
+        .put("beyResults", rows)
+        .put("builds", builds)
+        .put("mergeMode", true)
+        .put("revivedSids", JSONArray())
+        .toString()
 }

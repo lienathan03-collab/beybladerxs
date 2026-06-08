@@ -46,6 +46,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.rxs.recorder.CameraCapabilities
 import com.rxs.recorder.RecorderController
+import com.rxs.recorder.data.RxsApi
+import com.rxs.recorder.data.SoloMatch
 
 private val REQUIRED = arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
 
@@ -54,7 +56,12 @@ private fun hasAll(context: android.content.Context) = REQUIRED.all {
 }
 
 @Composable
-fun CameraScreen(matchLabel: String? = null, onBack: (() -> Unit)? = null) {
+fun CameraScreen(
+    match: SoloMatch? = null,
+    eventId: String? = null,
+    api: RxsApi? = null,
+    onBack: (() -> Unit)? = null
+) {
     val context = LocalContext.current
     var granted by remember { mutableStateOf(hasAll(context)) }
 
@@ -75,11 +82,17 @@ fun CameraScreen(matchLabel: String? = null, onBack: (() -> Unit)? = null) {
         return
     }
 
-    RecorderSurface(matchLabel, onBack)
+    RecorderSurface(match?.label, onBack, match, eventId, api)
 }
 
 @Composable
-private fun RecorderSurface(matchLabel: String? = null, onBack: (() -> Unit)? = null) {
+private fun RecorderSurface(
+    matchLabel: String? = null,
+    onBack: (() -> Unit)? = null,
+    match: SoloMatch? = null,
+    eventId: String? = null,
+    api: RxsApi? = null
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -196,6 +209,12 @@ private fun RecorderSurface(matchLabel: String? = null, onBack: (() -> Unit)? = 
                     .padding(12.dp)
                     .pointerInput(Unit) { detectTapGestures { reviewing = true } }
             ) { Mono("▶ REVIEW LAST", color = Color(0xFF7FF0A6)) }
+        }
+
+        // ── Scoring overlay (shown whenever a match is selected, including while
+        // recording — it's drawn on the preview only, never in the saved video). ──
+        if (match != null && eventId != null && api != null) {
+            ScoreOverlay(match, eventId, api)
         }
 
         // ── Selected match + back to the match list ──
