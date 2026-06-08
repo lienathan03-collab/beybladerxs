@@ -35,3 +35,30 @@ jobs:
             -scheme RXSRecorder \
             -destination 'platform=iOS Simulator,name=${{ steps.simulator.outputs.name }}' \
             CODE_SIGNING_ALLOWED=NO
+
+      # Build an UNSIGNED device app and wrap it as an .ipa. This is the file you feed
+      # to AltStore / Sideloadly on Windows — they re-sign it with your free Apple ID and
+      # install it onto each iPhone. No Mac required for install/refresh.
+      - name: Build unsigned device app
+        run: |
+          xcodebuild build \
+            -project companion/ios/RXSRecorder.xcodeproj \
+            -scheme RXSRecorder \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+      - name: Package unsigned .ipa
+        run: |
+          APP="build/Build/Products/Release-iphoneos/RXSRecorder.app"
+          rm -rf Payload RXSRecorder.ipa
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -r RXSRecorder.ipa Payload >/dev/null
+          ls -lh RXSRecorder.ipa
+      - name: Upload .ipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RXSRecorder-unsigned-ipa
+          path: RXSRecorder.ipa
+          if-no-files-found: error
