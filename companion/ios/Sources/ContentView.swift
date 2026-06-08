@@ -11,9 +11,18 @@ struct ContentView: View {
     let onBack: () -> Void
 
     @StateObject private var controller = CameraController()
+    @StateObject private var store: ScoringStore
     @State private var camGranted = false
     @State private var asked = false
     @State private var showBackConfirm = false
+
+    init(event: EventSummary, match: SoloMatch, api: RxsAPI, onBack: @escaping () -> Void) {
+        self.event = event
+        self.match = match
+        self.api = api
+        self.onBack = onBack
+        _store = StateObject(wrappedValue: ScoringStore(match: match, eventId: event.id, api: api))
+    }
 
     var body: some View {
         ZStack {
@@ -21,6 +30,8 @@ struct ContentView: View {
 
             if camGranted {
                 CameraPreview(controller: controller).ignoresSafeArea()
+                // Scoring overlay sits on the preview only — never in the saved movie.
+                ScoreOverlayView(store: store)
                 hud
             } else {
                 VStack(spacing: 12) {
@@ -56,8 +67,9 @@ struct ContentView: View {
                             mono(timer(controller.elapsed))
                         }
                     }
-                    Spacer()
-                    pill { mono("\(controller.profileLabel) • \(controller.actualResolution)") }
+                    // Resolution is just confirmation — keep it small/left and leave the
+                    // center clear for the scoring bar (matches Android's scoring layout).
+                    pill { mono("\(controller.actualResolution)", size: 10) }
                     Spacer()
                     HStack(spacing: 8) {
                         pill { mono(micLabel) }
