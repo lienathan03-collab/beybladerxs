@@ -36,6 +36,7 @@ import com.rxs.recorder.data.EventSummary
 import com.rxs.recorder.data.RxsApi
 import com.rxs.recorder.data.Settings
 import com.rxs.recorder.data.SoloMatch
+import com.rxs.recorder.data.normalizeServerUrl
 import kotlinx.coroutines.launch
 
 private sealed class Route {
@@ -72,7 +73,7 @@ fun AppRoot() {
 private fun SetupScreen(settings: Settings, onDone: () -> Unit) {
     val api = remember { RxsApi(settings) }
     val scope = rememberCoroutineScope()
-    var url by remember { mutableStateOf(settings.serverUrl.ifBlank { "https://" }) }
+    var url by remember { mutableStateOf(settings.serverUrl.ifBlank { "https://beybladerxs.pages.dev" }) }
     var user by remember { mutableStateOf(settings.adminUser) }
     var pass by remember { mutableStateOf(settings.adminPass) }
     var busy by remember { mutableStateOf(false) }
@@ -94,9 +95,11 @@ private fun SetupScreen(settings: Settings, onDone: () -> Unit) {
             enabled = !busy && url.isNotBlank() && user.isNotBlank() && pass.isNotBlank(),
             onClick = {
                 busy = true; error = null
+                val u = normalizeServerUrl(url)
+                url = u
                 scope.launch {
-                    api.login(url.trim(), user.trim(), pass).onSuccess {
-                        settings.serverUrl = url.trim(); settings.adminUser = user.trim(); settings.adminPass = pass
+                    api.login(u, user.trim(), pass).onSuccess {
+                        settings.serverUrl = u; settings.adminUser = user.trim(); settings.adminPass = pass
                         busy = false; onDone()
                     }.onFailure { busy = false; error = it.message ?: "Login failed" }
                 }

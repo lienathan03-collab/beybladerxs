@@ -67,6 +67,25 @@ class Settings(context: Context) {
     val isConfigured: Boolean get() = serverUrl.isNotBlank() && adminUser.isNotBlank() && adminPass.isNotBlank()
 }
 
+/**
+ * Normalize a user-entered server URL so a typo can't cause a redirect that
+ * downgrades POST→GET (which the API answers with 405). Forces https, drops any
+ * path/trailing slash, leaving just scheme://host[:port].
+ */
+fun normalizeServerUrl(raw: String): String {
+    var s = raw.trim()
+    if (s.isEmpty()) return s
+    s = when {
+        s.startsWith("https://") -> s
+        s.startsWith("http://") -> "https://" + s.removePrefix("http://")
+        else -> "https://$s"
+    }
+    val schemeEnd = s.indexOf("://") + 3
+    val slash = s.indexOf('/', schemeEnd)
+    if (slash != -1) s = s.substring(0, slash)
+    return s
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // API — endpoints/contracts from docs/rxs-companion/phase1-eventmanager-api-report.md
 // ─────────────────────────────────────────────────────────────────────────────
