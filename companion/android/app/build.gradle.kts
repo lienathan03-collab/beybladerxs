@@ -49,6 +49,6 @@ dependencies {
     implementation("androidx.camera:camera-view:$cameraxVersion")
 
     // In-app review player (frame-by-frame stepping)
-    implementation("androidx.media3:media3-exoplayer:1.6.1")
-    implementation("androidx.media3:media3-ui:1.6.1")
+    implementation("androidx.media3:media3-exoplayer:1.8.0")
+    implementation("androidx.media3:media3-ui:1.8.0")
 }
