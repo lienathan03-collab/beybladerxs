@@ -3573,6 +3573,15 @@ function setBrView(view, btn) {
   renderBeyRankings();
 }
 
+// Wilson lower bound of a win rate (95% confidence). Ranks builds by how much
+// their win rate is *backed by games played*, so a lucky 4-0 sits below a proven
+// 16-4. The displayed win % is unchanged — this only drives sort order.
+function wilsonScore(wins, played) {
+  if (!played) return 0;
+  const z = 1.96, phat = wins / played;
+  return (phat + z*z/(2*played) - z*Math.sqrt((phat*(1-phat) + z*z/(4*played))/played)) / (1 + z*z/played);
+}
+
 async function renderBeyRankings() {
   const el = document.getElementById('br-content');
   if (!el) return;
@@ -3634,10 +3643,11 @@ function renderGlobalBeyRankings(events, query) {
       build,
       wins: s.wins, losses: s.losses, played: s.played,
       players: s.players.size,
-      winRate: s.played > 0 ? (s.wins / s.played * 100) : 0
+      winRate: s.played > 0 ? (s.wins / s.played * 100) : 0,
+      score: wilsonScore(s.wins, s.played)
     }))
     .filter(r => r.played > 0)
-    .sort((a, b) => b.winRate - a.winRate || b.wins - a.wins);
+    .sort((a, b) => b.score - a.score || b.winRate - a.winRate || b.played - a.played);
 
   if (query) rows = rows.filter(r => r.build.toLowerCase().includes(query));
 
@@ -3702,8 +3712,8 @@ function renderSoloBeyRankings(events, query) {
 
   let rows = Object.values(soloMap)
     .filter(r => r.played > 0)
-    .map(r => ({ ...r, winRate: r.played > 0 ? (r.wins / r.played * 100) : 0 }))
-    .sort((a, b) => b.winRate - a.winRate || b.wins - a.wins);
+    .map(r => ({ ...r, winRate: r.played > 0 ? (r.wins / r.played * 100) : 0, score: wilsonScore(r.wins, r.played) }))
+    .sort((a, b) => b.score - a.score || b.winRate - a.winRate || b.played - a.played);
 
   if (query) rows = rows.filter(r =>
     r.build.toLowerCase().includes(query) || r.player.toLowerCase().includes(query)
