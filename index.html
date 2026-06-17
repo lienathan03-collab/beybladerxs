@@ -118,40 +118,189 @@
   .nav-login-hint:hover { color: var(--muted); }
 
   /* HERO */
-  .hero { border-bottom: 1px solid var(--border); }
-  .hero-bg-area {
-    min-height: 200px; background: var(--surface2) center center / cover no-repeat;
-    position: relative; overflow: hidden;
+  .hero {
+    position: relative; overflow: hidden; isolation: isolate;
+    border-bottom: 1px solid var(--border);
+    min-height: clamp(480px, 78vh, 660px);
+    display: flex; align-items: center;
   }
+  .hero-bg-area {
+    position: absolute; inset: 0; z-index: 0;
+    background: var(--surface2) 30% center / cover no-repeat;
+    background-image: url('assets/hero-cover.jpg');
+  }
+  /* readability scrim — survives admin background swaps (it's a ::before) */
   .hero-bg-area::before {
-    content: ''; position: absolute; inset: 0;
-    background: linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.6) 100%);
-    pointer-events: none;
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background:
+      linear-gradient(100deg, rgba(8,8,8,.96) 0%, rgba(8,8,8,.86) 40%, rgba(8,8,8,.7) 72%, rgba(8,8,8,.82) 100%),
+      linear-gradient(to top, rgba(8,8,8,.95) 0%, rgba(8,8,8,.32) 52%, rgba(8,8,8,.62) 100%);
+  }
+  /* gold energy bloom, top-right */
+  .hero::after {
+    content: ''; position: absolute; z-index: 0; pointer-events: none;
+    top: -32%; right: -12%; width: 62%; height: 120%;
+    background: radial-gradient(circle, rgba(212,160,23,.16) 0%, rgba(212,160,23,0) 62%);
   }
   .hero-bg-edit-btn {
-    position: absolute; top: 12px; right: 14px; z-index: 4;
+    position: absolute; top: 12px; right: 14px; z-index: 6;
     background: rgba(0,0,0,0.65); border: 1px solid rgba(255,255,255,0.3);
     border-radius: 8px; padding: 6px 14px; font-size: 12px; cursor: pointer;
     display: none; color: #fff; font-family: 'Rajdhani', sans-serif;
     font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
   }
   .admin-active .hero-bg-edit-btn { display: block; }
-  .hero-stats-bar {
-    background: var(--surface); border-top: 1px solid var(--border);
-    padding: 20px 32px 16px; text-align: center;
+
+  .hero-inner {
+    position: relative; z-index: 2; width: 100%;
+    max-width: 1200px; margin: 0 auto; padding: 52px 32px;
   }
-  .hero-sub { font-size: 11px; letter-spacing: 4px; text-transform: uppercase; color: var(--muted); margin-top: 8px; }
-  .hero-stats { display: flex; justify-content: center; gap: 40px; margin-bottom: 4px; }
+  .hero-kicker {
+    font-family: 'Share Tech Mono', monospace; font-size: 12px;
+    letter-spacing: 4px; text-transform: uppercase; color: var(--gold2);
+    margin-bottom: 18px; display: flex; align-items: center; gap: 12px;
+  }
+  .hero-kicker::before { content: ''; width: 30px; height: 2px; background: var(--gold); }
+  .hero-title {
+    font-family: 'Rajdhani', sans-serif; font-weight: 700;
+    font-size: clamp(46px, 8.2vw, 108px); line-height: .9;
+    letter-spacing: 2px; text-transform: uppercase; color: #fff;
+    margin: 0 0 14px; text-shadow: 0 6px 34px rgba(0,0,0,.55);
+  }
+  .hero-title .dot { color: var(--gold); margin: 0 .1em; }
+  .hero-title .go { display: block; color: var(--gold2); }
+  .hero-lead {
+    font-size: clamp(15px, 1.5vw, 18px); color: #dcdcdc;
+    max-width: 470px; line-height: 1.5; margin: 0 0 30px;
+  }
+  .hero-cta { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 40px; }
+  .hero-btn {
+    font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 14px;
+    letter-spacing: 2px; text-transform: uppercase; cursor: pointer;
+    padding: 15px 30px; border-radius: 10px; transition: all .18s;
+    min-height: 48px; display: inline-flex; align-items: center; gap: 8px;
+  }
+  .hero-btn.primary {
+    background: var(--gold); color: #000; border: 1px solid var(--gold);
+    font-weight: 800; box-shadow: 0 8px 30px rgba(212,160,23,.32);
+  }
+  .hero-btn.primary:hover { background: var(--gold2); border-color: var(--gold2); transform: translateY(-2px); box-shadow: 0 12px 36px rgba(212,160,23,.45); }
+  .hero-btn.ghost {
+    background: rgba(255,255,255,.06); color: #fff;
+    border: 1px solid rgba(255,255,255,.26); backdrop-filter: blur(4px);
+  }
+  .hero-btn.ghost:hover { background: rgba(255,255,255,.14); border-color: #fff; transform: translateY(-2px); }
+
+  .hero-stats-bar {
+    display: inline-flex; background: rgba(13,13,13,.55);
+    border: 1px solid rgba(255,255,255,.1); border-radius: 14px;
+    padding: 16px 28px; backdrop-filter: blur(8px); max-width: 100%;
+  }
+  .hero-stats { display: flex; gap: 30px; }
   .hero-stat { text-align: center; }
-  .hero-stat .n { font-family: 'Share Tech Mono', monospace; font-size: 34px; color: var(--accent); display: block; }
-  .hero-stat .l { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
-  .hero-divider { width: 1px; background: var(--border); align-self: stretch; }
+  .hero-stat .n { font-family: 'Share Tech Mono', monospace; font-size: 30px; color: #fff; display: block; line-height: 1; }
+  .hero-stat .l { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-top: 7px; display: block; }
+  .hero-divider { width: 1px; background: rgba(255,255,255,.12); align-self: stretch; }
+  @media (prefers-reduced-motion: reduce) {
+    .hero-btn:hover { transform: none; }
+  }
+
+  /* ══ HOME LANDING: section heading ══ */
+  .home-head { margin: 6px 0 18px; }
+  .home-head .eyebrow {
+    font-family: 'Share Tech Mono', monospace; font-size: 11px;
+    letter-spacing: 3px; text-transform: uppercase; color: var(--gold2);
+    display: block; margin-bottom: 8px;
+  }
+  .home-head h2 {
+    font-family: 'Rajdhani', sans-serif; font-weight: 700;
+    font-size: clamp(26px, 3.6vw, 40px); line-height: 1; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--text); margin: 0;
+  }
+  .home-head p { color: var(--muted); font-size: 14px; margin: 8px 0 0; max-width: 560px; line-height: 1.5; }
+  .home-block { margin-bottom: 46px; }
+  .home-head-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .home-link {
+    font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 13px;
+    letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold2);
+    background: none; border: none; cursor: pointer; padding: 6px 0;
+    white-space: nowrap; transition: color .15s;
+  }
+  .home-link:hover { color: #fff; }
+
+  /* ══ COMMUNITY photo grid ══ */
+  .community-grid {
+    display: grid; gap: 12px;
+    grid-template-columns: repeat(4, 1fr); grid-auto-rows: 158px;
+  }
+  .community-cell {
+    position: relative; border-radius: 14px; overflow: hidden;
+    border: 1px solid var(--border); background: var(--surface2);
+  }
+  .community-cell.big { grid-column: span 2; grid-row: span 2; }
+  .community-cell img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    transition: transform .6s ease; will-change: transform;
+  }
+  .community-cell:hover img { transform: scale(1.06); }
+  .community-cell::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(to top, rgba(8,8,8,.78) 0%, rgba(8,8,8,0) 45%);
+  }
+  .community-cell .cap {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding: 14px 16px;
+    font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 13px;
+    letter-spacing: 1px; text-transform: uppercase; color: #fff;
+  }
+  .community-cell .cap small {
+    display: block; font-family: 'Share Tech Mono', monospace; font-weight: 400;
+    font-size: 10px; letter-spacing: 1px; color: var(--gold2); text-transform: none; margin-top: 3px;
+  }
+
+  /* ══ ARSENAL bey orbs ══ */
+  .arsenal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  .bey-orb {
+    position: relative; aspect-ratio: 1 / 1; border-radius: 50%;
+    background: radial-gradient(circle at 50% 36%, #26262c 0%, #15151a 56%, #0b0b0e 100%);
+    border: 1px solid var(--border2);
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+    box-shadow: inset 0 2px 30px rgba(0,0,0,.6);
+  }
+  .bey-orb::before {
+    content: ''; position: absolute; inset: -28%; z-index: 0;
+    background: conic-gradient(from 0deg, rgba(212,160,23,0) 0%, rgba(245,200,66,.55) 16%, rgba(212,160,23,0) 38%);
+    opacity: 0; transition: opacity .35s; animation: beySpin 5.5s linear infinite;
+  }
+  .bey-orb:hover::before { opacity: .55; }
+  /* soft spotlight behind the floating bey */
+  .bey-orb::after {
+    content: ''; position: absolute; z-index: 0; width: 74%; height: 74%; border-radius: 50%;
+    background: radial-gradient(circle, rgba(245,200,66,.16) 0%, rgba(245,200,66,0) 66%);
+  }
+  .bey-orb img {
+    position: relative; z-index: 1; width: 86%; height: 86%; object-fit: contain;
+    filter: drop-shadow(0 14px 20px rgba(0,0,0,.6));
+    animation: beyFloat 6s ease-in-out infinite;
+  }
+  .bey-orb:nth-child(2) img { animation-delay: -1.5s; }
+  .bey-orb:nth-child(3) img { animation-delay: -3s; }
+  .bey-orb:nth-child(4) img { animation-delay: -4.5s; }
+  .bey-ring {
+    position: absolute; inset: 7px; z-index: 2; border-radius: 50%;
+    border: 1px solid rgba(212,160,23,.28); pointer-events: none;
+  }
+  @keyframes beySpin { to { transform: rotate(360deg); } }
+  @keyframes beyFloat { 0%,100% { transform: translateY(-3px); } 50% { transform: translateY(3px); } }
+  @media (prefers-reduced-motion: reduce) {
+    .bey-orb::before, .bey-orb img { animation: none; }
+    .community-cell:hover img { transform: none; }
+  }
 
   /* SECTIONS */
   .section { display: none; padding: 28px 32px; max-width: 1200px; margin: 0 auto; }
   .section.active { display: block; }
   .section-header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
-  .section-title { font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+  .section-title { font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: #cfcfcf; white-space: nowrap; border-left: 3px solid var(--gold); padding-left: 11px; }
   .section-line { flex: 1; height: 1px; background: var(--border); }
 
   /* ── PODIUM ── */
@@ -1013,6 +1162,15 @@
     background: var(--surface2);
   }
 
+  /* The full desktop nav needs ~800px; below that use the mobile bottom nav
+     so tablets/portrait widths never overflow horizontally. */
+  @media (max-width: 880px) {
+    header nav { display: none; }
+    .mobile-nav { display: flex; }
+    .mobile-header-extras { display: flex; }
+    body { padding-bottom: 56px; }
+  }
+
   @media (max-width: 700px) {
     /* Hide desktop nav, show mobile bottom nav */
     header nav { display: none; }
@@ -1029,13 +1187,24 @@
     .logo-img { height: 28px; }
 
     /* Hero */
-    .hero-bg-area { min-height: 110px !important; }
-    .hero-stats-bar { padding: 12px 14px 10px; }
-    .hero-stats { gap: 0; justify-content: space-around; }
-    .hero-stat .n { font-size: 24px; }
-    .hero-stat .l { font-size: 9px; }
+    .hero { min-height: auto; }
+    .hero-inner { padding: 30px 18px 26px; }
+    .hero-kicker { font-size: 10px; letter-spacing: 3px; margin-bottom: 14px; }
+    .hero-title { font-size: clamp(40px, 13.5vw, 62px); letter-spacing: 1px; }
+    .hero-lead { font-size: 14px; margin-bottom: 22px; max-width: 100%; }
+    .hero-cta { gap: 10px; margin-bottom: 24px; }
+    .hero-btn { flex: 1 1 140px; justify-content: center; padding: 14px 16px; }
+    .hero-stats-bar { display: flex; width: 100%; padding: 14px 8px; }
+    .hero-stats { gap: 0; justify-content: space-around; width: 100%; }
+    .hero-stat .n { font-size: 22px; }
+    .hero-stat .l { font-size: 8px; }
     .hero-divider { display: none; }
-    .hero-sub { font-size: 9px; letter-spacing: 2px; }
+
+    /* Home landing blocks */
+    .home-block { margin-bottom: 34px; }
+    .community-grid { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 120px; }
+    .community-cell.big { grid-column: span 2; grid-row: span 1; aspect-ratio: auto; }
+    .arsenal-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
 
     /* Sections */
     .section { padding: 16px 14px; max-width: 100%; }
@@ -1390,27 +1559,79 @@
   </div>
 </nav>
 
-<div class="hero">
+<section class="hero" id="hero">
   <div class="hero-bg-area" id="hero-bg-area">
     <button class="hero-bg-edit-btn" onclick="openHeroBgModal()">🖼 Edit Background</button>
   </div>
-  <div class="hero-stats-bar">
-    <div class="hero-stats">
-      <div class="hero-stat"><span class="n" id="stat-bladers">0</span><span class="l">Bladers</span></div>
-      <div class="hero-divider"></div>
-      <div class="hero-stat"><span class="n" id="stat-events">0</span><span class="l">Events</span></div>
-      <div class="hero-divider"></div>
-      <div class="hero-stat"><span class="n" id="stat-ranks">0</span><span class="l">Ranks</span></div>
-      <div class="hero-divider"></div>
-      <div class="hero-stat"><span class="n" id="topScore">0</span><span class="l">Top Score</span></div>
+  <div class="hero-inner">
+    <div class="hero-kicker">Roxas City · Beyblade X Community</div>
+    <h1 class="hero-title">3 <span class="dot">·</span> 2 <span class="dot">·</span> 1<span class="go">Go Shoot</span></h1>
+    <p class="hero-lead">The home of competitive Beyblade in Roxas City — live rankings, weekly battles, and tournament brackets, all in one arena.</p>
+    <div class="hero-cta">
+      <button class="hero-btn primary" onclick="heroGo('rankings')">Explore Rankings <span aria-hidden="true">→</span></button>
+      <button class="hero-btn ghost" onclick="heroGo('events')">Browse Events</button>
     </div>
-    <div class="hero-sub">Roxas City Community · Season Rankings</div>
+    <div class="hero-stats-bar">
+      <div class="hero-stats">
+        <div class="hero-stat"><span class="n" id="stat-bladers">0</span><span class="l">Bladers</span></div>
+        <div class="hero-divider"></div>
+        <div class="hero-stat"><span class="n" id="stat-events">0</span><span class="l">Events</span></div>
+        <div class="hero-divider"></div>
+        <div class="hero-stat"><span class="n" id="stat-ranks">0</span><span class="l">Ranks</span></div>
+        <div class="hero-divider"></div>
+        <div class="hero-stat"><span class="n" id="topScore">0</span><span class="l">Top Score</span></div>
+      </div>
+    </div>
   </div>
-</div>
+</section>
 
 <!-- ══════════════ LEADERBOARD TAB ══════════════ -->
 <!-- ══════════════ HOME TAB ══════════════ -->
 <div id="tab-home" class="section active">
+
+  <!-- ══ THE COMMUNITY ══ -->
+  <div class="home-block">
+    <div class="home-head">
+      <span class="eyebrow">From the floor</span>
+      <h2>The Community</h2>
+      <p>Real bladers, real battles. Tournaments, weekly meets, and the crowd that makes Roxas City spin.</p>
+    </div>
+    <div class="community-grid">
+      <div class="community-cell big">
+        <img src="assets/hero-crowd.jpg" alt="Capiztahan Grand Tournament crowd at SM City Roxas" loading="lazy" width="1700" height="1133" />
+      </div>
+      <div class="community-cell">
+        <img src="assets/community-4.jpg" alt="Blader squad posing at an event" loading="lazy" width="1200" height="1800" />
+      </div>
+      <div class="community-cell">
+        <img src="assets/community-2.jpg" alt="Bladers gathered at a BeybladeRXS event" loading="lazy" width="1200" height="800" />
+      </div>
+      <div class="community-cell">
+        <img src="assets/community-1.jpg" alt="Team RXS bladers in gold jerseys" loading="lazy" width="1200" height="800" />
+      </div>
+      <div class="community-cell">
+        <img src="assets/community-5.jpg" alt="Blader squad at a meet" loading="lazy" width="1200" height="900" />
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ THE ARSENAL ══ -->
+  <div class="home-block">
+    <div class="home-head home-head-row">
+      <div>
+        <span class="eyebrow">Beyblade X</span>
+        <h2>The Arsenal</h2>
+        <p>The beys ripping through the league this season. Track which ones are winning.</p>
+      </div>
+      <button class="home-link" onclick="heroGo('beyrankings')">Bey rankings →</button>
+    </div>
+    <div class="arsenal-grid">
+      <div class="bey-orb"><span class="bey-ring"></span><img src="assets/bey-1.png" alt="Beyblade X Aero Pegasus" loading="lazy" /></div>
+      <div class="bey-orb"><span class="bey-ring"></span><img src="assets/bey-2.png" alt="Beyblade X spinning top" loading="lazy" /></div>
+      <div class="bey-orb"><span class="bey-ring"></span><img src="assets/bey-3.png" alt="Beyblade X spinning top" loading="lazy" /></div>
+      <div class="bey-orb"><span class="bey-ring"></span><img src="assets/bey-4.png" alt="Beyblade X spinning top" loading="lazy" /></div>
+    </div>
+  </div>
 
   <!-- CAROUSEL -->
   <div class="section-header">
@@ -1425,7 +1646,7 @@
     <div id="carousel-empty" style="background:var(--surface);border:1px dashed var(--border2);border-radius:16px;padding:60px 20px;text-align:center;">
       <div style="font-size:40px;margin-bottom:12px">📢</div>
       <div style="font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">No Posts Yet</div>
-      <div style="font-size:13px;color:var(--muted2)">Admin can add posts using the ➕ Add Post button above.</div>
+      <div style="font-size:13px;color:var(--muted2)">Fresh updates from the community are on the way — check back soon.</div>
     </div>
 
     <!-- Slides -->
@@ -2673,13 +2894,8 @@ function clearPhotos() {
 function applyHeroBgToPage() {
   const el = document.getElementById('hero-bg-area');
   if (!el) return;
-  if (heroBgUrl) {
-    el.style.backgroundImage = 'url("' + heroBgUrl + '")';
-    el.style.minHeight = '240px';
-  } else {
-    el.style.backgroundImage = '';
-    el.style.minHeight = '200px';
-  }
+  // Admin override sets an inline image; empty falls back to the CSS default crowd photo.
+  el.style.backgroundImage = heroBgUrl ? ('url("' + heroBgUrl + '")') : '';
 }
 function openHeroBgModal() {
   if (!isAdmin) return;
@@ -4216,6 +4432,7 @@ function showLeaderboardSub(tab, e) {
   // Switch tab
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
+  { const heroEl = document.getElementById('hero'); if (heroEl) heroEl.style.display = 'none'; }
   // Sync mobile active
   document.querySelectorAll('.mobile-nav-btn').forEach(b=>b.classList.remove('active'));
   const mobBtn = document.getElementById('mob-lb-btn');
@@ -4240,11 +4457,25 @@ function closeMobLbMenu() {
   if (sub) sub.classList.remove('open');
 }
 
+// Landing hero CTA router — sends visitors into the live features
+function heroGo(which) {
+  if (which === 'rankings') { showLeaderboardSub('leaderboard'); }
+  else if (which === 'beyrankings') { showLeaderboardSub('beyrankings'); }
+  else if (which === 'events') {
+    const b = [...document.querySelectorAll('header nav button')]
+      .find(x => /showTab\('events'/.test(x.getAttribute('onclick') || ''));
+    showTab('events', b || null);
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 function showTab(tab, btn) {
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('nav button:not(.season-btn)').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.mobile-nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
+  const heroEl = document.getElementById('hero');
+  if (heroEl) heroEl.style.display = (tab === 'home') ? '' : 'none';
   if (btn) btn.classList.add('active');
   // If tab is leaderboard or rulerscup, highlight the dropdown button
   if (tab === 'leaderboard' || tab === 'rulerscup' || tab === 'weekly') {
@@ -6091,6 +6322,7 @@ renderHomeSnapshot();
   document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.mobile-nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
+  { const heroEl = document.getElementById('hero'); if (heroEl) heroEl.style.display = (tab === 'home') ? '' : 'none'; }
   if (tab === 'leaderboard' || tab === 'rulerscup' || tab === 'weekly') {
     const lbBtn = document.getElementById('nav-lb-btn');
     if (lbBtn) lbBtn.classList.add('active');
