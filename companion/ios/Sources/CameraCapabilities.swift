@@ -34,7 +34,9 @@ struct CameraCaps {
 
 enum CameraCapabilities {
 
-    /// Spec preference chain: 4K/60 -> 1080p/60 -> 1080p/30 -> largest available (fps capped 30).
+    /// Scorer MVP preference chain: 1080p/60 -> 1080p/30 -> largest available (fps capped 30).
+    /// 4K is intentionally NOT preferred — 1080p/60 keeps files/heat sane on iPhone 11-15
+    /// during long tournament recordings. Falls back honestly and reports the actual format.
     static func query(for device: AVCaptureDevice) -> CameraCaps? {
         // (w, h, maxFps, format)
         var all: [(Int32, Int32, Double, AVCaptureDevice.Format)] = []
@@ -55,9 +57,7 @@ enum CameraCapabilities {
 
         let chosenFormat: AVCaptureDevice.Format
         let chosen: RecordingProfile
-        if let f = find(3840, 2160, 60) {
-            chosenFormat = f; chosen = RecordingProfile(width: 3840, height: 2160, fps: 60)
-        } else if let f = find(1920, 1080, 60) {
+        if let f = find(1920, 1080, 60) {
             chosenFormat = f; chosen = RecordingProfile(width: 1920, height: 1080, fps: 60)
         } else if let f = find(1920, 1080, 30) {
             chosenFormat = f; chosen = RecordingProfile(width: 1920, height: 1080, fps: 30)

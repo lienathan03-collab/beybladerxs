@@ -20,4 +20,27 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_VERSION: "5.0"
         CURRENT_PROJECT_VERSION: "1"
-        MARKETING_VERSION: "0.1-phase2"
+        MARKETING_VERSION: "0.2-ios-mvp"
+  RXSRecorderTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: RXSRecorder
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+# Explicit shared scheme so `xcodebuild test -scheme RXSRecorder` deterministically
+# builds the app and runs the unit-test bundle on CI and on the Mac.
+schemes:
+  RXSRecorder:
+    build:
+      targets:
+        RXSRecorder: all
+    test:
+      gatherCoverageData: false
+      targets:
+        - RXSRecorderTests
+    run:
+      config: Debug

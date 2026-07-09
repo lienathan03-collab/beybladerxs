@@ -1,0 +1,64 @@
+name: iOS prototype compile
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "companion/ios/**"
+      - ".github/workflows/ios-prototype.yml"
+  pull_request:
+    paths:
+      - "companion/ios/**"
+      - ".github/workflows/ios-prototype.yml"
+
+jobs:
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        working-directory: companion/ios
+        run: xcodegen generate
+      - name: Select available simulator
+        id: simulator
+        run: |
+          DEVICE=$(xcrun simctl list devices available -j | \
+            python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["name"] for xs in d.values() for x in xs if x["name"].startswith("iPhone")))')
+          echo "name=$DEVICE" >> "$GITHUB_OUTPUT"
+      - name: Test
+        run: |
+          xcodebuild test \
+            -project companion/ios/RXSRecorder.xcodeproj \
+            -scheme RXSRecorder \
+            -destination 'platform=iOS Simulator,name=${{ steps.simulator.outputs.name }}' \
+            CODE_SIGNING_ALLOWED=NO
+
+      # Build an UNSIGNED device app and wrap it as an .ipa. This is the file you feed
+      # to AltStore / Sideloadly on Windows — they re-sign it with your free Apple ID and
+      # install it onto each iPhone. No Mac required for install/refresh.
+      - name: Build unsigned device app
+        run: |
+          xcodebuild build \
+            -project companion/ios/RXSRecorder.xcodeproj \
+            -scheme RXSRecorder \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+      - name: Package unsigned .ipa
+        run: |
+          APP="build/Build/Products/Release-iphoneos/RXSRecorder.app"
+          rm -rf Payload RXSRecorder.ipa
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -r RXSRecorder.ipa Payload >/dev/null
+          ls -lh RXSRecorder.ipa
+      - name: Upload .ipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RXSRecorder-unsigned-ipa
+          path: RXSRecorder.ipa
+          if-no-files-found: error

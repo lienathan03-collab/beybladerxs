@@ -4,7 +4,7 @@ import SwiftUI
 struct RXSRecorderApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            AppRoot()
                 .preferredColorScheme(.dark)
                 .statusBarHidden(true)
         }
